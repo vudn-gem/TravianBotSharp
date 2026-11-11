@@ -7,6 +7,27 @@ namespace MainCore.Services
         {
             var page = browser.CurrentPage;
             var farmUrl = page.Url;
+            var owner = await FarmTargetTroopsParser.ReadOwnerVillage(page, farmId);
+            if (owner.IsFailed) return Result.Fail(owner.Errors);
+            var uri = new UriBuilder(farmUrl);
+            var query = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Where(part => !part.StartsWith("newdid=", StringComparison.Ordinal)).ToList();
+            query.Add($"newdid={owner.Value.Value}");
+            uri.Query = string.Join("&", query);
+            farmUrl = uri.Uri.AbsoluteUri;
+            var village = VillagePanelParser.GetVillageNode(page, owner.Value);
+            if (!await VillagePanelParser.IsActive(village))
+            {
+                var switched = await browser.Click(village);
+                if (switched.IsFailed) return switched;
+                switched = await browser.Wait(page.Locator(
+                    $"#sidebarBoxVillageList .listEntry.village.active[data-did='{owner.Value}']"));
+                if (switched.IsFailed) return switched;
+                var reopened = await browser.Navigate(farmUrl);
+                if (reopened.IsFailed) return reopened;
+            }
+            var prepared = await PrepareList(farmId, owner.Value);
+            if (prepared.IsFailed) return prepared;
             var list = FarmTargetTroopsParser.GetList(page, farmId);
             if (await list.CountAsync() != 1) return Result.Fail("Selected farm list not found.");
             if (!await list.EvaluateAsync<bool>("node => node.classList.contains('expanded')"))
@@ -45,6 +66,8 @@ namespace MainCore.Services
                             target.SlotId, restored.Errors[0].Message);
                 }
                 if (restored.IsFailed) return restored;
+                prepared = await PrepareList(farmId, owner.Value);
+                if (prepared.IsFailed) return prepared;
                 // Reacquire rows after dialogs/navigation; never click a stale target.
                 if (!await list.EvaluateAsync<bool>("node => node.classList.contains('expanded')"))
                 {
@@ -68,6 +91,25 @@ namespace MainCore.Services
             }
             browser.Logger.Information("Farm target troops checked: list {FarmListId}, {TargetCount} targets, {DisabledCount} disabled",
                 farmId.Value, targets.Value.Count, disabled);
+            return Result.Ok();
+        }
+
+        private async Task<Result> PrepareList(FarmId farmId, VillageId owner)
+        {
+            var page = browser.CurrentPage;
+            if (await VillagePanelParser.GetCurrentVillageId(page) != owner)
+                return Result.Fail("Farm list owner village switch was not confirmed.");
+            var resolved = await FarmTargetTroopsParser.ReadOwnerVillage(page, farmId);
+            if (resolved.IsFailed) return Result.Fail(resolved.Errors);
+            if (resolved.Value != owner) return Result.Fail("Farm list owner changed during scan.");
+            var header = page.Locator(
+                $"#rallyPointFarmList .villageWrapper:has(.farmListHeader [data-list='{farmId.Value}']) > .villageHeader");
+            if (await header.CountAsync() != 1) return Result.Fail("Farm list village header is ambiguous.");
+            if (await header.EvaluateAsync<bool>("node => node.classList.contains('collapsed')"))
+            {
+                var expanded = await browser.Click(header.Locator("a.expandCollapse"));
+                if (expanded.IsFailed) return expanded;
+            }
             return Result.Ok();
         }
 

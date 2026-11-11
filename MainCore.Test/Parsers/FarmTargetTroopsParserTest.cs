@@ -6,6 +6,28 @@ namespace MainCore.Test.Parsers
     public sealed class FarmTargetTroopsParserTest(PlaywrightFixture fixture) : ParserTestBase(fixture)
     {
         [Theory]
+        [InlineData("7", false, true)]
+        [InlineData("7", true, false)]
+        [InlineData("missing", false, false)]
+        public async Task ResolvesOwnerFromVillageGroupNotListName(string name, bool duplicate, bool success)
+        {
+            await using var context = await CreateContextAsync();
+            var page = await context.NewPageAsync();
+            await page.SetContentAsync($"""
+                <div id="rallyPointFarmList"><div class="villageWrapper"><div class="villageHeader collapsed">
+                <div class="villageName">{name}</div></div><div class="farmListWrapper">
+                <div class="farmListHeader"><div data-list="6706"></div><div class="name">eye</div></div>
+                </div></div></div><div id="sidebarBoxVillageList">
+                <div class="listEntry village" data-did="2"><span class="name">7</span></div>
+                <div class="listEntry village active" data-did="1"><span class="name">{(duplicate ? "7" : "eye")}</span></div>
+                </div>
+                """);
+            var owner = await FarmTargetTroopsParser.ReadOwnerVillage(page, new FarmId(6706));
+            owner.IsSuccess.ShouldBe(success);
+            if (success) owner.Value.ShouldBe(new VillageId(2));
+        }
+
+        [Theory]
         [InlineData("<tr><td>none</td></tr>", true, false)]
         [InlineData("<tr><td><img class='unit u31'></td><td class='val'>2</td></tr>", true, true)]
         [InlineData("<tr><td><img class='unit u31'></td><td class='val'>0</td></tr>", true, false)]

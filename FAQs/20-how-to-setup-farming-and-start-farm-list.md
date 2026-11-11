@@ -27,7 +27,12 @@ with farming; paused/offline accounts must resume before it can execute.
 The selected list is captured when clicked, so changing the UI selection
 does not change the queued scan.
 
-The task opens the farm page, expands the selected list, and checks its
+The task opens the farm page, resolves the selected list's owning village from
+its village-group header, and switches to that village before checking targets.
+The group name must match exactly one owned village; missing or duplicate names
+stop the scan without changing targets. TBS confirms the active village and
+keeps that village context when reloading the farm page.
+It expands the village group and selected list, and checks its
 enabled target rows by opening each target's map-details dialog.
 For oasis targets, it reads the actual **Troops** table, not report history
 or the farm row's configured raiding troops. A `none` row or all-zero counts

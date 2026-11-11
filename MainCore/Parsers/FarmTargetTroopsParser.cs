@@ -9,6 +9,26 @@ namespace MainCore.Parsers
         public static ILocator GetList(IPage page, FarmId farmId) =>
             page.Locator($"#rallyPointFarmList .farmListWrapper:has(.farmListHeader [data-list='{farmId.Value}'])");
 
+        public static async Task<Result<VillageId>> ReadOwnerVillage(IPage page, FarmId farmId)
+        {
+            var id = await page.EvaluateAsync<int>(@"listId => {
+                const lists = document.querySelectorAll(
+                    `#rallyPointFarmList .farmListWrapper:has(.farmListHeader [data-list='${listId}'])`);
+                if (lists.length !== 1) return 0;
+                const headers = lists[0].closest('.villageWrapper')?.querySelectorAll(':scope > .villageHeader .villageName');
+                if (!headers || headers.length !== 1) return 0;
+                const clean = text => (text || '').replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').trim();
+                const name = clean(headers[0].textContent);
+                if (!name) return 0;
+                const villages = Array.from(document.querySelectorAll('#sidebarBoxVillageList .listEntry.village[data-did]'))
+                    .filter(row => clean(row.querySelector('.name')?.textContent) === name);
+                const id = villages.length === 1 ? Number(villages[0].getAttribute('data-did')) : 0;
+                return Number.isSafeInteger(id) && id > 0 ? id : 0;
+            }", farmId.Value);
+            return id > 0 ? Result.Ok(new VillageId(id)) :
+                Result.Fail("Farm list owner village is missing, not owned, or ambiguous.");
+        }
+
         public static async Task<Result<List<FarmTargetSlot>>> ReadTargets(IPage page, FarmId farmId)
         {
             var list = GetList(page, farmId);

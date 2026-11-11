@@ -34,8 +34,16 @@ namespace MainCore.Test
             var disabled = initiallyDisabled;
             var saves = 0;
             var mapOpens = 0;
+            var currentVillage = 1;
+            var switches = 0;
             await page.RouteAsync("https://example.com/**", async route =>
             {
+                var url = new Uri(route.Request.Url);
+                if (url.AbsolutePath == "/switch")
+                {
+                    currentVillage = 2;
+                    switches++;
+                }
                 if (route.Request.Url.Contains("/save", StringComparison.Ordinal))
                 {
                     saves++;
@@ -68,8 +76,20 @@ namespace MainCore.Test
                     """;
                 if (route.Request.Url.Contains("/karte.php", StringComparison.Ordinal))
                 {
+                    currentVillage.ShouldBe(2);
                     mapOpens++;
                     body = map;
+                }
+                else
+                {
+                    body = $"""
+                        <div id="sidebarBoxVillageList">
+                        <div class="listEntry village {(currentVillage == 1 ? "active" : "")}" data-did="1"><span class="name">0</span></div>
+                        <div class="listEntry village {(currentVillage == 2 ? "active" : "")}" data-did="2" onclick="location.href='/switch'"><span class="name">7</span></div>
+                        </div>
+                        """ + body.Replace(
+                            "<div id=\"rallyPointFarmList\">",
+                            """<div id="rallyPointFarmList"><div class="villageWrapper"><div class="villageHeader collapsed" onclick="this.classList.remove('collapsed')"><div class="villageName">7</div><a class="expandCollapse">expand</a></div>""") + "</div>";
                 }
                 await route.FulfillAsync(new() { ContentType = "text/html", Body = body });
             });
@@ -99,7 +119,9 @@ namespace MainCore.Test
 
             saves.ShouldBe(expectedSaves);
             disabled.ShouldBe(initiallyDisabled || (expectedSaves == 1 && persist));
-            page.Url.ShouldBe("https://example.com/farm");
+            new Uri(page.Url).AbsolutePath.ShouldBe("/farm");
+            currentVillage.ShouldBe(2);
+            switches.ShouldBe(1);
             if (initiallyDisabled) mapOpens.ShouldBe(0);
             if (expectedSaves == 1 && !persist)
                 logger.Received().Warning("Farm target {SlotId}: saved deactivation was not confirmed", "637157");
