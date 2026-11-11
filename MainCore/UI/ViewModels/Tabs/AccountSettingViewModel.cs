@@ -24,8 +24,9 @@ namespace MainCore.UI.ViewModels.Tabs
         private readonly TelegramSettingsStore _telegramSettingsStore;
         private readonly TelegramSender _telegramSender;
         private readonly ReportMonitor _reportMonitor;
+        private readonly IncomingTroopsMonitor _incomingTroopsMonitor;
 
-        public AccountSettingViewModel(DialogService dialogService, IValidator<AccountSettingInput> accountsettingInputValidator, IDbContextFactory<AppDbContext> contextFactory, TaskManager taskManager, TelegramSettingsStore telegramSettingsStore, TelegramSender telegramSender, ReportMonitor reportMonitor)
+        public AccountSettingViewModel(DialogService dialogService, IValidator<AccountSettingInput> accountsettingInputValidator, IDbContextFactory<AppDbContext> contextFactory, TaskManager taskManager, TelegramSettingsStore telegramSettingsStore, TelegramSender telegramSender, ReportMonitor reportMonitor, IncomingTroopsMonitor incomingTroopsMonitor)
         {
             _dialogService = dialogService;
             _accountsettingInputValidator = accountsettingInputValidator;
@@ -34,6 +35,7 @@ namespace MainCore.UI.ViewModels.Tabs
             _telegramSettingsStore = telegramSettingsStore;
             _telegramSender = telegramSender;
             _reportMonitor = reportMonitor;
+            _incomingTroopsMonitor = incomingTroopsMonitor;
 
             LoadSettingsCommand.ObserveOn(RxSchedulers.MainThreadScheduler).Subscribe(AccountSettingInput.Set);
         }
@@ -66,7 +68,7 @@ namespace MainCore.UI.ViewModels.Tabs
             var settings = AccountSettingInput.Get();
             if (!await ValidateReportSettings(settings)) return;
             context.SaveAccountSetting(AccountId, settings);
-            context.TriggerTask(_taskManager, AccountId, settings, _reportMonitor);
+            context.TriggerTask(_taskManager, AccountId, settings, _reportMonitor, _incomingTroopsMonitor);
             await _dialogService.SendMessage("Information", "Settings saved.");
         }
 
@@ -98,7 +100,7 @@ namespace MainCore.UI.ViewModels.Tabs
             settings.Remove(AccountSettingEnums.Tribe);
             if (!await ValidateReportSettings(settings)) return;
             context.SaveAccountSetting(AccountId, settings);
-            context.TriggerTask(_taskManager, AccountId, settings, _reportMonitor);
+            context.TriggerTask(_taskManager, AccountId, settings, _reportMonitor, _incomingTroopsMonitor);
             await _dialogService.SendMessage("Information", "Settings imported.");
         }
 
@@ -183,7 +185,8 @@ namespace MainCore.UI.ViewModels.Tabs
 
         private async Task<bool> ValidateReportSettings(Dictionary<AccountSettingEnums, int> settings)
         {
-            if (settings.GetValueOrDefault(AccountSettingEnums.EnableReportNotifications) != 1) return true;
+            if (settings.GetValueOrDefault(AccountSettingEnums.EnableReportNotifications) != 1 &&
+                settings.GetValueOrDefault(AccountSettingEnums.EnableIncomingTroopsNotifications) != 1) return true;
             try
             {
                 if (_telegramSettingsStore.Load().IsValid) return true;

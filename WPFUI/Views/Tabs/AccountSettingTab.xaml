@@ -104,6 +104,7 @@
                         <CheckBox x:Name="EnableAutoClaimDailyQuest" Content="Enable auto claim daily quest" />
                         <CheckBox x:Name="EnableAutoSetHeroPoint" Content="Enable auto set hero point (1 power, 3 res)" />
                         <CheckBox x:Name="EnableReportNotifications" Content="Notify on report badge increase (Telegram)" />
+                        <CheckBox x:Name="EnableIncomingTroopsNotifications" Content="Notify on incoming attack/raid (Telegram)" />
                     </StackPanel>
                 </Border>
                 <Border Style="{DynamicResource Box}">
@@ -119,6 +120,8 @@
                         <Button x:Name="TestTelegramButton" Margin="0,5" Content="Send test message" />
                         <TextBlock Margin="0,5" TextWrapping="Wrap"
                                    Text="Checks after each successful Start farm list, using its random farming interval. No farming means no report checks. Start/restart/resume establishes a new baseline without sending a message. Reports read between scans may be missed." />
+                        <TextBlock Margin="0,5" TextWrapping="Wrap"
+                                   Text="Incoming attack/raid: checks after successful tasks, at least 60 seconds apart per account. A separate queue task checks after 10 minutes if needed; long tasks, sleep or pause can delay it. Reads English tooltip counts; alerts on first detection or count increases." />
                     </StackPanel>
                 </Border>
                 <Border Style="{DynamicResource Box}">

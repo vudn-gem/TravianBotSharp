@@ -25,6 +25,45 @@
 
 ## Telegram notifications
 
+**Notify on incoming attack/raid (Telegram)** is a separate per-account switch.
+It checks `.listEntry.village.attack` after a task succeeds when logged in,
+with at least 60 seconds between scan attempts per account. Each scan schedules
+a **Check incoming attack/raid** task for 10 minutes after that attempt.
+Ordinary tasks can trigger a scan earlier and postpone the fallback. The fallback
+runs even when there is no other due task, in the same account queue; there is
+never more than one fallback task per account.
+
+The 10-minute interval is a target, not a hard deadline: a long task or sleep can
+delay it. Paused/offline accounts do not execute the fallback. After resume, an
+overdue fallback can run when the queue is free. Enabling the feature or starting
+an account creates the fallback; disabling it removes the fallback. Scans are
+not performed in parallel with another browser task.
+
+The first valid scan alerts immediately for each village with incoming.
+Later scans alert when either the attack count or raid count increases, even if
+their combined total decreases or stays unchanged. Decreases and unchanged
+counts update the stored counts without sending. Start/restart/resume clears remembered village
+states, but does not bypass the one-minute scan interval. Failed scans preserve
+state. Missing village rows (such as collapsed groups) do not clear remembered
+incoming; expand all groups to maximize coverage.
+
+The SVG icon alone is not a signal: it also exists in rows without incoming.
+Attack and raid both mark the village row `attack`. TBS hovers each marked
+village's badge and reads only the visible tooltip linked by `aria-describedby`.
+Tooltip IDs are dynamic. English labels `Incoming attacks: N` and
+`Incoming raids: N` provide separate counts of incoming movements (not soldiers).
+Use the English game UI; unknown, malformed, unavailable, or hidden tooltips
+preserve that village's counts and are logged, while other villages continue.
+Hovering can load tooltip data and adds bounded waiting time after task execution,
+before the account queue can start another task.
+Unmarked village rows reset both counts to zero without loading a tooltip.
+The alert contains account, village name/ID, coordinates, both count changes,
+and detection time, not soldier counts or arrival time. Incoming movements
+replaced between scans with unchanged counts, or an entire incoming episode
+between scans, cannot be detected by this method.
+Incoming alerts use the same Telegram settings and persistent delivery queue
+as report alerts.
+
 1. Create a Telegram bot using BotFather, obtain its token, and send `/start` to
    the bot from the receiving chat.
 2. Obtain the numeric chat ID (for example, from Telegram's `getUpdates` API

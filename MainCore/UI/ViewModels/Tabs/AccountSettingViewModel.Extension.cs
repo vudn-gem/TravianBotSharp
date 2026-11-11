@@ -4,9 +4,21 @@ namespace MainCore.UI.ViewModels.Tabs
     {
         extension(AppDbContext context)
         {
-            public void TriggerTask(TaskManager taskManager, AccountId accountId, Dictionary<AccountSettingEnums, int> settings, ReportMonitor reportMonitor)
+            public void TriggerTask(TaskManager taskManager, AccountId accountId, Dictionary<AccountSettingEnums, int> settings, ReportMonitor reportMonitor, IncomingTroopsMonitor incomingTroopsMonitor)
             {
                 if (settings.Count == 0) return;
+                if (settings.TryGetValue(AccountSettingEnums.EnableIncomingTroopsNotifications, out var incoming))
+                {
+                    if (incoming == 0)
+                    {
+                        incomingTroopsMonitor.Reset(accountId);
+                        taskManager.Remove<CheckIncomingTroopsTask.Task>(accountId);
+                    }
+                    else if (!taskManager.IsExist<CheckIncomingTroopsTask.Task>(accountId))
+                    {
+                        taskManager.ScheduleIncomingScan(accountId, incomingTroopsMonitor.GetFallbackExecuteAt(accountId));
+                    }
+                }
 
                 if (settings.TryGetValue(AccountSettingEnums.EnableReportNotifications, out var reportNotifications) &&
                     reportNotifications == 0)

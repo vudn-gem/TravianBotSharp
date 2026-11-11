@@ -51,6 +51,7 @@ namespace MainCore.Infrasturecture.Persistence
             {AccountSettingEnums.EnableAutoClaimDailyQuest, 0 },
             {AccountSettingEnums.EnableAutoSetHeroPoint, 0 },
             {AccountSettingEnums.EnableReportNotifications, 0 },
+            {AccountSettingEnums.EnableIncomingTroopsNotifications, 0 },
         }.ToImmutableDictionary();
 
         private List<AccountSettingEnums> GetMissingAccountSettings()

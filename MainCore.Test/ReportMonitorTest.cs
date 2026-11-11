@@ -14,12 +14,14 @@ namespace MainCore.Test
         private readonly string _directory = Path.Combine(Path.GetTempPath(), $"tbs-reports-{Guid.NewGuid():N}");
         private readonly ReportNotificationOutbox _outbox;
         private readonly ReportMonitor _monitor;
+        private readonly IncomingTroopsMonitor _incomingMonitor;
         private readonly AccountId _accountId = new(1);
 
         public ReportMonitorTest()
         {
             _outbox = new ReportNotificationOutbox(Path.Combine(_directory, "outbox.db"));
             _monitor = new ReportMonitor(_outbox, Substitute.For<Serilog.ILogger>());
+            _incomingMonitor = new IncomingTroopsMonitor(_outbox, Substitute.For<Serilog.ILogger>(), TimeProvider.System);
         }
 
         private void Observe(int count) =>
@@ -70,7 +72,7 @@ namespace MainCore.Test
         public void ResumeAndRestartResetBaselineWithoutChangingFarmSchedule(bool restart)
         {
             var factory = Substitute.For<IDbContextFactory<AppDbContext>>();
-            var manager = new TaskManager(new RxQueue(factory), factory, Substitute.For<Serilog.ILogger>(), _monitor);
+            var manager = new TaskManager(new RxQueue(factory), factory, Substitute.For<Serilog.ILogger>(), _monitor, _incomingMonitor);
             manager.SetStatus(_accountId, StatusEnums.Online);
             Observe(2);
             manager.SetStatus(_accountId, StatusEnums.Paused);
@@ -157,13 +159,13 @@ namespace MainCore.Test
         public void DisablingAndReenablingStartsNewBaseline()
         {
             var factory = Substitute.For<IDbContextFactory<AppDbContext>>();
-            var manager = new TaskManager(new RxQueue(factory), factory, Substitute.For<Serilog.ILogger>(), _monitor);
+            var manager = new TaskManager(new RxQueue(factory), factory, Substitute.For<Serilog.ILogger>(), _monitor, _incomingMonitor);
             using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().Options);
             Observe(0);
             context.TriggerTask(manager, _accountId,
-                new() { [AccountSettingEnums.EnableReportNotifications] = 0 }, _monitor);
+                new() { [AccountSettingEnums.EnableReportNotifications] = 0 }, _monitor, _incomingMonitor);
             context.TriggerTask(manager, _accountId,
-                new() { [AccountSettingEnums.EnableReportNotifications] = 1 }, _monitor);
+                new() { [AccountSettingEnums.EnableReportNotifications] = 1 }, _monitor, _incomingMonitor);
             manager.GetTaskList(_accountId).ShouldBeEmpty();
             Observe(5);
             _outbox.GetNext(DateTime.UtcNow).ShouldBeNull();

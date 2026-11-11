@@ -42,6 +42,12 @@ namespace MainCore.Services
 
             taskManager.Add(new LoginTask.Task(accountId), first: true);
 
+            var incomingTask = new CheckIncomingTroopsTask.Task(accountId);
+            if (incomingTask.CanStart(context))
+            {
+                taskManager.ScheduleIncomingScan(accountId, DateTime.Now.AddMinutes(10));
+            }
+
             var workTime = context.ByName(accountId, AccountSettingEnums.WorkTimeMin, AccountSettingEnums.WorkTimeMax);
             var sleepTask = new SleepTask.Task(accountId)
             {

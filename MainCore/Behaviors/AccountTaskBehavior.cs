@@ -10,7 +10,8 @@ namespace MainCore.Behaviors
         UpdateVillageListCommand.Handler updateVillageListCommand,
         UpdateDailyQuestCommand.Handler updateDailyQuestCommand,
         UpdateHeroLevelUpCommand.Handler updateHeroLevelUpCommand,
-        UpdateAdventureCommand.Handler updateAdventureCommand)
+        UpdateAdventureCommand.Handler updateAdventureCommand,
+        IncomingTroopsScanner incomingTroopsScanner)
             : Behavior<TRequest, TResponse>
                 where TRequest : AccountTask
                 where TResponse : Result
@@ -56,6 +57,10 @@ namespace MainCore.Behaviors
             isIngamePage = await LoginParser.IsIngamePage(browser.CurrentPage);
             if (isIngamePage)
             {
+                if (response.IsSuccess && !cancellationToken.IsCancellationRequested)
+                {
+                    await incomingTroopsScanner.Scan(accountId, cancellationToken);
+                }
                 await updateAccountInfoCommand.HandleAsync(new(accountId), cancellationToken);
                 await updateVillageListCommand.HandleAsync(new(accountId), cancellationToken);
                 await updateAdventureCommand.HandleAsync(new(accountId), cancellationToken);

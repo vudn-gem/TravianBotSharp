@@ -20,5 +20,6 @@
         EnableAutoClaimDailyQuest,
         EnableAutoSetHeroPoint,
         EnableReportNotifications,
+        EnableIncomingTroopsNotifications,
     }
 }

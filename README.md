@@ -25,6 +25,7 @@
 - Auto NPC
 - Auto train troop
 - Telegram notifications when the unread report badge increases after starting farm lists
+- Telegram alerts for incoming attack/raid after tasks, with a 10-minute fallback
 
 ## Tech specification
 

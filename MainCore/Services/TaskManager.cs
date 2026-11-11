@@ -10,7 +10,8 @@ namespace MainCore.Services
         RxQueue rxQueue,
         IDbContextFactory<AppDbContext> contextFactory,
         ILogger logger,
-        ReportMonitor reportMonitor)
+        ReportMonitor reportMonitor,
+        IncomingTroopsMonitor incomingTroopsMonitor)
     {
         private readonly ConcurrentDictionary<AccountId, AccountSchedulerActor> _actors = [];
 
@@ -93,8 +94,14 @@ namespace MainCore.Services
         public void Clear(AccountId accountId)
         {
             reportMonitor.Reset(accountId);
+            incomingTroopsMonitor.Reset(accountId);
             var actor = GetActor(accountId);
             actor.Clear();
+        }
+
+        public void ScheduleIncomingScan(AccountId accountId, DateTime executeAt)
+        {
+            AddOrUpdate(new CheckIncomingTroopsTask.Task(accountId) { ExecuteAt = executeAt });
         }
 
         public List<BaseTask> GetTaskList(AccountId accountId)
@@ -115,6 +122,7 @@ namespace MainCore.Services
             if (actor.GetStatus() != status)
             {
                 reportMonitor.Reset(accountId);
+                incomingTroopsMonitor.Reset(accountId);
             }
             actor.SetStatus(status);
         }

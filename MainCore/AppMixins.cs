@@ -54,6 +54,7 @@ namespace MainCore
                 services.AddMainCore();
                 services.AddValidatorsFromAssembly(typeof(AppMixins).Assembly, ServiceLifetime.Singleton);
                 services.AddMainCoreHandlers();
+                services.AddSingleton(TimeProvider.System);
 
                 var notificationFolder = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TravianBotSharp");
