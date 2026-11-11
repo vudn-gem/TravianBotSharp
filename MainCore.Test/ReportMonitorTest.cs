@@ -21,7 +21,7 @@ namespace MainCore.Test
         {
             _outbox = new ReportNotificationOutbox(Path.Combine(_directory, "outbox.db"));
             _monitor = new ReportMonitor(_outbox, Substitute.For<Serilog.ILogger>());
-            _incomingMonitor = new IncomingTroopsMonitor(_outbox, Substitute.For<Serilog.ILogger>(), TimeProvider.System);
+            _incomingMonitor = new IncomingTroopsMonitor(_outbox, TimeProvider.System);
         }
 
         private void Observe(int count) =>

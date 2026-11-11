@@ -41,7 +41,12 @@ namespace MainCore.Services
                     {
                         var counts = await IncomingTroopsParser.ReadCounts(browser.CurrentPage, village, cancellationToken);
                         if (counts.IsSuccess)
+                        {
                             monitor.Observe(accountId, session.Value, [counts.Value], dataService.AccountData);
+                            browser.Logger.Information(
+                                "Incoming troops scanned: {VillageName}, {AttackCount} attacks, {RaidCount} raids",
+                                counts.Value.Name, counts.Value.Attacks, counts.Value.Raids);
+                        }
                         else
                             browser.Logger.Warning("Incoming counts skipped for village {VillageId}: {Reason}",
                                 village.Id, counts.Errors[0].Message);

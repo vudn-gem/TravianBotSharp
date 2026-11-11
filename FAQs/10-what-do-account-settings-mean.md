@@ -57,6 +57,9 @@ preserve that village's counts and are logged, while other villages continue.
 `Loading...` is not read as a count: TBS waits up to three seconds for an
 attack/raid label in the linked visible tooltip. A loading timeout preserves
 counts and does not pause the account.
+Each successfully read village is logged in the account's Debug tab as
+`Incoming troops scanned: <village name>, <count> attacks, <count> raids`.
+Failed reads produce warnings instead of a zero-count success log.
 Hovering can load tooltip data and adds bounded waiting time after task execution,
 before the account queue can start another task.
 Unmarked village rows reset both counts to zero without loading a tooltip.

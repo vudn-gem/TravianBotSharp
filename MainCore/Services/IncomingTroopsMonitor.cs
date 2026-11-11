@@ -1,7 +1,7 @@
 namespace MainCore.Services
 {
     [RegisterSingleton<IncomingTroopsMonitor>]
-    public sealed class IncomingTroopsMonitor(ReportNotificationOutbox outbox, ILogger logger, TimeProvider timeProvider)
+    public sealed class IncomingTroopsMonitor(ReportNotificationOutbox outbox, TimeProvider timeProvider)
     {
         private readonly Lock _sync = new();
         private readonly Dictionary<AccountId, Session> _sessions = [];
@@ -66,9 +66,6 @@ namespace MainCore.Services
                     session.Villages[village.Id] = (village.Attacks, village.Raids);
                 }
                 // Missing rows (e.g. collapsed groups) do not mean their incoming has cleared.
-                logger.ForContext("AccountId", accountId).Information(
-                    "Incoming troops scanned: {VillageCount} villages, {AttackCount} attacks, {RaidCount} raids",
-                    villages.Count, villages.Sum(x => (long)x.Attacks), villages.Sum(x => (long)x.Raids));
             }
         }
 

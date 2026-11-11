@@ -26,7 +26,7 @@ namespace MainCore.Test
         public IncomingTroopsMonitorTest()
         {
             _outbox = new ReportNotificationOutbox(Path.Combine(_directory, "outbox.db"));
-            _monitor = new IncomingTroopsMonitor(_outbox, Substitute.For<Serilog.ILogger>(), _clock);
+            _monitor = new IncomingTroopsMonitor(_outbox, _clock);
         }
 
         private void Scan(params IncomingVillage[] villages)

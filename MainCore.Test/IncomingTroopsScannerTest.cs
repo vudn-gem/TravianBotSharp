@@ -23,6 +23,7 @@ namespace MainCore.Test
         private readonly Clock _clock = new();
         private readonly IPage _page = Substitute.For<IPage>();
         private readonly IJSHandle _tooltip = Substitute.For<IJSHandle>();
+        private readonly Serilog.ILogger _logger = Substitute.For<Serilog.ILogger>();
         private readonly ReportNotificationOutbox _outbox;
         private readonly IncomingTroopsScanner _scanner;
         private readonly TaskManager _taskManager;
@@ -42,14 +43,14 @@ namespace MainCore.Test
             factory.CreateDbContext().Returns(_ => new AppDbContext(_options));
             var browser = Substitute.For<IChromeBrowser>();
             browser.CurrentPage.Returns(_page);
-            browser.Logger.Returns(Substitute.For<Serilog.ILogger>());
+            browser.Logger.Returns(_logger);
             _page.Mouse.Returns(Substitute.For<IMouse>());
             _page.Locator(Arg.Any<string>(), Arg.Any<PageLocatorOptions>()).Returns(Substitute.For<ILocator>());
             _page.WaitForFunctionAsync(Arg.Any<string>(), Arg.Any<object>(), Arg.Any<PageWaitForFunctionOptions>())
                 .Returns(_tooltip);
             _tooltip.JsonValueAsync<string>().Returns("Incoming attacks: 1");
             _outbox = new ReportNotificationOutbox(Path.Combine(_directory, "outbox.db"));
-            var monitor = new IncomingTroopsMonitor(_outbox, Substitute.For<Serilog.ILogger>(), _clock);
+            var monitor = new IncomingTroopsMonitor(_outbox, _clock);
             _taskManager = new TaskManager(new RxQueue(factory), factory, Substitute.For<Serilog.ILogger>(),
                 new ReportMonitor(_outbox, Substitute.For<Serilog.ILogger>()), monitor);
             _scanner = new IncomingTroopsScanner(browser,
@@ -59,6 +60,22 @@ namespace MainCore.Test
         private void Snapshot(string json) =>
             _page.EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>())
                 .Returns(JsonDocument.Parse(json).RootElement.Clone());
+
+        [Fact]
+        public async Task LogsEachVillageNameAndCountsToBrowserLogger()
+        {
+            Snapshot("""[{"Id":1,"Name":"0","Coordinates":"","Attack":false},{"Id":2,"Name":"7","Coordinates":"","Attack":true}]""");
+            _tooltip.JsonValueAsync<string>().Returns("Incoming attacks: 2\nIncoming raids: 1");
+
+            await _scanner.Scan(new(1), CancellationToken.None);
+
+            _logger.Received(1).Information(
+                "Incoming troops scanned: {VillageName}, {AttackCount} attacks, {RaidCount} raids",
+                "0", 0, 0);
+            _logger.Received(1).Information(
+                "Incoming troops scanned: {VillageName}, {AttackCount} attacks, {RaidCount} raids",
+                "7", 2, 1);
+        }
 
         [Fact]
         public async Task DisabledFeatureDoesNotReadDom()
@@ -121,6 +138,12 @@ namespace MainCore.Test
             var message = _outbox.GetNext(DateTime.UtcNow)!;
             message.Text.ShouldContain("Village: v2");
             message.Text.ShouldContain("Incoming attacks: 0 -> 1");
+            _logger.Received(1).Information(
+                "Incoming troops scanned: {VillageName}, {AttackCount} attacks, {RaidCount} raids",
+                "v2", 1, 0);
+            _logger.DidNotReceive().Information(
+                "Incoming troops scanned: {VillageName}, {AttackCount} attacks, {RaidCount} raids",
+                "v1", Arg.Any<int>(), Arg.Any<int>());
         }
 
         [Fact]
