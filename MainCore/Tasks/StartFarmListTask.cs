@@ -25,16 +25,23 @@ namespace MainCore.Tasks
             result = await toFarmListPageCommand.HandleAsync(new(task.AccountId), cancellationToken);
             if (result.IsFailed) return result;
 
-            if (UseStartAllButton(task.AccountId))
+            var useStartAll = UseStartAllButton(task.AccountId);
+            var farmLists = useStartAll ? [] : GetActiveFarms(task.AccountId);
+            if (!useStartAll && farmLists.Count == 0)
+                return Skip.Error.WithError("No farmlist is active");
+
+            await reportBadgeScanner.Scan(task.AccountId, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            result = await toFarmListPageCommand.HandleAsync(new(task.AccountId), cancellationToken);
+            if (result.IsFailed) return result;
+
+            if (useStartAll)
             {
                 result = await browser.Click(FarmListParser.GetStartAllButton(browser.CurrentPage));
                 if (result.IsFailed) return result;
             }
             else
             {
-                var farmLists = GetActiveFarms(task.AccountId);
-                if (farmLists.Count == 0) return Skip.Error.WithError("No farmlist is active");
-
                 foreach (var farmList in farmLists)
                 {
                     result = await browser.Click(FarmListParser.GetStartButton(browser.CurrentPage, farmList));
@@ -42,7 +49,6 @@ namespace MainCore.Tasks
                 }
             }
 
-            await reportBadgeScanner.Scan(task.AccountId, cancellationToken);
             task.ExecuteAt = GetNextExecuteTime(task.AccountId);
             return Result.Ok();
         }

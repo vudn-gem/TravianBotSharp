@@ -156,6 +156,39 @@ namespace MainCore.Test
         }
 
         [Fact]
+        public void ReportsBothCountChangesWithoutNotifyingWhenAutomationOnly()
+        {
+            var session = _monitor.GetSession(_accountId);
+            _monitor.Observe(_accountId, session, 3, "test", notify: false).ShouldBeFalse();
+            _monitor.Observe(_accountId, session, 3, "test", notify: false).ShouldBeFalse();
+            _monitor.Observe(_accountId, session, 4, "test", notify: false).ShouldBeTrue();
+            _monitor.Observe(_accountId, session, 2, "test", notify: false).ShouldBeTrue();
+            _outbox.GetNext(DateTime.UtcNow).ShouldBeNull();
+            _monitor.Reset(_accountId);
+            _monitor.Observe(_accountId, session, 5, "test", notify: false).ShouldBeFalse();
+        }
+
+        [Fact]
+        public void UnchangedFeatureSettingsPreserveBaselineButChangedSwitchResetsIt()
+        {
+            var factory = Substitute.For<IDbContextFactory<AppDbContext>>();
+            var manager = new TaskManager(new RxQueue(factory), factory, Substitute.For<Serilog.ILogger>(), _monitor, _incomingMonitor);
+            using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().Options);
+            var session = _monitor.GetSession(_accountId);
+            _monitor.Observe(_accountId, session, 3, "test", notify: false);
+            var settings = new Dictionary<AccountSettingEnums, int>
+            {
+                [AccountSettingEnums.EnableReportNotifications] = 0,
+                [AccountSettingEnums.EnableAutoDeactivateLostReportTargets] = 1
+            };
+            context.TriggerTask(manager, _accountId, settings, _monitor, _incomingMonitor);
+            _monitor.GetSession(_accountId).ShouldBe(session);
+            context.TriggerTask(manager, _accountId, settings, _monitor, _incomingMonitor, reportFeaturesChanged: true);
+            _monitor.GetSession(_accountId).ShouldNotBe(session);
+            _outbox.GetNext(DateTime.UtcNow).ShouldBeNull();
+        }
+
+        [Fact]
         public void DisablingAndReenablingStartsNewBaseline()
         {
             var factory = Substitute.For<IDbContextFactory<AppDbContext>>();

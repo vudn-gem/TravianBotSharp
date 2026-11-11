@@ -52,7 +52,8 @@ namespace MainCore.Test
             _outbox = new ReportNotificationOutbox(Path.Combine(_directory, "outbox.db"));
             var monitor = new ReportMonitor(_outbox, Substitute.For<Serilog.ILogger>());
             var scanner = new ReportBadgeScanner(_browser, monitor,
-                new DataService { AccountId = _accountId, AccountData = "test" }, factory);
+                new DataService { AccountId = _accountId, AccountData = "test" }, factory,
+                new LostReportTargetScanner(_browser));
             _handler = new StartFarmListTask.HandleBehavior(new StartFarmListTask(factory, _browser, _navigate, scanner));
         }
 
@@ -70,7 +71,7 @@ namespace MainCore.Test
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
-        public async Task ScansAfterSuccessfulFarmStartsAndUsesFarmInterval(bool startAll)
+        public async Task OpensFarmPageThenScansBeforeSendingAndUsesFarmInterval(bool startAll)
         {
             Setting(AccountSettingEnums.UseStartAllButton, startAll ? 1 : 0);
             if (!startAll)
@@ -80,15 +81,26 @@ namespace MainCore.Test
                 context.SaveChanges();
             }
             var clicked = false;
+            var scanned = false;
+            var navigations = 0;
+            _navigate.HandleAsync(Arg.Any<ToFarmListPageCommand.Command>(), Arg.Any<CancellationToken>())
+                .Returns(_ =>
+                {
+                    if (++navigations % 2 == 0) scanned.ShouldBeTrue();
+                    return Result.Ok();
+                });
             _browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(_ =>
             {
+                scanned.ShouldBeTrue();
+                (navigations % 2).ShouldBe(0);
                 clicked = true;
                 return Result.Ok();
             });
             var json = "{\"valid\":true,\"text\":null}";
             _page.EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>()).Returns(_ =>
             {
-                clicked.ShouldBeTrue();
+                clicked.ShouldBeFalse();
+                scanned = true;
                 return JsonDocument.Parse(json).RootElement.Clone();
             });
             var task = new StartFarmListTask.Task(_accountId);
@@ -99,6 +111,7 @@ namespace MainCore.Test
             _outbox.GetNext(DateTime.UtcNow).ShouldBeNull();
 
             clicked = false;
+            scanned = false;
             json = "{\"valid\":true,\"text\":\"1\"}";
             (await _handler.HandleAsync(task, CancellationToken.None)).IsSuccess.ShouldBeTrue();
             _outbox.GetNext(DateTime.UtcNow)!.Text.ShouldContain("0 -> 1");
@@ -106,21 +119,38 @@ namespace MainCore.Test
 
         [Theory]
         [InlineData("navigation")]
-        [InlineData("click")]
         [InlineData("inactive")]
-        public async Task UnsuccessfulFarmStartDoesNotScan(string failure)
+        public async Task FailedInitialNavigationOrInactiveListsDoNotScan(string failure)
         {
             Badge("{\"valid\":true,\"text\":\"1\"}");
             if (failure == "navigation")
                 _navigate.HandleAsync(Arg.Any<ToFarmListPageCommand.Command>(), Arg.Any<CancellationToken>())
                     .Returns(Result.Fail("Navigation failed"));
-            if (failure == "click")
-                _browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(Result.Fail("Click failed"));
             if (failure == "inactive")
                 Setting(AccountSettingEnums.UseStartAllButton, 0);
 
             (await _handler.HandleAsync(new(_accountId), CancellationToken.None)).IsFailed.ShouldBeTrue();
             await _page.DidNotReceive().EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>());
+        }
+
+        [Fact]
+        public async Task FarmClickFailureOccursAfterBadgeScan()
+        {
+            Badge("""{"valid":true,"text":"1"}""");
+            _browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(Result.Fail("Click failed"));
+            (await _handler.HandleAsync(new(_accountId), CancellationToken.None)).IsFailed.ShouldBeTrue();
+            await _page.Received(1).EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>());
+        }
+
+        [Fact]
+        public async Task DoesNotSendFarmWhenReestablishingPageAfterScanFails()
+        {
+            Badge("""{"valid":true,"text":"1"}""");
+            _navigate.HandleAsync(Arg.Any<ToFarmListPageCommand.Command>(), Arg.Any<CancellationToken>())
+                .Returns(Result.Ok(), Result.Fail("Farm page unavailable after reports"));
+            (await _handler.HandleAsync(new(_accountId), CancellationToken.None)).IsFailed.ShouldBeTrue();
+            await _page.Received(1).EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>());
+            await _browser.DidNotReceive().Click(Arg.Any<ILocator>(), Arg.Any<string>());
         }
 
         [Fact]
@@ -131,6 +161,60 @@ namespace MainCore.Test
             (await _handler.HandleAsync(task, CancellationToken.None)).IsSuccess.ShouldBeTrue();
             task.ExecuteAt.ShouldBeGreaterThan(DateTime.Now.AddSeconds(119));
             await _page.DidNotReceive().EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>());
+        }
+
+        [Fact]
+        public async Task AutomationOnlyRunsOnChangesAndIgnoresItsOwnBadgeDecrease()
+        {
+            Setting(AccountSettingEnums.EnableReportNotifications, 0);
+            using (var context = new AppDbContext(_options))
+            {
+                context.AccountsSetting.Add(new AccountSetting
+                {
+                    AccountId = 1, Setting = AccountSettingEnums.EnableAutoDeactivateLostReportTargets, Value = 1
+                });
+                context.SaveChanges();
+            }
+            var locator = Substitute.For<ILocator>();
+            locator.GetAttributeAsync("data-did", Arg.Any<LocatorGetAttributeOptions>()).Returns("1");
+            _page.Locator(Arg.Any<string>(), Arg.Any<PageLocatorOptions>()).Returns(locator);
+            _page.Url.Returns("https://example.com/farm");
+            _browser.Navigate(Arg.Any<string>()).Returns(Result.Ok());
+            var reportClicks = 0;
+            var events = new List<string>();
+            _navigate.HandleAsync(Arg.Any<ToFarmListPageCommand.Command>(), Arg.Any<CancellationToken>())
+                .Returns(_ =>
+                {
+                    events.Add("farm-page");
+                    return Result.Ok();
+                });
+            _browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(call =>
+            {
+                if (((string)call[1]).Contains("a.reports", StringComparison.Ordinal))
+                {
+                    events.Add("process-reports");
+                    reportClicks++;
+                    Badge("""{"valid":true,"text":"2"}""");
+                    return Result.Fail("Report page unavailable");
+                }
+                events.Add("start-farm");
+                return Result.Ok();
+            });
+            var task = new StartFarmListTask.Task(_accountId);
+            Badge("""{"valid":true,"text":"3"}""");
+            await _handler.HandleAsync(task, CancellationToken.None);
+            reportClicks.ShouldBe(0);
+            events.Clear();
+            Badge("""{"valid":true,"text":"4"}""");
+            await _handler.HandleAsync(task, CancellationToken.None);
+            reportClicks.ShouldBe(1);
+            events.ShouldBe(new[] { "farm-page", "process-reports", "farm-page", "start-farm" });
+            await _handler.HandleAsync(task, CancellationToken.None);
+            reportClicks.ShouldBe(1);
+            Badge("""{"valid":true,"text":"1"}""");
+            await _handler.HandleAsync(task, CancellationToken.None);
+            reportClicks.ShouldBe(2);
+            _outbox.GetNext(DateTime.UtcNow).ShouldBeNull();
         }
 
         [Fact]

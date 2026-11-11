@@ -17,11 +17,34 @@
 - **Enable auto claim daily quest**: auto claim daily quest rewards.
 - **Enable auto set hero point**: auto assign hero points.
 - **Notify on report badge increase (Telegram)**: check the report badge immediately
-  after each successful **Start farm list**, with either Start all or individual
+  after opening the farm-list page but before sending farms in each **Start farm list** task, with either Start all or individual
   active lists. Checks use the existing random farming interval, without a
   separate report timer. No farming, no active lists (unless using Start all),
-  or a failed farm start means no scan. This only reads the current page; it
-  does not refresh or open reports.
+  or failure to open the farm page means no scan. A later farm-page navigation or Start-button failure
+  does not undo the scan. This only reads the current page; it
+  does not refresh or open reports unless target deactivation below is enabled.
+- **Deactivate farm targets from unread lost offensive reports**: a separate
+  per-account switch, off by default, independent of Telegram credentials.
+  Uses the same pre-send scan: open farm list, scan badge, deactivate targets,
+  re-establish the farm page, then farm according to settings.
+  If the farm-page navigation fails,
+  no Start button is clicked. The first scan after
+  start/restart/resume or changing either report switch establishes a baseline.
+  Later badge changes (increases or decreases) open Reports, then Offensive,
+  and process only unread `Lost as attacker` reports on the first page.
+  Opening a report marks it read in the game, reducing the badge.
+  TBS resolves the attacker's village by its exact, unique name in the owned
+  village list, switches village, and reopens the report. Disabled/unavailable
+  raid-list buttons, ambiguous villages, and dialogs with no selected farm list
+  are skipped with warnings; TBS does not guess a list or add a target.
+  If the **Deactivate target** checkbox is unchecked, TBS checks it and saves,
+  then reopens the dialog to verify the selected list and checked state.
+  Already checked targets are not saved again. TBS returns to the report,
+  then restores the original village/page after processing the batch.
+  Its own resulting badge decrease updates the baseline without triggering
+  another batch or Telegram message. Failures are logged; subsequent scans
+  only process reports still unread. This feature changes server-side farm
+  targets, not the bot's local farm-list enable switch.
 
 ## Telegram notifications
 

@@ -4,7 +4,7 @@ namespace MainCore.UI.ViewModels.Tabs
     {
         extension(AppDbContext context)
         {
-            public void TriggerTask(TaskManager taskManager, AccountId accountId, Dictionary<AccountSettingEnums, int> settings, ReportMonitor reportMonitor, IncomingTroopsMonitor incomingTroopsMonitor)
+            public void TriggerTask(TaskManager taskManager, AccountId accountId, Dictionary<AccountSettingEnums, int> settings, ReportMonitor reportMonitor, IncomingTroopsMonitor incomingTroopsMonitor, bool reportFeaturesChanged = false)
             {
                 if (settings.Count == 0) return;
                 if (settings.TryGetValue(AccountSettingEnums.EnableIncomingTroopsNotifications, out var incoming))
@@ -20,8 +20,10 @@ namespace MainCore.UI.ViewModels.Tabs
                     }
                 }
 
-                if (settings.TryGetValue(AccountSettingEnums.EnableReportNotifications, out var reportNotifications) &&
-                    reportNotifications == 0)
+                if (reportFeaturesChanged ||
+                    (settings.TryGetValue(AccountSettingEnums.EnableReportNotifications, out var reportNotifications) &&
+                    reportNotifications == 0 &&
+                    settings.GetValueOrDefault(AccountSettingEnums.EnableAutoDeactivateLostReportTargets) == 0))
                 {
                     reportMonitor.Reset(accountId);
                 }

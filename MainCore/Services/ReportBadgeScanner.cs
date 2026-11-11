@@ -9,7 +9,8 @@ namespace MainCore.Services
         IChromeBrowser browser,
         ReportMonitor monitor,
         DataService dataService,
-        IDbContextFactory<AppDbContext> contextFactory)
+        IDbContextFactory<AppDbContext> contextFactory,
+        LostReportTargetScanner lostReportTargetScanner)
     {
         public async Task Scan(AccountId accountId, CancellationToken cancellationToken)
         {
@@ -18,7 +19,9 @@ namespace MainCore.Services
             try
             {
                 using var context = contextFactory.CreateDbContext();
-                if (!context.BooleanByName(accountId, AccountSettingEnums.EnableReportNotifications))
+                var notify = context.BooleanByName(accountId, AccountSettingEnums.EnableReportNotifications);
+                var deactivate = context.BooleanByName(accountId, AccountSettingEnums.EnableAutoDeactivateLostReportTargets);
+                if (!notify && !deactivate)
                 {
                     monitor.Reset(accountId);
                     return;
@@ -27,14 +30,30 @@ namespace MainCore.Services
                 cancellationToken.ThrowIfCancellationRequested();
                 if (result.IsSuccess)
                 {
-                    monitor.Observe(accountId, session, result.Value, dataService.AccountData);
+                    var changed = monitor.Observe(accountId, session, result.Value, dataService.AccountData, notify);
+                    if (changed && deactivate)
+                    {
+                        try
+                        {
+                            await lostReportTargetScanner.Scan(cancellationToken);
+                        }
+                        finally
+                        {
+                            // Opening reports marks them read; do not treat our own badge decrease as a new trigger.
+                            var finalCount = await ReportParser.GetUnreadCount(browser.CurrentPage);
+                            if (finalCount.IsSuccess)
+                                monitor.Observe(accountId, session, finalCount.Value, dataService.AccountData, notify);
+                            else
+                                browser.Logger.Warning("Report badge after target processing unavailable: {Reason}", finalCount.Errors[0].Message);
+                        }
+                    }
                 }
                 else
                 {
                     browser.Logger.Warning("Report badge scan skipped: {Reason}", result.Errors[0].Message);
                 }
             }
-            catch (PlaywrightException)
+            catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
             {
                 browser.Logger.Warning("Report badge scan failed; keeping the previous count until the next scan");
             }

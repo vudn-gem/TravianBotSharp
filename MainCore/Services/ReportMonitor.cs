@@ -33,15 +33,15 @@ namespace MainCore.Services
             }
         }
 
-        public void Observe(AccountId accountId, Guid sessionId, int count, string accountName)
+        public bool Observe(AccountId accountId, Guid sessionId, int count, string accountName, bool notify = true)
         {
             ArgumentOutOfRangeException.ThrowIfNegative(count);
             lock (_sync)
             {
-                if (!_sessions.TryGetValue(accountId, out var session) || session.Id != sessionId) return;
+                if (!_sessions.TryGetValue(accountId, out var session) || session.Id != sessionId) return false;
 
                 var previous = session.Count;
-                if (previous.HasValue && count > previous.Value)
+                if (notify && previous.HasValue && count > previous.Value)
                 {
                     var message = $"[TBS] Report badge increased\nAccount: {accountName}\nUnread: {previous.Value} -> {count}\nDetected: {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}";
                     // Persist before advancing the in-memory baseline; failed writes can be retried.
@@ -52,6 +52,7 @@ namespace MainCore.Services
                 logger.ForContext("AccountId", accountId).Information(
                     "Report badge scanned: {PreviousCount} -> {CurrentCount}; baseline: {IsBaseline}",
                     previous, count, !previous.HasValue);
+                return previous.HasValue && count != previous.Value;
             }
         }
     }

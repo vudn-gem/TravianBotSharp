@@ -67,8 +67,9 @@ namespace MainCore.UI.ViewModels.Tabs
             using var context = _contextFactory.CreateDbContext();
             var settings = AccountSettingInput.Get();
             if (!await ValidateReportSettings(settings)) return;
+            var reportFeaturesChanged = ReportFeaturesChanged(context, settings);
             context.SaveAccountSetting(AccountId, settings);
-            context.TriggerTask(_taskManager, AccountId, settings, _reportMonitor, _incomingTroopsMonitor);
+            context.TriggerTask(_taskManager, AccountId, settings, _reportMonitor, _incomingTroopsMonitor, reportFeaturesChanged);
             await _dialogService.SendMessage("Information", "Settings saved.");
         }
 
@@ -99,8 +100,9 @@ namespace MainCore.UI.ViewModels.Tabs
             using var context = _contextFactory.CreateDbContext();
             settings.Remove(AccountSettingEnums.Tribe);
             if (!await ValidateReportSettings(settings)) return;
+            var reportFeaturesChanged = ReportFeaturesChanged(context, settings);
             context.SaveAccountSetting(AccountId, settings);
-            context.TriggerTask(_taskManager, AccountId, settings, _reportMonitor, _incomingTroopsMonitor);
+            context.TriggerTask(_taskManager, AccountId, settings, _reportMonitor, _incomingTroopsMonitor, reportFeaturesChanged);
             await _dialogService.SendMessage("Information", "Settings imported.");
         }
 
@@ -182,6 +184,11 @@ namespace MainCore.UI.ViewModels.Tabs
                 : TelegramBotToken.Trim(),
             ChatId = TelegramChatId.Trim(),
         };
+
+        private bool ReportFeaturesChanged(AppDbContext context, Dictionary<AccountSettingEnums, int> settings) =>
+            new[] { AccountSettingEnums.EnableReportNotifications, AccountSettingEnums.EnableAutoDeactivateLostReportTargets }
+                .Any(setting => settings.TryGetValue(setting, out var value) &&
+                    context.BooleanByName(AccountId, setting) != (value == 1));
 
         private async Task<bool> ValidateReportSettings(Dictionary<AccountSettingEnums, int> settings)
         {

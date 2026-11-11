@@ -45,6 +45,7 @@ namespace WPFUI.Views.Tabs
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableAutoClaimDailyQuest, v => v.EnableAutoClaimDailyQuest.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableAutoSetHeroPoint, v => v.EnableAutoSetHeroPoint.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableReportNotifications, v => v.EnableReportNotifications.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableAutoDeactivateLostReportTargets, v => v.EnableAutoDeactivateLostReportTargets.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableIncomingTroopsNotifications, v => v.EnableIncomingTroopsNotifications.IsChecked).DisposeWith(d);
             });
         }

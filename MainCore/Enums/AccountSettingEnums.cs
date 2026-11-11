@@ -21,5 +21,6 @@
         EnableAutoSetHeroPoint,
         EnableReportNotifications,
         EnableIncomingTroopsNotifications,
+        EnableAutoDeactivateLostReportTargets,
     }
 }
