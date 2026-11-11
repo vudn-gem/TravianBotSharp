@@ -75,8 +75,10 @@ namespace MainCore.Test.Parsers
             IncomingTroopsParser.ParseCounts(text).IsFailed.ShouldBeTrue();
         }
 
-        [Fact]
-        public async Task HoversAndReadsDynamicallyLinkedTooltipForEachVillage()
+        [Theory]
+        [InlineData("")]
+        [InlineData("Loading...")]
+        public async Task HoversAndReadsDynamicallyLinkedTooltipForEachVillage(string initialText)
         {
             await using var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -107,6 +109,7 @@ namespace MainCore.Test.Parsers
                       root.id = 'tippy-' + sequence++;
                       root.setAttribute('data-tippy-root', '');
                       root.innerHTML = '<div class="tippy-box" data-state="visible"><div class="tippy-content"><div class="text"></div></div></div>';
+                      root.querySelector('.text').textContent = window.initialTooltipText;
                       document.body.append(root);
                       badge.setAttribute('aria-describedby', root.id);
                       setTimeout(() => root.querySelector('.text').innerHTML = texts[badge.dataset.id], 50);
@@ -114,6 +117,7 @@ namespace MainCore.Test.Parsers
                   });
                 </script>
                 """);
+            await page.EvaluateAsync("text => window.initialTooltipText = text", initialText);
             var villages = (await IncomingTroopsParser.Read(page)).Value;
             var expected = new[] { (2, 1), (2, 0), (0, 1), (0, 0) };
             for (var i = 0; i < villages.Count; i++)
@@ -123,6 +127,30 @@ namespace MainCore.Test.Parsers
                 (counts.Value.Attacks, counts.Value.Raids).ShouldBe(expected[i]);
             }
             page.Url.ShouldBe("about:blank");
+        }
+
+        [Fact]
+        public async Task LoadingTooltipTimesOutInsteadOfReturningZeroCounts()
+        {
+            await using var context = await CreateContextAsync();
+            var page = await context.NewPageAsync();
+            await page.SetContentAsync("""
+                <div class="villageList">
+                  <div class="listEntry village attack" data-did="34403">
+                    <span class="incomingTroops" data-id="34403" aria-describedby="tippy-143"
+                          style="display:inline-block;padding:10px">badge</span>
+                    <span class="name">20</span>
+                  </div>
+                </div>
+                <div id="tippy-143" data-tippy-root>
+                  <div class="tippy-box" data-state="visible">
+                    <div class="tippy-content"><div class="text">Loading...</div></div>
+                  </div>
+                </div>
+                """);
+            var village = (await IncomingTroopsParser.Read(page)).Value.Single();
+            await Should.ThrowAsync<TimeoutException>(
+                () => IncomingTroopsParser.ReadCounts(page, village, CancellationToken.None));
         }
     }
 }

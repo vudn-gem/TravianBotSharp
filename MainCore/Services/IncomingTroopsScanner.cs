@@ -46,13 +46,13 @@ namespace MainCore.Services
                             browser.Logger.Warning("Incoming counts skipped for village {VillageId}: {Reason}",
                                 village.Id, counts.Errors[0].Message);
                     }
-                    catch (PlaywrightException)
+                    catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
                     {
                         browser.Logger.Warning("Incoming tooltip unavailable for village {VillageId}; preserving counts", village.Id);
                     }
                 }
             }
-            catch (Exception ex) when (ex is PlaywrightException or JsonException or DbException or DbUpdateException or IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is PlaywrightException or TimeoutException or JsonException or DbException or DbUpdateException or IOException or UnauthorizedAccessException)
             {
                 browser.Logger.Warning("Incoming troops scan failed ({ErrorType}); preserving previous state", ex.GetType().Name);
             }

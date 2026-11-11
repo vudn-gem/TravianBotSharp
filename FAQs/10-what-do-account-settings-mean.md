@@ -54,6 +54,9 @@ Tooltip IDs are dynamic. English labels `Incoming attacks: N` and
 `Incoming raids: N` provide separate counts of incoming movements (not soldiers).
 Use the English game UI; unknown, malformed, unavailable, or hidden tooltips
 preserve that village's counts and are logged, while other villages continue.
+`Loading...` is not read as a count: TBS waits up to three seconds for an
+attack/raid label in the linked visible tooltip. A loading timeout preserves
+counts and does not pause the account.
 Hovering can load tooltip data and adds bounded waiting time after task execution,
 before the account queue can start another task.
 Unmarked village rows reset both counts to zero without loading a tooltip.

@@ -101,12 +101,22 @@ namespace MainCore.Test
             await _page.Received(1).EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>());
         }
 
-        [Fact]
-        public async Task TooltipFailureForOneVillageDoesNotBlockOtherVillages()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task TooltipFailureForOneVillageDoesNotBlockOtherVillages(bool timeout)
         {
             Snapshot("""[{"Id":1,"Name":"v1","Coordinates":"","Attack":true},{"Id":2,"Name":"v2","Coordinates":"","Attack":true}]""");
             _page.WaitForFunctionAsync(Arg.Any<string>(), Arg.Any<object>(), Arg.Any<PageWaitForFunctionOptions>())
-                .Returns(call => (int)call[1] == 1 ? throw new PlaywrightException("Tooltip missing") : _tooltip);
+                .Returns(call =>
+                {
+                    if ((int)call[1] == 1)
+                    {
+                        if (timeout) throw new TimeoutException("Tooltip still loading");
+                        throw new PlaywrightException("Tooltip missing");
+                    }
+                    return _tooltip;
+                });
             await _scanner.Scan(new(1), CancellationToken.None);
             var message = _outbox.GetNext(DateTime.UtcNow)!;
             message.Text.ShouldContain("Village: v2");

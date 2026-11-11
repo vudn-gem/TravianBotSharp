@@ -58,7 +58,9 @@ namespace MainCore.Parsers
                         .filter(root => root && root.querySelector('.tippy-box[data-state=""visible""]'))
                         .map(root => root.querySelector('.tippy-content .text'))
                         .filter(text => text && text.getClientRects().length > 0 && text.innerText.trim());
-                    return texts.length === 1 ? texts[0].innerText : false;
+                    if (texts.length !== 1) return false;
+                    const content = texts[0].innerText;
+                    return /(?:^|\r?\n)\s*Incoming (?:attacks|raids):/.test(content) ? content : false;
                 }", village.Id, new PageWaitForFunctionOptions { Timeout = 3000 });
                 cancellationToken.ThrowIfCancellationRequested();
                 var text = await handle.JsonValueAsync<string>();
