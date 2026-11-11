@@ -19,5 +19,6 @@
         EnableAutoStartAdventure,
         EnableAutoClaimDailyQuest,
         EnableAutoSetHeroPoint,
+        EnableReportNotifications,
     }
 }

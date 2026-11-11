@@ -103,6 +103,22 @@
                         <CheckBox x:Name="EnableAutoStartAdventure" Content="Enable auto start adventure" />
                         <CheckBox x:Name="EnableAutoClaimDailyQuest" Content="Enable auto claim daily quest" />
                         <CheckBox x:Name="EnableAutoSetHeroPoint" Content="Enable auto set hero point (1 power, 3 res)" />
+                        <CheckBox x:Name="EnableReportNotifications" Content="Notify on report badge increase (Telegram)" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{DynamicResource Box}">
+                    <StackPanel>
+                        <TextBlock FontWeight="Bold" Text="Telegram notifications (shared by all accounts)" />
+                        <TextBlock Margin="0,5" TextWrapping="Wrap"
+                                   Text="Message /start to your bot first. Save Telegram settings before enabling reports. Leave the token blank to keep the saved token." />
+                        <PasswordBox x:Name="TelegramBotToken" Margin="0,5"
+                                     materialDesign:HintAssist.Hint="Bot token" />
+                        <TextBox x:Name="TelegramChatId" Margin="0,5"
+                                 materialDesign:HintAssist.Hint="Numeric chat ID" />
+                        <Button x:Name="SaveTelegramButton" Margin="0,5" Content="Save Telegram settings" />
+                        <Button x:Name="TestTelegramButton" Margin="0,5" Content="Send test message" />
+                        <TextBlock Margin="0,5" TextWrapping="Wrap"
+                                   Text="Checks about every 60 seconds while running. Start/restart/resume establishes a new baseline without sending a message. Reports read between scans may be missed." />
                     </StackPanel>
                 </Border>
                 <Border Style="{DynamicResource Box}">

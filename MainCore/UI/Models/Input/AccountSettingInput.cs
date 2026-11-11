@@ -17,6 +17,7 @@ namespace MainCore.UI.Models.Input
             EnableAutoStartAdventure = settings.GetValueOrDefault(AccountSettingEnums.EnableAutoStartAdventure) == 1;
             EnableAutoClaimDailyQuest = settings.GetValueOrDefault(AccountSettingEnums.EnableAutoClaimDailyQuest) == 1;
             EnableAutoSetHeroPoint = settings.GetValueOrDefault(AccountSettingEnums.EnableAutoSetHeroPoint) == 1;
+            EnableReportNotifications = settings.GetValueOrDefault(AccountSettingEnums.EnableReportNotifications) == 1;
 
             FarmInterval.Set(settings.GetValueOrDefault(AccountSettingEnums.FarmIntervalMin), settings.GetValueOrDefault(AccountSettingEnums.FarmIntervalMax));
             UseStartAllButton = settings.GetValueOrDefault(AccountSettingEnums.UseStartAllButton) == 1;
@@ -59,7 +60,8 @@ namespace MainCore.UI.Models.Input
                 { AccountSettingEnums.HeadlessChrome, headlessChrome },
                 { AccountSettingEnums.EnableAutoStartAdventure, autoStartAdventure },
                 { AccountSettingEnums.EnableAutoClaimDailyQuest, autoClaimDailyQuest },
-                { AccountSettingEnums.EnableAutoSetHeroPoint, enableAutoSetHeroPoint }
+                { AccountSettingEnums.EnableAutoSetHeroPoint, enableAutoSetHeroPoint },
+                { AccountSettingEnums.EnableReportNotifications, EnableReportNotifications ? 1 : 0 }
             };
             return settings;
         }
@@ -89,5 +91,8 @@ namespace MainCore.UI.Models.Input
 
         [Reactive]
         private bool _enableAutoSetHeroPoint;
+
+        [Reactive]
+        private bool _enableReportNotifications;
     }
 }

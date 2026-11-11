@@ -18,11 +18,22 @@ namespace WPFUI.Views.Tabs
         public AccountSettingTab()
         {
             InitializeComponent();
+            TelegramBotToken.PasswordChanged += (_, _) =>
+            {
+                if (ViewModel is not null) ViewModel.TelegramBotToken = TelegramBotToken.Password;
+            };
+            Unloaded += (_, _) => TelegramBotToken.Password = "";
             this.WhenActivated(d =>
             {
                 this.BindCommand(ViewModel, vm => vm.ExportCommand, v => v.ExportButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.ImportCommand, v => v.ImportButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.SaveCommand, v => v.SaveButton).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.SaveTelegramCommand, v => v.SaveTelegramButton).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.TestTelegramCommand, v => v.TestTelegramButton).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.TelegramChatId, v => v.TelegramChatId.Text).DisposeWith(d);
+                this.WhenAnyValue(x => x.ViewModel!.TelegramBotToken)
+                    .ObserveOn(RxSchedulers.MainThreadScheduler)
+                    .Subscribe(token => TelegramBotToken.Password = token).DisposeWith(d);
 
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.ClickDelay, v => v.ClickDelay.ViewModel).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.TaskDelay, v => v.TaskDelay.ViewModel).DisposeWith(d);
@@ -33,6 +44,7 @@ namespace WPFUI.Views.Tabs
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableAutoStartAdventure, v => v.EnableAutoStartAdventure.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableAutoClaimDailyQuest, v => v.EnableAutoClaimDailyQuest.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableAutoSetHeroPoint, v => v.EnableAutoSetHeroPoint.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableReportNotifications, v => v.EnableReportNotifications.IsChecked).DisposeWith(d);
             });
         }
     }

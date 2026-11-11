@@ -55,6 +55,13 @@ namespace MainCore
                 services.AddValidatorsFromAssembly(typeof(AppMixins).Assembly, ServiceLifetime.Singleton);
                 services.AddMainCoreHandlers();
 
+                var notificationFolder = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TravianBotSharp");
+                services.AddSingleton(new TelegramSettingsStore(Path.Combine(notificationFolder, "telegram-settings.bin")));
+                services.AddSingleton(new ReportNotificationOutbox(Path.Combine(notificationFolder, "report-notifications.db")));
+                services.AddSingleton(_ => new TelegramSender(new HttpClient { Timeout = TimeSpan.FromSeconds(15) }));
+                services.AddHostedService<ReportNotificationWorker>();
+
                 services.AddScoped(sp =>
                 {
                     var dataService = sp.GetRequiredService<DataService>();

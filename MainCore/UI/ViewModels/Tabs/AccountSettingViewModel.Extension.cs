@@ -8,6 +8,21 @@ namespace MainCore.UI.ViewModels.Tabs
             {
                 if (settings.Count == 0) return;
 
+                if (settings.TryGetValue(AccountSettingEnums.EnableReportNotifications, out var reportNotifications))
+                {
+                    if (reportNotifications == 1)
+                    {
+                        if (!taskManager.IsExist<CheckReportsTask.Task>(accountId))
+                        {
+                            taskManager.Add(new CheckReportsTask.Task(accountId));
+                        }
+                    }
+                    else
+                    {
+                        taskManager.Remove<CheckReportsTask.Task>(accountId);
+                    }
+                }
+
                 if (settings.ContainsKey(AccountSettingEnums.EnableAutoLoadVillageBuilding))
                 {
                     if (settings[AccountSettingEnums.EnableAutoLoadVillageBuilding] == 1)

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 
 using MainCore.Infrasturecture.Extensions;
@@ -20,13 +21,17 @@ namespace MainCore.UI.ViewModels.Tabs
         private readonly IValidator<AccountSettingInput> _accountsettingInputValidator;
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
         private readonly TaskManager _taskManager;
+        private readonly TelegramSettingsStore _telegramSettingsStore;
+        private readonly TelegramSender _telegramSender;
 
-        public AccountSettingViewModel(DialogService dialogService, IValidator<AccountSettingInput> accountsettingInputValidator, IDbContextFactory<AppDbContext> contextFactory, TaskManager taskManager)
+        public AccountSettingViewModel(DialogService dialogService, IValidator<AccountSettingInput> accountsettingInputValidator, IDbContextFactory<AppDbContext> contextFactory, TaskManager taskManager, TelegramSettingsStore telegramSettingsStore, TelegramSender telegramSender)
         {
             _dialogService = dialogService;
             _accountsettingInputValidator = accountsettingInputValidator;
             _contextFactory = contextFactory;
             _taskManager = taskManager;
+            _telegramSettingsStore = telegramSettingsStore;
+            _telegramSender = telegramSender;
 
             LoadSettingsCommand.ObserveOn(RxSchedulers.MainThreadScheduler).Subscribe(AccountSettingInput.Set);
         }
@@ -34,6 +39,15 @@ namespace MainCore.UI.ViewModels.Tabs
         protected override async Task Load(AccountId accountId)
         {
             await LoadSettingsCommand.Execute(accountId);
+            try
+            {
+                TelegramChatId = _telegramSettingsStore.Load().ChatId;
+                TelegramBotToken = "";
+            }
+            catch (Exception ex) when (IsTelegramSettingsError(ex))
+            {
+                await _dialogService.SendMessage("Error", "Unable to load Telegram settings. Save them again on this Windows account.");
+            }
         }
 
         [ReactiveCommand(RunInBackground = true)]
@@ -48,6 +62,7 @@ namespace MainCore.UI.ViewModels.Tabs
 
             using var context = _contextFactory.CreateDbContext();
             var settings = AccountSettingInput.Get();
+            if (!await ValidateReportSettings(settings)) return;
             context.SaveAccountSetting(AccountId, settings);
             context.TriggerTask(_taskManager, AccountId, settings);
             await _dialogService.SendMessage("Information", "Settings saved.");
@@ -79,6 +94,7 @@ namespace MainCore.UI.ViewModels.Tabs
             }
             using var context = _contextFactory.CreateDbContext();
             settings.Remove(AccountSettingEnums.Tribe);
+            if (!await ValidateReportSettings(settings)) return;
             context.SaveAccountSetting(AccountId, settings);
             context.TriggerTask(_taskManager, AccountId, settings);
             await _dialogService.SendMessage("Information", "Settings imported.");
@@ -111,5 +127,75 @@ namespace MainCore.UI.ViewModels.Tabs
               .ToDictionary(x => x.Setting, x => x.Value);
             return settings;
         }
+
+        [Reactive]
+        private string _telegramBotToken = "";
+
+        [Reactive]
+        private string _telegramChatId = "";
+
+        [ReactiveCommand(RunInBackground = true)]
+        private async Task SaveTelegram()
+        {
+            try
+            {
+                var credentials = GetTelegramCredentials();
+                if (!credentials.IsValid)
+                {
+                    await _dialogService.SendMessage("Error", "Enter a valid bot token and numeric chat ID.");
+                    return;
+                }
+                _telegramSettingsStore.Save(credentials);
+                TelegramBotToken = "";
+                await _dialogService.SendMessage("Information", "Global Telegram settings saved for this Windows user.");
+            }
+            catch (Exception ex) when (IsTelegramSettingsError(ex))
+            {
+                await _dialogService.SendMessage("Error", "Unable to save protected Telegram settings.");
+            }
+        }
+
+        [ReactiveCommand(RunInBackground = true)]
+        private async Task TestTelegram(CancellationToken cancellationToken)
+        {
+            try
+            {
+                var result = await _telegramSender.Send(
+                    GetTelegramCredentials(), "[TBS] Telegram test message.", cancellationToken);
+                await _dialogService.SendMessage(result.Success ? "Information" : "Error",
+                    result.Success ? "Telegram test message sent." : result.Error);
+            }
+            catch (Exception ex) when (IsTelegramSettingsError(ex))
+            {
+                await _dialogService.SendMessage("Error", "Unable to read Telegram settings. Enter the token and chat ID again.");
+            }
+        }
+
+        private TelegramCredentials GetTelegramCredentials() => new()
+        {
+            BotToken = string.IsNullOrWhiteSpace(TelegramBotToken)
+                ? _telegramSettingsStore.Load().BotToken
+                : TelegramBotToken.Trim(),
+            ChatId = TelegramChatId.Trim(),
+        };
+
+        private async Task<bool> ValidateReportSettings(Dictionary<AccountSettingEnums, int> settings)
+        {
+            if (settings.GetValueOrDefault(AccountSettingEnums.EnableReportNotifications) != 1) return true;
+            try
+            {
+                if (_telegramSettingsStore.Load().IsValid) return true;
+            }
+            catch (Exception ex) when (IsTelegramSettingsError(ex))
+            {
+                await _dialogService.SendMessage("Error", "Unable to read Telegram settings. Save them again before enabling notifications.");
+                return false;
+            }
+            await _dialogService.SendMessage("Error", "Save the global Telegram settings before enabling report notifications.");
+            return false;
+        }
+
+        private static bool IsTelegramSettingsError(Exception exception) =>
+            exception is IOException or UnauthorizedAccessException or CryptographicException or JsonException or PlatformNotSupportedException;
     }
 }

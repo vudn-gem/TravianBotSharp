@@ -24,6 +24,7 @@
 - Auto claim daily quest/ village quest
 - Auto NPC
 - Auto train troop
+- Telegram notifications when the unread report badge increases
 
 ## Tech specification
 
@@ -39,4 +40,3 @@ User guides are available in [FAQs/README.md](FAQs/README.md).
 - Village build queue
 - NPC and troop training
 - Farming setup
-
