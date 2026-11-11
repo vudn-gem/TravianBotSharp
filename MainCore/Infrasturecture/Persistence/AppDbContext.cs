@@ -53,6 +53,17 @@ namespace MainCore.Infrasturecture.Persistence
             {AccountSettingEnums.EnableReportNotifications, 0 },
             {AccountSettingEnums.EnableIncomingTroopsNotifications, 0 },
             {AccountSettingEnums.EnableAutoDeactivateLostReportTargets, 0 },
+            {AccountSettingEnums.AllowRaidRatOasis, 0 },
+            {AccountSettingEnums.AllowRaidSpiderOasis, 0 },
+            {AccountSettingEnums.AllowRaidSnakeOasis, 0 },
+            {AccountSettingEnums.AllowRaidBatOasis, 0 },
+            {AccountSettingEnums.AllowRaidWildBoarOasis, 0 },
+            {AccountSettingEnums.AllowRaidWolfOasis, 0 },
+            {AccountSettingEnums.AllowRaidBearOasis, 0 },
+            {AccountSettingEnums.AllowRaidCrocodileOasis, 0 },
+            {AccountSettingEnums.AllowRaidTigerOasis, 0 },
+            {AccountSettingEnums.AllowRaidElephantOasis, 0 },
+            {AccountSettingEnums.OasisRaidSafetyFactor, 2 },
         }.ToImmutableDictionary();
 
         private List<AccountSettingEnums> GetMissingAccountSettings()

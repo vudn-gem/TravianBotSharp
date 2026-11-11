@@ -37,15 +37,62 @@
                     <StackPanel Margin="0,20,0,0">
                         <uc:RangeInputUc x:Name="FarmInterval" Text="Start farm delay" Unit="s" />
                         <CheckBox x:Name="UseStartAllCheckbox" Content="Use Start all button (ignore active settings)" />
+                        <uc:AmountInputUc x:Name="OasisRaidSafetyFactor" Text="Oasis raid safety factor" Unit="x" />
                     </StackPanel>
                     <Button x:Name="SaveButton" ToolTip="Save"                              Margin="10">
                         <materialDesign:PackIcon Width="{DynamicResource IconSize}" Height="{DynamicResource IconSize}" Kind="ContentSave" />
                     </Button>
                 </StackPanel>
-                <StackPanel Grid.Row="1" VerticalAlignment="Center">
+                <StackPanel Grid.Row="1" VerticalAlignment="Center" Margin="10">
                     <Button x:Name="ActiveButton" Margin="10" />
-                    <Button x:Name="CheckTargetTroopsButton" Content="Check target troops" Margin="10"
-                            ToolTip="Check the selected farm list and deactivate oasis targets with troops" />
+                    <Button x:Name="CheckTargetTroopsButton" Content="Check oasis" Margin="10"
+                            ToolTip="Check oasis targets and deactivate those containing troops" />
+                    <Button x:Name="ClearOasisButton" Content="Clear oasis" Margin="10"
+                            ToolTip="Scan Steppe Riders and raid oasis targets that can be cleared" />
+                    <GroupBox Header="Allowed oasis animals" Margin="10,0,10,10">
+                        <Grid Margin="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Allow" FontWeight="SemiBold" Margin="0,0,8,4" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="Animal" FontWeight="SemiBold" Margin="0,0,0,4" />
+
+                            <CheckBox x:Name="AllowRatOasisCheckBox" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="Rat" VerticalAlignment="Center" />
+                            <CheckBox x:Name="AllowSpiderOasisCheckBox" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="Spider" VerticalAlignment="Center" />
+                            <CheckBox x:Name="AllowSnakeOasisCheckBox" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="Snake" VerticalAlignment="Center" />
+                            <CheckBox x:Name="AllowBatOasisCheckBox" Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Text="Bat" VerticalAlignment="Center" />
+                            <CheckBox x:Name="AllowWildBoarOasisCheckBox" Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="5" Grid.Column="1" Text="Wild Boar" VerticalAlignment="Center" />
+                            <CheckBox x:Name="AllowWolfOasisCheckBox" Grid.Row="6" Grid.Column="0" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="6" Grid.Column="1" Text="Wolf" VerticalAlignment="Center" />
+                            <CheckBox x:Name="AllowBearOasisCheckBox" Grid.Row="7" Grid.Column="0" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="7" Grid.Column="1" Text="Bear" VerticalAlignment="Center" />
+                            <CheckBox x:Name="AllowCrocodileOasisCheckBox" Grid.Row="8" Grid.Column="0" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="8" Grid.Column="1" Text="Crocodile" VerticalAlignment="Center" />
+                            <CheckBox x:Name="AllowTigerOasisCheckBox" Grid.Row="9" Grid.Column="0" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="9" Grid.Column="1" Text="Tiger" VerticalAlignment="Center" />
+                            <CheckBox x:Name="AllowElephantOasisCheckBox" Grid.Row="10" Grid.Column="0" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="10" Grid.Column="1" Text="Elephant" VerticalAlignment="Center" />
+                        </Grid>
+                    </GroupBox>
                 </StackPanel>
                 <Button x:Name="StartButton"    Grid.Row="2" ToolTip="Start" Margin="10">
                     <materialDesign:PackIcon Width="{DynamicResource IconSize}" Height="{DynamicResource IconSize}" Kind="Play" />

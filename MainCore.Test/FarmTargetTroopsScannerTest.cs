@@ -51,7 +51,6 @@ namespace MainCore.Test
                     await route.FulfillAsync(new() { Body = "ok" });
                     return;
                 }
-
                 var troops = troopCount == "none" ? "<tr><td>none</td></tr>" :
                     $"<tr><td><img class='unit u31'></td><td class='val'>{troopCount}</td></tr>";
                 var map = $"""
@@ -126,5 +125,6 @@ namespace MainCore.Test
             if (expectedSaves == 1 && !persist)
                 logger.Received().Warning("Farm target {SlotId}: saved deactivation was not confirmed", "637157");
         }
+
     }
 }

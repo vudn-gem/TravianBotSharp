@@ -11,7 +11,7 @@ namespace MainCore.Tasks
         public sealed class Task(AccountId accountId, FarmId farmId) : AccountTask(accountId)
         {
             public FarmId FarmId { get; } = farmId;
-            protected override string TaskName => $"Check target troops in farm list {FarmId.Value}";
+            protected override string TaskName => $"Check oasis in farm list {FarmId.Value}";
             public override string Key => $"{AccountId}_{FarmId.Value}";
             public override bool CanStart(AppDbContext context) =>
                 context.FarmLists.Any(x => x.Id == FarmId.Value && x.AccountId == AccountId.Value);

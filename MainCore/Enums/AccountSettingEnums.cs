@@ -22,5 +22,16 @@
         EnableReportNotifications,
         EnableIncomingTroopsNotifications,
         EnableAutoDeactivateLostReportTargets,
+        AllowRaidRatOasis,
+        AllowRaidSpiderOasis,
+        AllowRaidSnakeOasis,
+        AllowRaidBatOasis,
+        AllowRaidWildBoarOasis,
+        AllowRaidWolfOasis,
+        AllowRaidBearOasis,
+        AllowRaidCrocodileOasis,
+        AllowRaidTigerOasis,
+        AllowRaidElephantOasis,
+        OasisRaidSafetyFactor,
     }
 }

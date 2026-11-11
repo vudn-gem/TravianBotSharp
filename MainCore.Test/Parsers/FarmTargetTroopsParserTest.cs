@@ -51,6 +51,54 @@ namespace MainCore.Test.Parsers
         }
 
         [Fact]
+        public async Task ReadsOasisAnimalTypesFromUnitIcons()
+        {
+            await using var context = await CreateContextAsync();
+            var page = await context.NewPageAsync();
+            await page.SetContentAsync("""
+                <div id="dialogContent"><div id="tileDetails" class="oasis">
+                <a data-centermap href="https://example.com/karte.php?x=25&amp;y=184">Center map</a>
+                <div id="map_details"><table id="troop_info"><tbody>
+                <tr><td><img class='unit u31'></td><td class='val'>2</td></tr>
+                <tr><td><img class='unit u40'></td><td class='val'>1</td></tr>
+                </tbody></table></div></div></div>
+                """);
+            var result = await FarmTargetTroopsParser.ReadOasisAnimalTroops(page, "https://example.com/karte.php?x=25&y=184");
+            result.IsSuccess.ShouldBeTrue();
+            result.Value.Select(x => x.Name).ShouldBe(["Rat", "Elephant"]);
+            result.Value.Select(x => x.Count).ShouldBe([2, 1]);
+        }
+
+        [Fact]
+        public async Task ReadsSteppeRiderDraftFromSendTroopsTab()
+        {
+            await using var context = await CreateContextAsync();
+            var page = await context.NewPageAsync();
+            await page.SetContentAsync("""
+                <div id="build"><div class="a2b"><form action="/build.php?gid=16&amp;tt=2">
+                <table id="troops"><tbody><tr><td>
+                <img class="unit u64" alt="Steppe Rider">
+                <input name="troop[t4]" value="">
+                <span>12</span>
+                </td><td>
+                <img class="unit u65" alt="Marksman">
+                <input name="troop[t5]" value="">
+                <span>7</span>
+                </td><td>
+                <img class="unit u66" alt="Marauder">
+                <input name="troop[t6]" value="">
+                <span>5</span>
+                </td></tr></tbody></table>
+                </form></div></div>
+                """);
+            var result = await FarmTargetTroopsParser.ReadSteppeRiderDraft(page);
+            result.IsSuccess.ShouldBeTrue();
+            result.Value.AvailableSteppeRiders.ShouldBe(12);
+            result.Value.AvailableMarksmen.ShouldBe(7);
+            result.Value.AvailableMarauders.ShouldBe(5);
+        }
+
+        [Fact]
         public async Task ReadsOnlySelectedListsSlotsAndFindsExactEditLink()
         {
             await using var context = await CreateContextAsync();

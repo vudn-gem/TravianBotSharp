@@ -20,6 +20,17 @@ namespace MainCore.UI.Models.Input
             EnableReportNotifications = settings.GetValueOrDefault(AccountSettingEnums.EnableReportNotifications) == 1;
             EnableIncomingTroopsNotifications = settings.GetValueOrDefault(AccountSettingEnums.EnableIncomingTroopsNotifications) == 1;
             EnableAutoDeactivateLostReportTargets = settings.GetValueOrDefault(AccountSettingEnums.EnableAutoDeactivateLostReportTargets) == 1;
+            AllowRaidRatOasis = settings.GetValueOrDefault(AccountSettingEnums.AllowRaidRatOasis) == 1;
+            AllowRaidSpiderOasis = settings.GetValueOrDefault(AccountSettingEnums.AllowRaidSpiderOasis) == 1;
+            AllowRaidSnakeOasis = settings.GetValueOrDefault(AccountSettingEnums.AllowRaidSnakeOasis) == 1;
+            AllowRaidBatOasis = settings.GetValueOrDefault(AccountSettingEnums.AllowRaidBatOasis) == 1;
+            AllowRaidWildBoarOasis = settings.GetValueOrDefault(AccountSettingEnums.AllowRaidWildBoarOasis) == 1;
+            AllowRaidWolfOasis = settings.GetValueOrDefault(AccountSettingEnums.AllowRaidWolfOasis) == 1;
+            AllowRaidBearOasis = settings.GetValueOrDefault(AccountSettingEnums.AllowRaidBearOasis) == 1;
+            AllowRaidCrocodileOasis = settings.GetValueOrDefault(AccountSettingEnums.AllowRaidCrocodileOasis) == 1;
+            AllowRaidTigerOasis = settings.GetValueOrDefault(AccountSettingEnums.AllowRaidTigerOasis) == 1;
+            AllowRaidElephantOasis = settings.GetValueOrDefault(AccountSettingEnums.AllowRaidElephantOasis) == 1;
+            OasisRaidSafetyFactor.Set(settings.GetValueOrDefault(AccountSettingEnums.OasisRaidSafetyFactor, 2));
 
             FarmInterval.Set(settings.GetValueOrDefault(AccountSettingEnums.FarmIntervalMin), settings.GetValueOrDefault(AccountSettingEnums.FarmIntervalMax));
             UseStartAllButton = settings.GetValueOrDefault(AccountSettingEnums.UseStartAllButton) == 1;
@@ -65,7 +76,18 @@ namespace MainCore.UI.Models.Input
                 { AccountSettingEnums.EnableAutoSetHeroPoint, enableAutoSetHeroPoint },
                 { AccountSettingEnums.EnableReportNotifications, EnableReportNotifications ? 1 : 0 },
                 { AccountSettingEnums.EnableIncomingTroopsNotifications, EnableIncomingTroopsNotifications ? 1 : 0 },
-                { AccountSettingEnums.EnableAutoDeactivateLostReportTargets, EnableAutoDeactivateLostReportTargets ? 1 : 0 }
+                { AccountSettingEnums.EnableAutoDeactivateLostReportTargets, EnableAutoDeactivateLostReportTargets ? 1 : 0 },
+                { AccountSettingEnums.AllowRaidRatOasis, AllowRaidRatOasis ? 1 : 0 },
+                { AccountSettingEnums.AllowRaidSpiderOasis, AllowRaidSpiderOasis ? 1 : 0 },
+                { AccountSettingEnums.AllowRaidSnakeOasis, AllowRaidSnakeOasis ? 1 : 0 },
+                { AccountSettingEnums.AllowRaidBatOasis, AllowRaidBatOasis ? 1 : 0 },
+                { AccountSettingEnums.AllowRaidWildBoarOasis, AllowRaidWildBoarOasis ? 1 : 0 },
+                { AccountSettingEnums.AllowRaidWolfOasis, AllowRaidWolfOasis ? 1 : 0 },
+                { AccountSettingEnums.AllowRaidBearOasis, AllowRaidBearOasis ? 1 : 0 },
+                { AccountSettingEnums.AllowRaidCrocodileOasis, AllowRaidCrocodileOasis ? 1 : 0 },
+                { AccountSettingEnums.AllowRaidTigerOasis, AllowRaidTigerOasis ? 1 : 0 },
+                { AccountSettingEnums.AllowRaidElephantOasis, AllowRaidElephantOasis ? 1 : 0 },
+                { AccountSettingEnums.OasisRaidSafetyFactor, OasisRaidSafetyFactor.Get() },
             };
             return settings;
         }
@@ -77,6 +99,7 @@ namespace MainCore.UI.Models.Input
         public RangeInputViewModel WorkTime { get; } = new();
         public RangeInputViewModel SleepTime { get; } = new();
         public RangeInputViewModel FarmInterval { get; } = new();
+        public AmountInputViewModel OasisRaidSafetyFactor { get; } = new();
 
         [Reactive]
         private bool _enableAutoLoadVillage;
@@ -104,5 +127,35 @@ namespace MainCore.UI.Models.Input
 
         [Reactive]
         private bool _enableAutoDeactivateLostReportTargets;
+
+        [Reactive]
+        private bool _allowRaidRatOasis;
+
+        [Reactive]
+        private bool _allowRaidSpiderOasis;
+
+        [Reactive]
+        private bool _allowRaidSnakeOasis;
+
+        [Reactive]
+        private bool _allowRaidBatOasis;
+
+        [Reactive]
+        private bool _allowRaidWildBoarOasis;
+
+        [Reactive]
+        private bool _allowRaidWolfOasis;
+
+        [Reactive]
+        private bool _allowRaidBearOasis;
+
+        [Reactive]
+        private bool _allowRaidCrocodileOasis;
+
+        [Reactive]
+        private bool _allowRaidTigerOasis;
+
+        [Reactive]
+        private bool _allowRaidElephantOasis;
     }
 }

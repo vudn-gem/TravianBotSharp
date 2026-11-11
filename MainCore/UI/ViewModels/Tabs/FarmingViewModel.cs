@@ -118,7 +118,26 @@ namespace MainCore.UI.ViewModels.Tabs
                 return;
             }
             _taskManager.AddOrUpdate<CheckFarmTargetTroopsTask.Task>(new(AccountId, new FarmId(selected.Id)));
-            await _dialogService.SendMessage("Information", "Added target troops check task. Oasis targets with troops will be deactivated; see Debug for results.");
+            await _dialogService.SendMessage("Information", "Added check oasis task. Targets with oasis troops will be deactivated.");
+        }
+
+        [ReactiveCommand(RunInBackground = true)]
+        private async Task ClearOasis()
+        {
+            var selected = FarmLists.SelectedItem;
+            if (selected is null)
+            {
+                await _dialogService.SendMessage("Warning", "No farm list selected");
+                return;
+            }
+            using var context = _contextFactory.CreateDbContext();
+            if (!context.FarmLists.Any(x => x.Id == selected.Id && x.AccountId == AccountId.Value))
+            {
+                await _dialogService.SendMessage("Warning", "Selected farm list no longer belongs to this account");
+                return;
+            }
+            _taskManager.AddOrUpdate<ClearFarmOasisTask.Task>(new(AccountId, new FarmId(selected.Id)));
+            await _dialogService.SendMessage("Information", "Added clear oasis task. The bot will scan Steppe Riders, scan oasis, and raid clearable oasis targets.");
         }
 
         [ReactiveCommand(RunInBackground = true)]

@@ -113,7 +113,8 @@ namespace MainCore.Services
             return Result.Ok();
         }
 
-        private async Task<Result<bool>> ProcessTarget(FarmId farmId, FarmTargetSlot target, CancellationToken cancellationToken)
+        private async Task<Result<bool>> ProcessTarget(FarmId farmId, FarmTargetSlot target,
+            CancellationToken cancellationToken)
         {
             var page = browser.CurrentPage;
             var current = new Uri(page.Url);

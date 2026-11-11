@@ -3,11 +3,43 @@ using System.Text.Json;
 namespace MainCore.Parsers
 {
     public sealed record FarmTargetSlot(string SlotId, string Href, string Name, bool Disabled);
+    public sealed record OasisAnimalTroop(int UnitId, string Name, long Count);
+    public sealed record RallyPointDraft(
+        long AvailableSteppeRiders,
+        long AvailableMarksmen,
+        long AvailableMarauders,
+        string SendTroopsUrl);
 
     public static class FarmTargetTroopsParser
     {
+        public static readonly IReadOnlyDictionary<int, string> OasisAnimalNames = new Dictionary<int, string>
+        {
+            { 31, "Rat" },
+            { 32, "Spider" },
+            { 33, "Snake" },
+            { 34, "Bat" },
+            { 35, "Wild Boar" },
+            { 36, "Wolf" },
+            { 37, "Bear" },
+            { 38, "Crocodile" },
+            { 39, "Tiger" },
+            { 40, "Elephant" },
+        };
+
         public static ILocator GetList(IPage page, FarmId farmId) =>
             page.Locator($"#rallyPointFarmList .farmListWrapper:has(.farmListHeader [data-list='{farmId.Value}'])");
+
+        public static string BuildRallyPointTabUrl(string pageUrl, int tabIndex)
+        {
+            var uri = new UriBuilder(pageUrl);
+            var query = uri.Query.TrimStart('?')
+                .Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => part.Split('=', 2))
+                .ToDictionary(parts => parts[0], parts => parts.Length > 1 ? parts[1] : "", StringComparer.Ordinal);
+            query["tt"] = tabIndex.ToString();
+            uri.Query = string.Join("&", query.Select(kv => $"{kv.Key}={kv.Value}"));
+            return uri.Uri.AbsoluteUri;
+        }
 
         public static async Task<Result<VillageId>> ReadOwnerVillage(IPage page, FarmId farmId)
         {
@@ -54,7 +86,7 @@ namespace MainCore.Parsers
             return Result.Ok(targets);
         }
 
-        public static async Task<Result<bool>> HasTroops(IPage page, string targetHref)
+        public static async Task<Result<List<OasisAnimalTroop>>> ReadOasisAnimalTroops(IPage page, string targetHref)
         {
             var snapshot = await page.EvaluateAsync<JsonElement>(@"href => {
                 const tiles = document.querySelectorAll('#dialogContent #tileDetails.oasis');
@@ -72,20 +104,89 @@ namespace MainCore.Parsers
                 const troops = rows.filter(row => row.querySelector('img.unit'));
                 if (troops.length === 0)
                     return rows.some(row => clean(row.textContent).toLowerCase() === 'none') ? [] : null;
-                return troops.map(row => clean(row.querySelector('td.val')?.textContent));
+                return troops.map(row => ({
+                    UnitClass: row.querySelector('img.unit')?.getAttribute('class') ?? '',
+                    Count: clean(row.querySelector('td.val')?.textContent)
+                }));
             }", targetHref);
             if (snapshot.ValueKind != JsonValueKind.Array)
                 return Result.Fail("Matching oasis troop table is missing, unknown, or ambiguous.");
-            var hasTroops = false;
+            var troops = new List<OasisAnimalTroop>();
             foreach (var value in snapshot.EnumerateArray())
             {
-                var text = value.GetString();
-                if (string.IsNullOrEmpty(text) || !text.All(char.IsAsciiDigit) ||
-                    !long.TryParse(text, out var count))
+                if (value.ValueKind != JsonValueKind.Object)
+                    return Result.Fail("Oasis troop row is invalid.");
+                var unitClass = value.GetProperty("UnitClass").GetString() ?? "";
+                var countText = value.GetProperty("Count").GetString() ?? "";
+                var match = System.Text.RegularExpressions.Regex.Match(unitClass, @"\bu(?<id>\d+)\b");
+                if (!match.Success || !int.TryParse(match.Groups["id"].Value, out var unitId) ||
+                    !OasisAnimalNames.TryGetValue(unitId, out var name))
+                    return Result.Fail("Oasis troop type is invalid or unknown.");
+                if (string.IsNullOrEmpty(countText) || !countText.All(char.IsAsciiDigit) ||
+                    !long.TryParse(countText, out var count))
                     return Result.Fail("Oasis troop count is invalid or unknown.");
-                hasTroops |= count > 0;
+                troops.Add(new OasisAnimalTroop(unitId, name, count));
             }
-            return Result.Ok(hasTroops);
+            return Result.Ok(troops);
+        }
+
+        public static async Task<Result<RallyPointDraft>> ReadSteppeRiderDraft(IPage page)
+        {
+            var form = page.Locator("#build .a2b form[action*='tt=2']");
+            if (await form.CountAsync() != 1)
+                return Result.Fail("Send troops form not found in Rally Point.");
+            var snapshot = await page.EvaluateAsync<JsonElement>(@"() => {
+                const form = document.querySelector('#build .a2b form[action*=""tt=2""]');
+                if (!form) return null;
+                const steppeCell = Array.from(form.querySelectorAll('table#troops td'))
+                    .find(td => td.querySelector('img.unit.u64'));
+                const marksmanCell = Array.from(form.querySelectorAll('table#troops td'))
+                    .find(td => td.querySelector('img.unit.u65'));
+                const marauderCell = Array.from(form.querySelectorAll('table#troops td'))
+                    .find(td => td.querySelector('img.unit.u66'));
+                if (!steppeCell || !marksmanCell || !marauderCell) return null;
+                const steppeInput = steppeCell.querySelector('input[name=""troop[t4]""]');
+                const steppeAvailable = steppeCell.querySelector('span');
+                const marksmanInput = marksmanCell.querySelector('input[name=""troop[t5]""]');
+                const marksmanAvailable = marksmanCell.querySelector('span');
+                const marauderInput = marauderCell.querySelector('input[name=""troop[t6]""]');
+                const marauderAvailable = marauderCell.querySelector('span');
+                if (!steppeInput || !steppeAvailable || !marksmanInput || !marksmanAvailable ||
+                    !marauderInput || !marauderAvailable) return null;
+                const action = form.getAttribute('action') || '';
+                return {
+                    steppeText: (steppeAvailable.textContent || '').trim(),
+                    marksmanText: (marksmanAvailable.textContent || '').trim(),
+                    marauderText: (marauderAvailable.textContent || '').trim(),
+                    action,
+                };
+            }");
+            if (snapshot.ValueKind != JsonValueKind.Object)
+                return Result.Fail("Steppe Rider, Marksman, or Marauder draft row not found.");
+            var steppeText = snapshot.GetProperty("steppeText").GetString() ?? "";
+            var marksmanText = snapshot.GetProperty("marksmanText").GetString() ?? "";
+            var marauderText = snapshot.GetProperty("marauderText").GetString() ?? "";
+            var steppe = steppeText.ParseLong();
+            var marksman = marksmanText.ParseLong();
+            var marauder = marauderText.ParseLong();
+            if (steppe < 0)
+                return Result.Fail("Steppe Rider available amount is invalid.");
+            if (marksman < 0)
+                return Result.Fail("Marksman available amount is invalid.");
+            if (marauder < 0)
+                return Result.Fail("Marauder available amount is invalid.");
+            var action = snapshot.GetProperty("action").GetString() ?? "";
+            var sendTroopsUrl = string.IsNullOrWhiteSpace(action)
+                ? page.Url
+                : new Uri(new Uri(page.Url), action).AbsoluteUri;
+            return Result.Ok(new RallyPointDraft(steppe, marksman, marauder, sendTroopsUrl));
+        }
+
+        public static async Task<Result<bool>> HasTroops(IPage page, string targetHref)
+        {
+            var troops = await ReadOasisAnimalTroops(page, targetHref);
+            if (troops.IsFailed) return Result.Fail(troops.Errors);
+            return Result.Ok(troops.Value.Any(x => x.Count > 0));
         }
 
         public static async Task<Result<ILocator>> FindEditLink(IPage page, FarmId farmId, string slotId)
