@@ -8,7 +8,8 @@ namespace MainCore.Tasks
     public sealed partial class StartFarmListTask(
         IDbContextFactory<AppDbContext> contextFactory,
         IChromeBrowser browser,
-        ToFarmListPageCommand.Handler toFarmListPageCommand
+        IHandler<ToFarmListPageCommand.Command, Result> toFarmListPageCommand,
+        ReportBadgeScanner reportBadgeScanner
         )
     {
         public sealed class Task(AccountId accountId) : AccountTask(accountId)
@@ -41,6 +42,7 @@ namespace MainCore.Tasks
                 }
             }
 
+            await reportBadgeScanner.Scan(task.AccountId, cancellationToken);
             task.ExecuteAt = GetNextExecuteTime(task.AccountId);
             return Result.Ok();
         }

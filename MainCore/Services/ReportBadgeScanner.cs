@@ -1,42 +1,33 @@
 using System.Data.Common;
 
 using MainCore.Infrasturecture.Extensions;
-using MainCore.Tasks.Base;
 
-namespace MainCore.Tasks
+namespace MainCore.Services
 {
-    [Handler]
-    public sealed partial class CheckReportsTask(
+    [RegisterScoped<ReportBadgeScanner>]
+    public sealed class ReportBadgeScanner(
         IChromeBrowser browser,
         ReportMonitor monitor,
         DataService dataService,
         IDbContextFactory<AppDbContext> contextFactory)
     {
-        public sealed class Task(AccountId accountId) : AccountTask(accountId)
-        {
-            protected override string TaskName => "Check report badge";
-
-            public override bool CanStart(AppDbContext context) =>
-                context.BooleanByName(AccountId, AccountSettingEnums.EnableReportNotifications);
-        }
-
-        private async ValueTask<Result> HandleAsync(Task task, CancellationToken cancellationToken)
+        public async Task Scan(AccountId accountId, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using var context = contextFactory.CreateDbContext();
-            if (!task.CanStart(context))
-            {
-                monitor.Reset(task.AccountId);
-                return Skip.Error.WithError("Report notifications are disabled");
-            }
-            var session = monitor.GetSession(task.AccountId);
+            var session = monitor.GetSession(accountId);
             try
             {
+                using var context = contextFactory.CreateDbContext();
+                if (!context.BooleanByName(accountId, AccountSettingEnums.EnableReportNotifications))
+                {
+                    monitor.Reset(accountId);
+                    return;
+                }
                 var result = await ReportParser.GetUnreadCount(browser.CurrentPage);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (result.IsSuccess)
                 {
-                    monitor.Observe(task.AccountId, session, result.Value, dataService.AccountData);
+                    monitor.Observe(accountId, session, result.Value, dataService.AccountData);
                 }
                 else
                 {
@@ -59,12 +50,6 @@ namespace MainCore.Tasks
             {
                 browser.Logger.Error(ex, "Unable to access notification storage; keeping the previous count");
             }
-            finally
-            {
-                task.ExecuteAt = DateTime.Now.AddSeconds(60);
-            }
-
-            return Result.Ok();
         }
     }
 }

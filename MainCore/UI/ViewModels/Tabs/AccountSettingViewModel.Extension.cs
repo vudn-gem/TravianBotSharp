@@ -4,23 +4,14 @@ namespace MainCore.UI.ViewModels.Tabs
     {
         extension(AppDbContext context)
         {
-            public void TriggerTask(TaskManager taskManager, AccountId accountId, Dictionary<AccountSettingEnums, int> settings)
+            public void TriggerTask(TaskManager taskManager, AccountId accountId, Dictionary<AccountSettingEnums, int> settings, ReportMonitor reportMonitor)
             {
                 if (settings.Count == 0) return;
 
-                if (settings.TryGetValue(AccountSettingEnums.EnableReportNotifications, out var reportNotifications))
+                if (settings.TryGetValue(AccountSettingEnums.EnableReportNotifications, out var reportNotifications) &&
+                    reportNotifications == 0)
                 {
-                    if (reportNotifications == 1)
-                    {
-                        if (!taskManager.IsExist<CheckReportsTask.Task>(accountId))
-                        {
-                            taskManager.Add(new CheckReportsTask.Task(accountId));
-                        }
-                    }
-                    else
-                    {
-                        taskManager.Remove<CheckReportsTask.Task>(accountId);
-                    }
+                    reportMonitor.Reset(accountId);
                 }
 
                 if (settings.ContainsKey(AccountSettingEnums.EnableAutoLoadVillageBuilding))

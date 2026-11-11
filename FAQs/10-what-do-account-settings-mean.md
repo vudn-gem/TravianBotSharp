@@ -16,9 +16,12 @@
 - **Enable auto start adventure**: auto send hero to adventures.
 - **Enable auto claim daily quest**: auto claim daily quest rewards.
 - **Enable auto set hero point**: auto assign hero points.
-- **Notify on report badge increase (Telegram)**: check the report badge about every
-  60 seconds while the account is running. Other tasks can delay a check. This
-  only reads the current page; it does not refresh or open reports.
+- **Notify on report badge increase (Telegram)**: check the report badge immediately
+  after each successful **Start farm list**, with either Start all or individual
+  active lists. Checks use the existing random farming interval, without a
+  separate report timer. No farming, no active lists (unless using Start all),
+  or a failed farm start means no scan. This only reads the current page; it
+  does not refresh or open reports.
 
 ## Telegram notifications
 
@@ -29,8 +32,9 @@
 3. In account settings, enter the token and chat ID in **Telegram notifications**.
    Use **Send test message**, then **Save Telegram settings**.
 4. Enable **Notify on report badge increase (Telegram)** and save the account
-   settings. Telegram credentials are shared by all accounts; the enable switch
-   is per account. Leave the token blank when keeping the saved token.
+   settings, then configure and start farming. Telegram credentials are shared
+   by all accounts; the enable switch is per account. Leave the token blank
+   when keeping the saved token.
 
 Each start, restart, or pause/resume begins a new monitoring session. The first
 valid scan establishes a baseline without sending anything. Every subsequent

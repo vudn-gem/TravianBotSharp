@@ -42,12 +42,6 @@ namespace MainCore.Services
 
             taskManager.Add(new LoginTask.Task(accountId), first: true);
 
-            var checkReportsTask = new CheckReportsTask.Task(accountId);
-            if (checkReportsTask.CanStart(context) && !taskManager.IsExist<CheckReportsTask.Task>(accountId))
-            {
-                taskManager.Add(checkReportsTask);
-            }
-
             var workTime = context.ByName(accountId, AccountSettingEnums.WorkTimeMin, AccountSettingEnums.WorkTimeMax);
             var sleepTask = new SleepTask.Task(accountId)
             {

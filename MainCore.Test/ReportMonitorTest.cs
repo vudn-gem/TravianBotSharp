@@ -3,6 +3,7 @@ using MainCore.Enums;
 using MainCore.Infrasturecture.Persistence;
 using MainCore.Services;
 using MainCore.Tasks;
+using MainCore.UI.ViewModels.Tabs;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -66,7 +67,7 @@ namespace MainCore.Test
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
-        public void ResumeAndRestartResetBaselineAndScheduleScan(bool restart)
+        public void ResumeAndRestartResetBaselineWithoutChangingFarmSchedule(bool restart)
         {
             var factory = Substitute.For<IDbContextFactory<AppDbContext>>();
             var manager = new TaskManager(new RxQueue(factory), factory, Substitute.For<Serilog.ILogger>(), _monitor);
@@ -78,10 +79,11 @@ namespace MainCore.Test
                 manager.Clear(_accountId);
                 manager.SetStatus(_accountId, StatusEnums.Starting);
             }
-            var task = new CheckReportsTask.Task(_accountId) { ExecuteAt = DateTime.Now.AddHours(1) };
+            var scheduledAt = DateTime.Now.AddHours(1);
+            var task = new StartFarmListTask.Task(_accountId) { ExecuteAt = scheduledAt };
             manager.Add(task);
             manager.SetStatus(_accountId, StatusEnums.Online);
-            task.ExecuteAt.ShouldBeLessThanOrEqualTo(DateTime.Now);
+            task.ExecuteAt.ShouldBe(scheduledAt);
             Observe(5);
             _outbox.GetNext(DateTime.UtcNow).ShouldBeNull();
             Observe(6);
@@ -156,10 +158,13 @@ namespace MainCore.Test
         {
             var factory = Substitute.For<IDbContextFactory<AppDbContext>>();
             var manager = new TaskManager(new RxQueue(factory), factory, Substitute.For<Serilog.ILogger>(), _monitor);
-            manager.Add(new CheckReportsTask.Task(_accountId));
+            using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().Options);
             Observe(0);
-            manager.Remove<CheckReportsTask.Task>(_accountId);
-            manager.Add(new CheckReportsTask.Task(_accountId));
+            context.TriggerTask(manager, _accountId,
+                new() { [AccountSettingEnums.EnableReportNotifications] = 0 }, _monitor);
+            context.TriggerTask(manager, _accountId,
+                new() { [AccountSettingEnums.EnableReportNotifications] = 1 }, _monitor);
+            manager.GetTaskList(_accountId).ShouldBeEmpty();
             Observe(5);
             _outbox.GetNext(DateTime.UtcNow).ShouldBeNull();
         }

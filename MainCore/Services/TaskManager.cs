@@ -54,7 +54,6 @@ namespace MainCore.Services
                 return;
             }
 
-            if (task is CheckReportsTask.Task) reportMonitor.Reset(task.AccountId);
             var actor = GetActor(task.AccountId);
             actor.Add(task, first);
         }
@@ -81,7 +80,6 @@ namespace MainCore.Services
 
         public void Remove<T>(AccountId accountId) where T : AccountTask
         {
-            if (typeof(T) == typeof(CheckReportsTask.Task)) reportMonitor.Reset(accountId);
             var actor = GetActor(accountId);
             actor.Remove<T>();
         }
@@ -117,13 +115,6 @@ namespace MainCore.Services
             if (actor.GetStatus() != status)
             {
                 reportMonitor.Reset(accountId);
-                if (status == StatusEnums.Online)
-                {
-                    foreach (var task in actor.GetTaskList().OfType<CheckReportsTask.Task>())
-                    {
-                        task.ExecuteAt = DateTime.Now;
-                    }
-                }
             }
             actor.SetStatus(status);
         }

@@ -24,7 +24,7 @@
 - Auto claim daily quest/ village quest
 - Auto NPC
 - Auto train troop
-- Telegram notifications when the unread report badge increases
+- Telegram notifications when the unread report badge increases after starting farm lists
 
 ## Tech specification
 

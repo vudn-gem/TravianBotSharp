@@ -118,7 +118,7 @@
                         <Button x:Name="SaveTelegramButton" Margin="0,5" Content="Save Telegram settings" />
                         <Button x:Name="TestTelegramButton" Margin="0,5" Content="Send test message" />
                         <TextBlock Margin="0,5" TextWrapping="Wrap"
-                                   Text="Checks about every 60 seconds while running. Start/restart/resume establishes a new baseline without sending a message. Reports read between scans may be missed." />
+                                   Text="Checks after each successful Start farm list, using its random farming interval. No farming means no report checks. Start/restart/resume establishes a new baseline without sending a message. Reports read between scans may be missed." />
                     </StackPanel>
                 </Border>
                 <Border Style="{DynamicResource Box}">
