@@ -103,6 +103,25 @@ namespace MainCore.UI.ViewModels.Tabs
         }
 
         [ReactiveCommand(RunInBackground = true)]
+        private async Task CheckTargetTroops()
+        {
+            var selected = FarmLists.SelectedItem;
+            if (selected is null)
+            {
+                await _dialogService.SendMessage("Warning", "No farm list selected");
+                return;
+            }
+            using var context = _contextFactory.CreateDbContext();
+            if (!context.FarmLists.Any(x => x.Id == selected.Id && x.AccountId == AccountId.Value))
+            {
+                await _dialogService.SendMessage("Warning", "Selected farm list no longer belongs to this account");
+                return;
+            }
+            _taskManager.AddOrUpdate<CheckFarmTargetTroopsTask.Task>(new(AccountId, new FarmId(selected.Id)));
+            await _dialogService.SendMessage("Information", "Added target troops check task. Oasis targets with troops will be deactivated; see Debug for results.");
+        }
+
+        [ReactiveCommand(RunInBackground = true)]
         private async Task Start()
         {
             using var context = _contextFactory.CreateDbContext();

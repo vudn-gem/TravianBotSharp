@@ -42,7 +42,11 @@
                         <materialDesign:PackIcon Width="{DynamicResource IconSize}" Height="{DynamicResource IconSize}" Kind="ContentSave" />
                     </Button>
                 </StackPanel>
-                <Button x:Name="ActiveButton"   Grid.Row="1" Margin="10" />
+                <StackPanel Grid.Row="1" VerticalAlignment="Center">
+                    <Button x:Name="ActiveButton" Margin="10" />
+                    <Button x:Name="CheckTargetTroopsButton" Content="Check target troops" Margin="10"
+                            ToolTip="Check the selected farm list and deactivate oasis targets with troops" />
+                </StackPanel>
                 <Button x:Name="StartButton"    Grid.Row="2" ToolTip="Start" Margin="10">
                     <materialDesign:PackIcon Width="{DynamicResource IconSize}" Height="{DynamicResource IconSize}" Kind="Play" />
                 </Button>
