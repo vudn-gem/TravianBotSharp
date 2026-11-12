@@ -94,15 +94,25 @@ namespace MainCore.Tasks
 
             var builder = new UriBuilder(baseUrl)
             {
-                Path = "/build.php",
-                Query = $"gid=16&tt=2&newdid={task.VillageId.Value}",
+                Path = "/dorf2.php",
+                Query = $"newdid={task.VillageId.Value}",
             };
             var navigateResult = await browser.Navigate(builder.Uri.AbsoluteUri);
             if (navigateResult.IsFailed) return navigateResult;
 
+            builder.Path = "/build.php";
+            builder.Query = "id=39";
+            navigateResult = await browser.Navigate(builder.Uri.AbsoluteUri);
+            if (navigateResult.IsFailed) return navigateResult;
+
             var page = browser.CurrentPage;
+            var sendTroopsTab = page.Locator(".contentNavi.subNavi a.tabItem[href*='tt=2']");
+            await sendTroopsTab.WaitForAsync();
+            if (await sendTroopsTab.CountAsync() != 1)
+                return Stop.Error.WithError("Rally Point Send troops tab is missing or ambiguous.");
+            await sendTroopsTab.ClickAsync();
             var preparedWaves = task.Waves.ToArray();
-            await page.Locator("#troopSendForm").WaitForAsync();
+            await page.Locator("#build .a2b form[action*='tt=2']:has(#troops)").WaitForAsync();
             for (var waveIndex = 0; waveIndex < task.Waves.Count; waveIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -121,7 +131,7 @@ namespace MainCore.Tasks
 
                 var sendButton = waveIndex > 0
                     ? page.Locator("#troopSendForm #addAsWaveBtn")
-                    : page.Locator("#troopSendForm button[type='submit']:not(#addWave):not(#confirmSendTroops)");
+                    : page.Locator("#build .a2b form[action*='tt=2']:has(#troops) button[type='submit']");
                 if (await sendButton.CountAsync() != 1)
                     return Stop.Error.WithError("The Rally Point troop form submit button is missing or ambiguous.");
                 await sendButton.ClickAsync();
@@ -173,7 +183,9 @@ namespace MainCore.Tasks
 
         private static async System.Threading.Tasks.Task<Result> FillWave(IPage page, IReadOnlyList<long> troops, Task task, bool additionalWave)
         {
-            var form = page.Locator("#troopSendForm");
+            var form = additionalWave
+                ? page.Locator("#troopSendForm")
+                : page.Locator("#build .a2b form[action*='tt=2']:has(#troops)");
             if (await form.CountAsync() != 1)
                 return Stop.Error.WithError("Rally Point send-troops form is missing or ambiguous.");
 

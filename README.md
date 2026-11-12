@@ -65,6 +65,9 @@ Conquest always selects **Attack: Normal**, never **Attack: Raid**. If the
 normal attack option is missing or disabled, the task stops before submitting.
 Additional waves use the Confirm page's **Add a wave**, then **Add as wave**.
 Their hidden coordinates and normal-attack type are checked rather than edited.
+The browser flow is: switch village, open Rally Point, click **Send troops**,
+fill troops and coordinates, select **Attack: Normal**, submit to Confirm,
+then add any additional waves before the final timed confirmation.
 
 ## FAQs
 

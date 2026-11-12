@@ -27,13 +27,17 @@ namespace MainCore.Test
             var page = await context.NewPageAsync();
             page.SetDefaultTimeout(3000);
             await page.SetContentAsync("""
-                <form id="troopSendForm"></form>
+                <div class="contentNavi subNavi">
+                    <a class="tabItem" href="/build.php?id=39&amp;tt=2"
+                       onclick="event.preventDefault(); window.sendTabOpened = true; document.querySelector('#build').hidden = false">Send troops</a>
+                </div>
+                <div id="build" hidden><div class="a2b"><form action="/build.php?id=39&amp;tt=2"></form></div></div>
                 <script>
                 window.waves = [];
                 window.confirmed = false;
                 window.unavailable = false;
                 window.unavailableTarget = '4';
-                const form = document.querySelector('#troopSendForm');
+                const form = document.querySelector('form');
                 function field(name, value) {
                     return `<input type="hidden" name="${name}" value="${value}">`;
                 }
@@ -45,8 +49,10 @@ namespace MainCore.Test
                 }
                 function entry() {
                     const additional = waves.length > 0;
+                    if (additional) form.id = 'troopSendForm';
                     form.onsubmit = event => {
                         event.preventDefault();
+                        if (!window.sendTabOpened) throw new Error('Send troops tab was not opened');
                         const attackType = additional
                             ? form.querySelector('input[type="hidden"][name="eventType"]')
                             : form.querySelector('input[name="eventType"]:checked');
@@ -60,8 +66,10 @@ namespace MainCore.Test
                     const previous = waves.map((wave, index) =>
                         wave.counts.map((count, i) => field(`troops[${index}][t${i + 1}]`, count)).join('') +
                         field(`troops[${index}][villageId]`, '2')).join('');
-                    form.innerHTML = previous + Array.from({length: additional ? 10 : 11}, (_, i) =>
+                    form.innerHTML = previous + '<table id="troops"><tbody><tr><td>' +
+                        Array.from({length: additional ? 10 : 11}, (_, i) =>
                         `<input name="troop[t${i + 1}]" value="0" ${additional && i === 1 ? 'disabled' : ''}>`).join('') +
+                        '</td></tr></tbody></table>' +
                         (additional
                             ? field('x', '-50') + field('y', '50') + field('eventType', '3') +
                                 '<button type="submit" id="addAsWaveBtn">Add as wave</button>'
@@ -78,6 +86,7 @@ namespace MainCore.Test
                         '</select>';
                 }
                 function confirmPage() {
+                    form.id = 'troopSendForm';
                     form.onsubmit = event => event.preventDefault();
                     form.innerHTML = field('eventType', '3') + field('x', '-50') + field('y', '50') +
                         waves.map((wave, index) => {
@@ -129,6 +138,11 @@ namespace MainCore.Test
             var handler = new ConquestTask.HandleBehavior(new ConquestTask(browser));
 
             var result = await handler.HandleAsync(task, CancellationToken.None);
+            Received.InOrder(() =>
+            {
+                browser.Navigate("https://example.com/dorf2.php?newdid=2");
+                browser.Navigate("https://example.com/build.php?id=39");
+            });
             var randomUnavailable = unavailable && firstTarget == 99;
             result.IsSuccess.ShouldBe(!randomUnavailable);
             (await page.EvaluateAsync<bool>("window.confirmed")).ShouldBe(!randomUnavailable);
