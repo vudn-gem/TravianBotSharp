@@ -6,6 +6,8 @@ using MainCore.UI.ViewModels.UserControls;
 
 namespace MainCore.UI.ViewModels.Tabs
 {
+    using Result = FluentResults.Result;
+
     using ReactiveUI.Primitives;
     using ReactiveUI.Primitives.Signals;
 
