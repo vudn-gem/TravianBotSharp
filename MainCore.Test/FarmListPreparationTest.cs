@@ -21,15 +21,10 @@ namespace MainCore.Test
             var page = await context.NewPageAsync();
             page.SetDefaultTimeout(3000);
             await page.SetContentAsync($$"""
-                <style>
-                .villageHeader.collapsed + .dropContainer { display:none; }
-                .villageHeader a.expandCollapse { pointer-events:none; }
-                .villageHeader a.expandCollapse svg { pointer-events:auto; }
-                </style>
                 <div id="sidebarBoxVillageList"><div class="listEntry village active" data-did="2"><span class="name">Home</span></div></div>
                 <div id="rallyPointFarmList"><div class="villageWrapper">
                 <div class="villageHeader {{(villageCollapsed ? "collapsed" : "expanded")}}"><div class="villageName">Home</div>
-                <a class="expandCollapse" onclick="setTimeout(() => this.parentElement.className='villageHeader expanded', 30)">
+                <a class="expandCollapse" onclick="window.villageClicks = (window.villageClicks || 0) + 1">
                 <svg width="12" height="8" viewBox="0 0 12 8"><path d="M0 0L6 8L12 0Z"></path></svg></a></div>
                 <div class="dropContainer">
                 <div class="farmListWrapper collapsed" id="other"><div class="farmListHeader"><div data-list="20"></div>
@@ -38,6 +33,12 @@ namespace MainCore.Test
                 <div class="farmListHeader"><div data-list="10"></div>
                 <a class="expandCollapse" onclick="setTimeout(() => { document.querySelector('#selected').className='farmListWrapper expanded'; loadTargets(); }, 30)">Selected list</a></div>
                 <div class="slotsWrapper"><table class="slots"><tbody><tr><td class="addTarget">Add target {{count}}/100</td></tr></tbody></table></div>
+                </div></div></div>
+                <div class="villageWrapper"><div class="villageHeader collapsed"><div class="villageName">Other village</div>
+                <a class="expandCollapse" onclick="window.villageClicks = (window.villageClicks || 0) + 1">Other village</a></div>
+                <div class="dropContainer"><div class="farmListWrapper collapsed" id="otherVillageList">
+                <div class="farmListHeader"><div data-list="30"></div>
+                <a class="expandCollapse" onclick="window.wrongListClicks = (window.wrongListClicks || 0) + 1">Other village list</a></div>
                 </div></div></div></div>
                 <script>
                 function loadTargets() {
@@ -55,11 +56,6 @@ namespace MainCore.Test
                 }
                 </script>
                 """);
-            if (villageCollapsed)
-            {
-                await page.Locator(".villageHeader .villageName").ClickAsync();
-                (await page.Locator(".villageHeader").GetAttributeAsync("class")).ShouldBe("villageHeader collapsed");
-            }
             if (!listCollapsed) await page.EvaluateAsync("loadTargets()");
             var browser = Substitute.For<IChromeBrowser>();
             browser.CurrentPage.Returns(page);
@@ -75,7 +71,11 @@ namespace MainCore.Test
             targets.IsSuccess.ShouldBeTrue();
             targets.Value.Count.ShouldBe(count);
             (await page.Locator("#other").GetAttributeAsync("class")).ShouldBe("farmListWrapper collapsed");
-            (await page.Locator(".villageHeader").GetAttributeAsync("class")).ShouldBe("villageHeader expanded");
+            (await page.Locator(".villageHeader").First.GetAttributeAsync("class"))
+                .ShouldBe(villageCollapsed ? "villageHeader collapsed" : "villageHeader expanded");
+            (await page.EvaluateAsync<int>("window.villageClicks || 0")).ShouldBe(0);
+            (await page.EvaluateAsync<int>("window.wrongListClicks || 0")).ShouldBe(0);
+            (await page.Locator("#otherVillageList").GetAttributeAsync("class")).ShouldBe("farmListWrapper collapsed");
             (await page.Locator("#selected").GetAttributeAsync("class")).ShouldBe("farmListWrapper expanded");
         }
 

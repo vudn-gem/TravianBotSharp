@@ -32,10 +32,11 @@ its village-group header, and switches to that village before checking targets.
 The group name must match exactly one owned village; missing or duplicate names
 stop the scan without changing targets. TBS confirms the active village and
 keeps that village context when reloading the farm page.
-It expands the village group and selected list, and checks its
+It expands the selected list and checks its
 enabled target rows by opening each target's map-details dialog.
-Check oasis, Clear oasis and Hero clear oasis all expand the owning village
-group before the selected farm list, including lists inside a `dropContainer`.
+Check oasis, Clear oasis and Hero clear oasis only expand the selected farm
+list, identified by its list ID, including lists inside a `dropContainer`.
+They leave village-group expansion controls and other farm lists unchanged.
 They wait for the rendered target count to match the list's target counter
 before scanning; a collapsed or partially loaded list is not treated as empty.
 For oasis targets, it reads the actual **Troops** table, not report history

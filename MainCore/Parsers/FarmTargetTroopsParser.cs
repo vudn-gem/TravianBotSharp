@@ -67,8 +67,7 @@ namespace MainCore.Parsers
             if (await list.CountAsync() != 1)
                 return Result.Fail("Selected farm list is missing or ambiguous.");
             var snapshot = await list.EvaluateAsync<JsonElement>(@"node => {
-                if (node.classList.contains('collapsed') ||
-                    node.closest('.villageWrapper')?.querySelector(':scope > .villageHeader')?.classList.contains('collapsed'))
+                if (node.classList.contains('collapsed'))
                     return null;
                 const table = node.querySelector('table.slots');
                 if (!table) return null;

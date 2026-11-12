@@ -11,24 +11,10 @@ namespace MainCore.Services
             if (resolved.IsFailed) return Result.Fail(resolved.Errors);
             if (resolved.Value != owner) return Result.Fail("Farm list owner changed during scan.");
             var list = FarmTargetTroopsParser.GetList(page, farmId);
-            var header = page.Locator(
-                $"#rallyPointFarmList .villageWrapper:has(.farmListHeader [data-list='{farmId.Value}']) > .villageHeader");
-            if (await header.CountAsync() != 1) return Result.Fail("Farm list village header is missing or ambiguous.");
-            if (await header.EvaluateAsync<bool>("node => node.classList.contains('collapsed')"))
-            {
-                var expanded = await browser.Click(header.Locator(":scope > a.expandCollapse svg").First);
-                if (expanded.IsFailed) return expanded;
-                await page.WaitForFunctionAsync("""
-                    id => {
-                        const list = document.querySelector(`#rallyPointFarmList .farmListWrapper:has(.farmListHeader [data-list='${id}'])`);
-                        const header = list?.closest('.villageWrapper')?.querySelector(':scope > .villageHeader');
-                        return header?.classList.contains('expanded') && !header.classList.contains('collapsed');
-                    }
-                    """, farmId.Value);
-            }
+            if (await list.CountAsync() != 1) return Result.Fail("Selected farm list is missing or ambiguous.");
             if (!await list.EvaluateAsync<bool>("node => node.classList.contains('expanded')"))
             {
-                var expanded = await browser.Click(list.Locator(".farmListHeader a.expandCollapse"));
+                var expanded = await browser.Click(list.Locator(":scope > .farmListHeader > a.expandCollapse"));
                 if (expanded.IsFailed) return expanded;
             }
             await page.WaitForFunctionAsync("""
@@ -36,8 +22,6 @@ namespace MainCore.Services
                     const lists = document.querySelectorAll(`#rallyPointFarmList .farmListWrapper:has(.farmListHeader [data-list='${id}'])`);
                     if (lists.length !== 1) return false;
                     const list = lists[0];
-                    const header = list.closest('.villageWrapper')?.querySelector(':scope > .villageHeader');
-                    if (!header || header.classList.contains('collapsed')) return false;
                     if (!list.classList.contains('expanded') || list.classList.contains('collapsed')) return false;
                     const table = list.querySelector('table.slots');
                     if (!table) return false;
