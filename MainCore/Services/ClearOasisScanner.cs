@@ -332,7 +332,7 @@ namespace MainCore.Services
                 const actual = new URL(center.getAttribute('href'), location.href);
                 if (actual.searchParams.get('x') !== expected.searchParams.get('x') ||
                     actual.searchParams.get('y') !== expected.searchParams.get('y')) return false;
-                // Prefer the exact oasis raid action to avoid matching "simulate raid".
+                // Prefer the exact oasis raid action to avoid matching simulate raid.
                 let raid = tile.querySelector(
                     '.detailImage .options .option a[href*=""/build.php""][href*=""gid=16""][href*=""tt=2""][href*=""eventType=4""]');
                 if (!raid) {
@@ -405,7 +405,7 @@ namespace MainCore.Services
                 return Result.Ok((
                     false,
                     availableSteppe, availableMarksmen, availableMarauders,
-                    null,
+                    (DateTime?)null,
                     requiredSteppe, requiredMarksmen, requiredMarauders));
 
             cancellationToken.ThrowIfCancellationRequested();

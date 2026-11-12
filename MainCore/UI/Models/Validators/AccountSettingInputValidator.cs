@@ -27,9 +27,6 @@ namespace MainCore.UI.Models.Validators
             RuleFor(x => x.FarmInterval.Min)
                 .GreaterThanOrEqualTo(0)
                 .WithMessage("Minimum farm interval ({PropertyValue}) should be positive number");
-            RuleFor(x => x.OasisRaidSafetyFactor.Value)
-                .GreaterThanOrEqualTo(1)
-                .WithMessage("Oasis raid safety factor ({PropertyValue}) should be at least 1");
         }
     }
 }

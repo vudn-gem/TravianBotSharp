@@ -42,6 +42,7 @@ namespace MainCore.UI.ViewModels
                         .Where(x => x.Level == -1)
                         .ExecuteDelete();
                 }
+                context.InitializeFarmOasisSettings();
             }, RxSchedulers.TaskpoolScheduler);
 
             await waitingOverlayViewModel.ChangeMessage("loading program layout");

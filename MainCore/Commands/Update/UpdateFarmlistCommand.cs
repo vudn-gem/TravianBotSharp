@@ -31,7 +31,11 @@ namespace MainCore.Commands.Update
             var farmUpdated = farms.Where(x => ids.Contains(x.Id)).ToList();
 
             farmDeleted.ForEach(x => context.Remove(x));
-            farmInserted.ForEach(x => context.Add(x.ToEntity(accountId)));
+            farmInserted.ForEach(x =>
+            {
+                context.Add(x.ToEntity(accountId));
+                context.FarmOasisSettings.Add(new FarmOasisSetting { FarmId = x.Id.Value });
+            });
 
             foreach (var farm in farmUpdated)
             {

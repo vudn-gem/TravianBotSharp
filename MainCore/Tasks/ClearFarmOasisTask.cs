@@ -1,5 +1,4 @@
 using MainCore.Commands.Navigate;
-using MainCore.Infrasturecture.Extensions;
 using MainCore.Tasks.Base;
 
 namespace MainCore.Tasks
@@ -10,21 +9,6 @@ namespace MainCore.Tasks
         IDbContextFactory<AppDbContext> contextFactory,
         ClearOasisScanner scanner)
     {
-        private static readonly IReadOnlyDictionary<AccountSettingEnums, int> OasisAnimalUnitBySetting =
-            new Dictionary<AccountSettingEnums, int>
-            {
-                { AccountSettingEnums.AllowRaidRatOasis, 31 },
-                { AccountSettingEnums.AllowRaidSpiderOasis, 32 },
-                { AccountSettingEnums.AllowRaidSnakeOasis, 33 },
-                { AccountSettingEnums.AllowRaidBatOasis, 34 },
-                { AccountSettingEnums.AllowRaidWildBoarOasis, 35 },
-                { AccountSettingEnums.AllowRaidWolfOasis, 36 },
-                { AccountSettingEnums.AllowRaidBearOasis, 37 },
-                { AccountSettingEnums.AllowRaidCrocodileOasis, 38 },
-                { AccountSettingEnums.AllowRaidTigerOasis, 39 },
-                { AccountSettingEnums.AllowRaidElephantOasis, 40 },
-            };
-
         public sealed class Task(AccountId accountId, FarmId farmId) : AccountTask(accountId)
         {
             public FarmId FarmId { get; } = farmId;
@@ -39,8 +23,11 @@ namespace MainCore.Tasks
         {
             var result = await toFarmListPageCommand.HandleAsync(new(task.AccountId), cancellationToken);
             if (result.IsFailed) return result;
-            var (allowedOasisAnimals, safetyFactor) = ReadRaidSettings(task.AccountId);
-            var scan = await scanner.Scan(task.FarmId, allowedOasisAnimals, safetyFactor, task.ResumeTargetIndex, cancellationToken);
+            using var context = contextFactory.CreateDbContext();
+            var settings = OasisRaidSettings.Read(context, task.AccountId, task.FarmId);
+            if (settings.IsFailed) return Stop.Error.WithErrors(settings.Errors);
+            var scan = await scanner.Scan(task.FarmId, settings.Value.AllowedAnimals,
+                settings.Value.SafetyFactor, task.ResumeTargetIndex, cancellationToken);
             if (scan.IsFailed) return Result.Fail(scan.Errors);
 
             task.ResumeTargetIndex = scan.Value.NextTargetIndex;
@@ -55,19 +42,6 @@ namespace MainCore.Tasks
 
             task.ResumeTargetIndex = 0;
             return Result.Ok();
-        }
-
-        private (HashSet<int> AllowedOasisAnimals, int SafetyFactor) ReadRaidSettings(AccountId accountId)
-        {
-            using var context = contextFactory.CreateDbContext();
-            var allowed = new HashSet<int>();
-            foreach (var (setting, unitId) in OasisAnimalUnitBySetting)
-            {
-                if (context.BooleanByName(accountId, setting))
-                    allowed.Add(unitId);
-            }
-            var safetyFactor = context.ByName(accountId, AccountSettingEnums.OasisRaidSafetyFactor);
-            return (allowed, Math.Max(1, safetyFactor));
         }
     }
 }

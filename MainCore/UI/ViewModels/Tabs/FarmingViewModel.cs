@@ -17,7 +17,12 @@ namespace MainCore.UI.ViewModels.Tabs
     public partial class FarmingViewModel : AccountTabViewModelBase
     {
         public AccountSettingInput AccountSettingInput { get; } = new();
+        public FarmOasisSettingInput FarmOasisSettingInput { get; } = new();
         public ListBoxItemViewModel FarmLists { get; } = new();
+        private int? _oasisSettingsFarmId;
+
+        [Reactive]
+        private bool _hasOasisSettings;
 
         private readonly DialogService _dialogService;
         private readonly IValidator<AccountSettingInput> _accountsettingInputValidator;
@@ -62,12 +67,25 @@ namespace MainCore.UI.ViewModels.Tabs
             });
 
             this.WhenAnyValue(x => x.FarmLists.SelectedItem)
-                .WhereNotNull()
                 .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .Subscribe(selectedItem =>
                 {
-                    var color = selectedItem.Color;
-                    ActiveText = _activeTexts[color];
+                    _oasisSettingsFarmId = null;
+                    HasOasisSettings = false;
+                    ActiveText = _activeTexts[selectedItem?.Color ?? SplatColor.Black];
+                    if (selectedItem is null) return;
+                    using var context = _contextFactory.CreateDbContext();
+                    var setting = context.FarmOasisSettings.AsNoTracking().SingleOrDefault(x =>
+                        x.FarmId == selectedItem.Id &&
+                        context.FarmLists.Any(f => f.Id == x.FarmId && f.AccountId == AccountId.Value));
+                    if (setting is null)
+                    {
+                        _ = _dialogService.SendMessage("Warning", "Oasis settings are missing for the selected farm list.");
+                        return;
+                    }
+                    FarmOasisSettingInput.Set(setting);
+                    _oasisSettingsFarmId = selectedItem.Id;
+                    HasOasisSettings = true;
                 });
 
             rxQueue.GetObservable<FarmsModified>()
@@ -183,6 +201,36 @@ namespace MainCore.UI.ViewModels.Tabs
             var settings = AccountSettingInput.Get();
             context.SaveAccountSetting(AccountId, settings);
             await _dialogService.SendMessage("Information", "Saved");
+        }
+
+        [ReactiveCommand]
+        private async Task SaveOasisSettings()
+        {
+            var selected = FarmLists.SelectedItem;
+            if (selected is null || _oasisSettingsFarmId != selected.Id)
+            {
+                await _dialogService.SendMessage("Warning", "Select a farm list with loaded oasis settings.");
+                return;
+            }
+            var settings = FarmOasisSettingInput.Get(selected.Id);
+            if (settings.SafetyFactor < 1)
+            {
+                await _dialogService.SendMessage("Warning", "Oasis raid safety factor must be at least 1.");
+                return;
+            }
+            using var context = _contextFactory.CreateDbContext();
+            var updated = context.FarmOasisSettings
+                .Where(x => x.FarmId == settings.FarmId &&
+                    context.FarmLists.Any(f => f.Id == x.FarmId && f.AccountId == AccountId.Value))
+                .ExecuteUpdate(x => x
+                    .SetProperty(y => y.AllowedAnimals, settings.AllowedAnimals)
+                    .SetProperty(y => y.SafetyFactor, settings.SafetyFactor));
+            if (updated != 1)
+            {
+                await _dialogService.SendMessage("Warning", "Selected farm list or its oasis settings no longer exist.");
+                return;
+            }
+            await _dialogService.SendMessage("Information", "Farm list oasis settings saved.");
         }
 
         [ReactiveCommand(RunInBackground = true)]

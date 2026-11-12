@@ -26,6 +26,52 @@ namespace MainCore.Infrasturecture.Persistence
         public DbSet<Storage> Storages { get; set; }
         public DbSet<VillageSetting> VillagesSetting { get; set; }
         public DbSet<Farm> FarmLists { get; set; }
+        public DbSet<FarmOasisSetting> FarmOasisSettings { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+            modelBuilder.Entity<FarmOasisSetting>()
+                .HasOne<Farm>().WithOne()
+                .HasForeignKey<FarmOasisSetting>(x => x.FarmId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+
+        public void InitializeFarmOasisSettings()
+        {
+            Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "FarmOasisSettings" (
+                    "FarmId" INTEGER NOT NULL CONSTRAINT "PK_FarmOasisSettings" PRIMARY KEY,
+                    "AllowedAnimals" INTEGER NOT NULL,
+                    "SafetyFactor" INTEGER NOT NULL,
+                    CONSTRAINT "FK_FarmOasisSettings_FarmLists_FarmId"
+                        FOREIGN KEY ("FarmId") REFERENCES "FarmLists" ("Id") ON DELETE CASCADE
+                )
+                """);
+
+            var existing = FarmOasisSettings.Select(x => x.FarmId).ToHashSet();
+            var legacyKeys = OasisRaidSettings.LegacyAnimalSettings.Keys
+                .Append(AccountSettingEnums.OasisRaidSafetyFactor).ToList();
+            var legacy = AccountsSetting.Where(x => legacyKeys.Contains(x.Setting))
+                .AsEnumerable().GroupBy(x => x.AccountId)
+                .ToDictionary(x => x.Key, x => x.ToDictionary(y => y.Setting, y => y.Value));
+            foreach (var farm in FarmLists.AsNoTracking().ToList())
+            {
+                if (existing.Contains(farm.Id)) continue;
+                var accountSettings = legacy.GetValueOrDefault(farm.AccountId);
+                var mask = accountSettings is null ? 0 : OasisRaidSettings.LegacyAnimalSettings
+                    .Where(x => accountSettings.GetValueOrDefault(x.Key) == 1)
+                    .Aggregate(0, (current, entry) => current | entry.Value);
+                var factor = accountSettings?.GetValueOrDefault(AccountSettingEnums.OasisRaidSafetyFactor, 2) ?? 2;
+                FarmOasisSettings.Add(new FarmOasisSetting
+                {
+                    FarmId = farm.Id,
+                    AllowedAnimals = mask,
+                    SafetyFactor = Math.Max(1, factor),
+                });
+            }
+            SaveChanges();
+        }
 
         #endregion table
 
