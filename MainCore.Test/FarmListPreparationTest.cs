@@ -21,11 +21,14 @@ namespace MainCore.Test
             var page = await context.NewPageAsync();
             page.SetDefaultTimeout(3000);
             await page.SetContentAsync($$"""
-                <style>.villageHeader.collapsed + .dropContainer { display:none; }</style>
+                <style>
+                .villageHeader.collapsed + .dropContainer { display:none; }
+                .villageHeader a.expandCollapse { pointer-events:none; }
+                </style>
                 <div id="sidebarBoxVillageList"><div class="listEntry village active" data-did="2"><span class="name">Home</span></div></div>
                 <div id="rallyPointFarmList"><div class="villageWrapper">
-                <div class="villageHeader {{(villageCollapsed ? "collapsed" : "expanded")}}"><div class="villageName">Home</div>
-                <a class="expandCollapse" onclick="setTimeout(() => this.parentElement.className='villageHeader expanded', 30)">Expand village</a></div>
+                <div class="villageHeader {{(villageCollapsed ? "collapsed" : "expanded")}}" onclick="setTimeout(() => this.className='villageHeader expanded', 30)"><div class="villageName">Home</div>
+                <a class="expandCollapse">Expand village</a></div>
                 <div class="dropContainer">
                 <div class="farmListWrapper collapsed" id="other"><div class="farmListHeader"><div data-list="20"></div>
                 <a class="expandCollapse" onclick="throw new Error('Wrong list expanded')">Other list</a></div></div>
