@@ -46,6 +46,11 @@ namespace WPFUI.Views.Tabs
                 this.Bind(ViewModel, vm => vm.FarmOasisSettingInput.AllowTiger, v => v.AllowTigerOasisCheckBox.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.FarmOasisSettingInput.AllowElephant, v => v.AllowElephantOasisCheckBox.IsChecked).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.FarmOasisSettingInput.SafetyFactor, v => v.OasisRaidSafetyFactor.ViewModel).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.FarmOasisSettingInput.LimitAnimal, v => v.LimitAnimal.ViewModel).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.FarmOasisSettingInput.AttackTroopIndex, v => v.OasisAttackTroop.SelectedIndex).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.FarmOasisSettingInput.RaidSteppeRiders, v => v.RaidSteppeRiders.ViewModel).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.FarmOasisSettingInput.RaidMarksmen, v => v.RaidMarksmen.ViewModel).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.FarmOasisSettingInput.RaidMarauders, v => v.RaidMarauders.ViewModel).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.AccountSettingInput.FarmInterval, v => v.FarmInterval.ViewModel).DisposeWith(d);
 
                 this.Bind(ViewModel, vm => vm.ActiveText, v => v.ActiveButton.Content).DisposeWith(d);

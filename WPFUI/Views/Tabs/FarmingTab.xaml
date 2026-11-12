@@ -48,10 +48,25 @@
                     <Button x:Name="CheckTargetTroopsButton" Content="Check oasis" Margin="10"
                             ToolTip="Check oasis targets and deactivate those containing troops" />
                     <Button x:Name="ClearOasisButton" Content="Clear oasis" Margin="10"
-                            ToolTip="Scan Steppe Riders and raid oasis targets that can be cleared" />
+                            ToolTip="Use the selected farm list's troop settings to raid oasis targets" />
                     <GroupBox x:Name="OasisSettingsGroup" Header="Selected farm list oasis settings" Margin="10,0,10,10">
                         <StackPanel Margin="8">
                             <uc:AmountInputUc x:Name="OasisRaidSafetyFactor" Text="Oasis raid safety factor" Unit="x" />
+                            <uc:AmountInputUc x:Name="LimitAnimal" Text="Limit animal (0 = unlimited)" Unit="animals" />
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <TextBlock Text="Attack troop" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox x:Name="OasisAttackTroop" Width="140">
+                                    <ComboBoxItem Content="Steppe Rider" />
+                                    <ComboBoxItem Content="Marksman" />
+                                    <ComboBoxItem Content="Marauder" />
+                                </ComboBox>
+                            </StackPanel>
+                            <TextBlock Text="Raid troops (empty oasis)" FontWeight="SemiBold" Margin="0,8,0,4" />
+                            <WrapPanel Orientation="Horizontal">
+                                <uc:AmountInputUc x:Name="RaidSteppeRiders" Text="Steppe Rider" Unit="troops" Margin="0,0,12,0" />
+                                <uc:AmountInputUc x:Name="RaidMarksmen" Text="Marksman" Unit="troops" Margin="0,0,12,0" />
+                                <uc:AmountInputUc x:Name="RaidMarauders" Text="Marauder" Unit="troops" />
+                            </WrapPanel>
                             <TextBlock Text="Allowed oasis animals" FontWeight="SemiBold" Margin="0,8,0,4" />
                             <WrapPanel Orientation="Horizontal">
                                 <CheckBox x:Name="AllowRatOasisCheckBox" Content="Rat" Margin="0,0,12,4" />

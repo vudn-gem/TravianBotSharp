@@ -16,6 +16,11 @@ namespace MainCore.UI.Models.Input
         [Reactive] private bool _allowTiger;
         [Reactive] private bool _allowElephant;
         public AmountInputViewModel SafetyFactor { get; } = new();
+        [Reactive] private int _attackTroopIndex;
+        public AmountInputViewModel RaidSteppeRiders { get; } = new();
+        public AmountInputViewModel RaidMarksmen { get; } = new();
+        public AmountInputViewModel RaidMarauders { get; } = new();
+        public AmountInputViewModel LimitAnimal { get; } = new();
 
         public void Set(FarmOasisSetting setting)
         {
@@ -31,6 +36,11 @@ namespace MainCore.UI.Models.Input
             AllowTiger = (mask & (1 << 8)) != 0;
             AllowElephant = (mask & (1 << 9)) != 0;
             SafetyFactor.Set(setting.SafetyFactor);
+            AttackTroopIndex = (int)setting.AttackTroop;
+            RaidSteppeRiders.Set(setting.RaidSteppeRiders);
+            RaidMarksmen.Set(setting.RaidMarksmen);
+            RaidMarauders.Set(setting.RaidMarauders);
+            LimitAnimal.Set(setting.LimitAnimal);
         }
 
         public FarmOasisSetting Get(int farmId) => new()
@@ -42,6 +52,11 @@ namespace MainCore.UI.Models.Input
                 (AllowBear ? 1 << 6 : 0) | (AllowCrocodile ? 1 << 7 : 0) |
                 (AllowTiger ? 1 << 8 : 0) | (AllowElephant ? 1 << 9 : 0),
             SafetyFactor = SafetyFactor.Get(),
+            AttackTroop = (OasisAttackTroop)AttackTroopIndex,
+            RaidSteppeRiders = RaidSteppeRiders.Get(),
+            RaidMarksmen = RaidMarksmen.Get(),
+            RaidMarauders = RaidMarauders.Get(),
+            LimitAnimal = LimitAnimal.Get(),
         };
     }
 }

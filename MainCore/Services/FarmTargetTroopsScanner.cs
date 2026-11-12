@@ -78,10 +78,7 @@ namespace MainCore.Services
                 if (ready.IsFailed) return ready;
                 if (saved)
                 {
-                    var row = list.Locator($"tr.slot:has(input[data-slot-id='{target.SlotId}'])");
-                    if (await row.CountAsync() == 1 &&
-                        await row.Locator("td.target a").GetAttributeAsync("href") == target.Href &&
-                        await row.EvaluateAsync<bool>("node => node.classList.contains('disabled')"))
+                    if (await FarmTargetDeactivator.IsConfirmed(page, farmId, target))
                     {
                         disabled++;
                         browser.Logger.Information("Farm target {SlotId} disabled in list {FarmListId}", target.SlotId, farmId.Value);
@@ -140,31 +137,7 @@ namespace MainCore.Services
             browser.Logger.Information("Farm target {SlotId} ({TargetName}): has troops {HasTroops}",
                 target.SlotId, target.Name, troops.Value);
             if (!troops.Value) return Result.Ok(false);
-            var edit = await FarmTargetTroopsParser.FindEditLink(page, farmId, target.SlotId);
-            if (edit.IsFailed) return Result.Fail(edit.Errors);
-            result = await browser.Click(edit.Value);
-            if (result.IsFailed) return Result.Fail(result.Errors);
-            result = await browser.Wait(page.Locator("#farmListTargetForm"));
-            if (result.IsFailed) return Result.Fail(result.Errors);
-            var selected = await OffensiveReportParser.ReadSelectedFarmList(page);
-            if (selected.IsFailed) return Result.Fail(selected.Errors);
-            if (selected.Value != farmId.Value.ToString())
-                return Result.Fail("Edit dialog selected a different farm list.");
-            var matches = await page.Locator("#farmListTargetForm").EvaluateAsync<bool>(@"(form, href) => {
-                const url = new URL(href, location.href);
-                return form.querySelector('input[name=""x""]')?.value === url.searchParams.get('x') &&
-                    form.querySelector('input[name=""y""]')?.value === url.searchParams.get('y');
-            }", target.Href);
-            if (!matches) return Result.Fail("Edit dialog target coordinates do not match.");
-            cancellationToken.ThrowIfCancellationRequested();
-            var checkbox = page.Locator("#farmListTargetForm .deactivateSlot input[name='isActive']");
-            if (await checkbox.IsCheckedAsync()) return Result.Ok(false);
-            await checkbox.CheckAsync(new LocatorCheckOptions { Timeout = 3000 });
-            result = await browser.Click(page.Locator("#farmListTargetForm .actionButtons button.save[type='submit']"));
-            if (result.IsFailed) return Result.Fail(result.Errors);
-            await page.Locator("#farmListTargetForm").WaitForAsync(new LocatorWaitForOptions
-                { State = WaitForSelectorState.Hidden, Timeout = 5000 });
-            return Result.Ok(true);
+            return await FarmTargetDeactivator.Deactivate(browser, farmId, target, cancellationToken);
         }
     }
 }

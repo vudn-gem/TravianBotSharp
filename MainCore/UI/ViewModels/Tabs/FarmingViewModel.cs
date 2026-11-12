@@ -155,7 +155,7 @@ namespace MainCore.UI.ViewModels.Tabs
                 return;
             }
             _taskManager.AddOrUpdate<ClearFarmOasisTask.Task>(new(AccountId, new FarmId(selected.Id)));
-            await _dialogService.SendMessage("Information", "Added clear oasis task. The bot will scan Steppe Riders, scan oasis, and raid clearable oasis targets.");
+            await _dialogService.SendMessage("Information", "Added clear oasis task using the selected farm list's saved troop settings.");
         }
 
         [ReactiveCommand(RunInBackground = true)]
@@ -218,13 +218,33 @@ namespace MainCore.UI.ViewModels.Tabs
                 await _dialogService.SendMessage("Warning", "Oasis raid safety factor must be at least 1.");
                 return;
             }
+            if (!Enum.IsDefined(settings.AttackTroop))
+            {
+                await _dialogService.SendMessage("Warning", "Select an attack troop.");
+                return;
+            }
+            if (settings.LimitAnimal < 0)
+            {
+                await _dialogService.SendMessage("Warning", "Animal limit must be zero or greater.");
+                return;
+            }
+            if (!OasisRaidSettings.IsValidRaidComposition(settings.RaidSteppeRiders, settings.RaidMarksmen, settings.RaidMarauders))
+            {
+                await _dialogService.SendMessage("Warning", "Raid troop counts must be between 0 and 999999, with at least one troop.");
+                return;
+            }
             using var context = _contextFactory.CreateDbContext();
             var updated = context.FarmOasisSettings
                 .Where(x => x.FarmId == settings.FarmId &&
                     context.FarmLists.Any(f => f.Id == x.FarmId && f.AccountId == AccountId.Value))
                 .ExecuteUpdate(x => x
                     .SetProperty(y => y.AllowedAnimals, settings.AllowedAnimals)
-                    .SetProperty(y => y.SafetyFactor, settings.SafetyFactor));
+                    .SetProperty(y => y.SafetyFactor, settings.SafetyFactor)
+                    .SetProperty(y => y.AttackTroop, settings.AttackTroop)
+                    .SetProperty(y => y.RaidSteppeRiders, settings.RaidSteppeRiders)
+                    .SetProperty(y => y.RaidMarksmen, settings.RaidMarksmen)
+                    .SetProperty(y => y.RaidMarauders, settings.RaidMarauders)
+                    .SetProperty(y => y.LimitAnimal, settings.LimitAnimal));
             if (updated != 1)
             {
                 await _dialogService.SendMessage("Warning", "Selected farm list or its oasis settings no longer exist.");

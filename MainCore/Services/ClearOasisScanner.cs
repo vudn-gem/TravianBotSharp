@@ -9,20 +9,18 @@ namespace MainCore.Services
             int RaidCount,
             long RemainingSteppeRiders);
 
-        private sealed record ProcessTargetResult(bool SentRaid, bool NeedRetry, DateTime? RetryAt);
+        private sealed record ProcessTargetResult(bool SentRaid, bool NeedRetry, DateTime? RetryAt, bool CheckDeactivation = false);
 
         private sealed class RaidDraft
         {
             public long SteppeRidersRemaining { get; set; }
             public long MarksmenRemaining { get; set; }
             public long MaraudersRemaining { get; set; }
-            public double SafetyFactor { get; set; }
         }
 
         public async Task<Result<ClearOasisScanResult>> Scan(
             FarmId farmId,
-            IReadOnlySet<int> allowedOasisAnimals,
-            int safetyFactor,
+            OasisRaidSettings settings,
             int startTargetIndex,
             CancellationToken cancellationToken)
         {
@@ -56,7 +54,7 @@ namespace MainCore.Services
             if (await list.CountAsync() != 1) return Result.Fail("Selected farm list not found.");
 
             var sendTroopsUrl = FarmTargetTroopsParser.BuildRallyPointTabUrl(farmUrl, 2);
-            var draftResult = await ReadSteppeRiderDraft(sendTroopsUrl, farmUrl, farmId, owner.Value, safetyFactor);
+            var draftResult = await ReadSteppeRiderDraft(sendTroopsUrl, farmUrl, farmId, owner.Value);
             if (draftResult.IsFailed) return Result.Fail(draftResult.Errors);
             var draft = draftResult.Value;
 
@@ -86,12 +84,13 @@ namespace MainCore.Services
                 var target = targets.Value[i];
                 if (target.Disabled) continue;
                 Result restored = Result.Ok();
+                var checkDeactivation = false;
                 try
                 {
                     var result = await ProcessTarget(
                         farmId,
                         target,
-                        allowedOasisAnimals,
+                        settings,
                         draft,
                         pendingReturns,
                         cancellationToken);
@@ -99,6 +98,7 @@ namespace MainCore.Services
                         browser.Logger.Warning("Clear oasis target {SlotId} skipped: {Reason}", target.SlotId, result.Errors[0].Message);
                     else
                     {
+                        checkDeactivation = result.Value.CheckDeactivation;
                         if (result.Value.SentRaid) raids++;
                         if (result.Value.NeedRetry)
                         {
@@ -142,6 +142,13 @@ namespace MainCore.Services
                 }
                 ready = await browser.Wait(list.Locator("table.slots"));
                 if (ready.IsFailed) return Result.Fail(ready.Errors);
+                if (checkDeactivation)
+                {
+                    if (await FarmTargetDeactivator.IsConfirmed(page, farmId, target))
+                        browser.Logger.Information("Clear oasis target {SlotId}: deactivation confirmed", target.SlotId);
+                    else
+                        browser.Logger.Warning("Clear oasis target {SlotId}: deactivation was not confirmed", target.SlotId);
+                }
             }
 
             browser.Logger.Information(
@@ -155,8 +162,7 @@ namespace MainCore.Services
             string sendTroopsUrl,
             string farmUrl,
             FarmId farmId,
-            VillageId owner,
-            int safetyFactor)
+            VillageId owner)
         {
             var opened = await browser.Navigate(sendTroopsUrl);
             if (opened.IsFailed) return Result.Fail(opened.Errors);
@@ -176,7 +182,6 @@ namespace MainCore.Services
                 SteppeRidersRemaining = parsed.Value.AvailableSteppeRiders,
                 MarksmenRemaining = parsed.Value.AvailableMarksmen,
                 MaraudersRemaining = parsed.Value.AvailableMarauders,
-                SafetyFactor = Math.Max(1, safetyFactor),
             });
         }
 
@@ -202,7 +207,7 @@ namespace MainCore.Services
         private async Task<Result<ProcessTargetResult>> ProcessTarget(
             FarmId farmId,
             FarmTargetSlot target,
-            IReadOnlySet<int> allowedOasisAnimals,
+            OasisRaidSettings settings,
             RaidDraft draft,
             List<(long Steppe, long Marksmen, long Marauders, DateTime ReturnAt)> pendingReturns,
             CancellationToken cancellationToken)
@@ -233,7 +238,17 @@ namespace MainCore.Services
 
             var troops = await FarmTargetTroopsParser.ReadOasisAnimalTroops(page, target.Href);
             if (troops.IsFailed) return Result.Fail(troops.Errors);
-            var blocked = troops.Value.Where(x => x.Count > 0 && !allowedOasisAnimals.Contains(x.UnitId))
+            var animalCount = troops.Value.Sum(x => x.Count);
+            if (settings.LimitAnimal > 0 && animalCount > settings.LimitAnimal)
+            {
+                var deactivated = await FarmTargetDeactivator.Deactivate(browser, farmId, target, cancellationToken);
+                if (deactivated.IsFailed) return Result.Fail(deactivated.Errors);
+                browser.Logger.Information(
+                    "Clear oasis target {SlotId}: {AnimalCount} animals exceed limit {AnimalLimit}; checking deactivation",
+                    target.SlotId, animalCount, settings.LimitAnimal);
+                return Result.Ok(new ProcessTargetResult(false, false, null, true));
+            }
+            var blocked = troops.Value.Where(x => x.Count > 0 && !settings.AllowedAnimals.Contains(x.UnitId))
                 .Select(x => x.Name).Distinct().OrderBy(x => x).ToList();
             if (blocked.Count > 0)
             {
@@ -243,35 +258,45 @@ namespace MainCore.Services
                 return Result.Ok(new ProcessTargetResult(false, false, null));
             }
 
-            var clearable = troops.Value.Where(x => x.Count > 0 && allowedOasisAnimals.Contains(x.UnitId)).ToList();
+            var clearable = troops.Value.Where(x => x.Count > 0 && settings.AllowedAnimals.Contains(x.UnitId)).ToList();
             var clearableCount = clearable.Sum(x => x.Count);
-            var isEmptyOasis = clearableCount <= 0;
-
-            var required = isEmptyOasis ? 0 : (long)Math.Ceiling(clearableCount * draft.SafetyFactor);
-            if (!isEmptyOasis && required <= 0) return Result.Ok(new ProcessTargetResult(false, false, null));
+            var required = settings.RequiredTroops(clearableCount);
 
             var openRaid = await OpenRaidUnoccupiedOasisFromDialog(target.Href);
             if (openRaid.IsFailed) return Result.Fail(openRaid.Errors);
-            var raid = await SendSteppeRiderRaidFromCurrentPage(required, isEmptyOasis, cancellationToken);
+            var raid = await SendRaidFromCurrentPage(required.Steppe, required.Marksmen, required.Marauders, settings, cancellationToken);
             if (raid.IsFailed) return Result.Fail(raid.Errors);
             draft.SteppeRidersRemaining = raid.Value.RemainingSteppeRiders;
             draft.MarksmenRemaining = raid.Value.RemainingMarksmen;
             draft.MaraudersRemaining = raid.Value.RemainingMarauders;
             if (!raid.Value.Sent)
             {
-                var retryAt = ResolveRetryAt(
-                    raid.Value.RequiredSteppeRiders,
-                    raid.Value.RequiredMarksmen,
-                    raid.Value.RequiredMarauders,
-                    raid.Value.RemainingSteppeRiders,
-                    raid.Value.RemainingMarksmen,
-                    raid.Value.RemainingMarauders,
-                    pendingReturns);
+                var canRaidEmptyOasis = draft.SteppeRidersRemaining >= settings.RaidSteppeRiders &&
+                    draft.MarksmenRemaining >= settings.RaidMarksmen &&
+                    draft.MaraudersRemaining >= settings.RaidMarauders;
                 browser.Logger.Information(
-                    "Clear oasis target {SlotId}: insufficient troops, required Steppe {RequiredSteppe}, required Marksmen {RequiredMarksmen}, required Marauders {RequiredMarauders}, real-time Steppe {RemainingSteppe}, real-time Marksmen {RemainingMarksmen}, real-time Marauders {RemainingMarauders}",
+                    "Clear oasis target {SlotId}: troop availability, required Steppe {RequiredSteppe}, required Marksmen {RequiredMarksmen}, required Marauders {RequiredMarauders}, real-time Steppe {RemainingSteppe}, real-time Marksmen {RemainingMarksmen}, real-time Marauders {RemainingMarauders}",
                     target.SlotId,
                     raid.Value.RequiredSteppeRiders, raid.Value.RequiredMarksmen, raid.Value.RequiredMarauders,
                     draft.SteppeRidersRemaining, draft.MarksmenRemaining, draft.MaraudersRemaining);
+                if (canRaidEmptyOasis)
+                {
+                    browser.Logger.Information(
+                        "Clear oasis target {SlotId}: not enough attack troops; continuing to the next target",
+                        target.SlotId);
+                    return Result.Ok(new ProcessTargetResult(false, false, null));
+                }
+                var retryAt = ResolveRetryAt(
+                    settings.RaidSteppeRiders,
+                    settings.RaidMarksmen,
+                    settings.RaidMarauders,
+                    draft.SteppeRidersRemaining,
+                    draft.MarksmenRemaining,
+                    draft.MaraudersRemaining,
+                    pendingReturns);
+                browser.Logger.Information(
+                    "Clear oasis target {SlotId}: insufficient troops for the configured empty oasis raid; scheduling a retry",
+                    target.SlotId);
                 return Result.Ok(new ProcessTargetResult(false, true, retryAt));
             }
             if (raid.Value.ReturnAt is DateTime returnAt)
@@ -360,9 +385,11 @@ namespace MainCore.Services
             DateTime? ReturnAt,
             long RequiredSteppeRiders,
             long RequiredMarksmen,
-            long RequiredMarauders)>> SendSteppeRiderRaidFromCurrentPage(
-            long amount,
-            bool isEmptyOasis,
+            long RequiredMarauders)>> SendRaidFromCurrentPage(
+            long requiredSteppe,
+            long requiredMarksmen,
+            long requiredMarauders,
+            OasisRaidSettings settings,
             CancellationToken cancellationToken)
         {
             var page = browser.CurrentPage;
@@ -374,32 +401,10 @@ namespace MainCore.Services
             var availableMarksmen = draft.Value.AvailableMarksmen;
             var availableMarauders = draft.Value.AvailableMarauders;
 
-            var requiredSteppe = amount;
-            var requiredMarksmen = 0L;
-            var requiredMarauders = 0L;
-            if (isEmptyOasis)
-            {
-                if (availableSteppe >= 1 && availableMarksmen >= 1 && availableMarauders >= 1)
-                {
-                    requiredSteppe = 1;
-                    requiredMarksmen = 1;
-                    requiredMarauders = 1;
-                }
-                else if (availableSteppe >= 1 && availableMarksmen >= 1)
-                {
-                    requiredSteppe = 1;
-                    requiredMarksmen = 1;
-                    requiredMarauders = 0;
-                }
-                else
-                {
-                    requiredSteppe = 2;
-                    requiredMarksmen = 0;
-                    requiredMarauders = 0;
-                }
-            }
-
-            if (availableSteppe < requiredSteppe ||
+            if (availableSteppe < settings.RaidSteppeRiders ||
+                availableMarksmen < settings.RaidMarksmen ||
+                availableMarauders < settings.RaidMarauders ||
+                availableSteppe < requiredSteppe ||
                 availableMarksmen < requiredMarksmen ||
                 availableMarauders < requiredMarauders)
                 return Result.Ok((
@@ -415,15 +420,15 @@ namespace MainCore.Services
                 const steppe = form.querySelector('table#troops input[name=""troop[t4]""]');
                 const marksman = form.querySelector('table#troops input[name=""troop[t5]""]');
                 const marauder = form.querySelector('table#troops input[name=""troop[t6]""]');
-                if (!steppe || steppe.disabled) return false;
+                if (draft.steppe > 0 && (!steppe || steppe.disabled)) return false;
                 if (draft.marksman > 0 && (!marksman || marksman.disabled)) return false;
                 if (draft.marauder > 0 && (!marauder || marauder.disabled)) return false;
-                steppe.value = String(draft.steppe);
+                if (steppe) steppe.value = String(draft.steppe);
                 if (marksman) marksman.value = String(draft.marksman);
                 if (marauder) marauder.value = String(draft.marauder);
                 return !!form.querySelector('button#ok[type=""submit""]');
             }", new { steppe = requiredSteppe, marksman = requiredMarksmen, marauder = requiredMarauders });
-            if (!filled) return Result.Fail("Unable to prepare Steppe Rider raid form.");
+            if (!filled) return Result.Fail("Unable to prepare oasis raid form.");
 
             var sent = await browser.Click(page.Locator("#build .a2b form[action*='tt=2'] button#ok[type='submit']"));
             if (sent.IsFailed) return Result.Fail(sent.Errors);

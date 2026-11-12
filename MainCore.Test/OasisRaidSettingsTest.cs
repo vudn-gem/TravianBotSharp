@@ -74,15 +74,30 @@ namespace MainCore.Test
             var first = _context.FarmOasisSettings.Single(x => x.FarmId == 10);
             first.AllowedAnimals = 1 << 9;
             first.SafetyFactor = 5;
+            first.AttackTroop = OasisAttackTroop.Marksman;
+            first.RaidSteppeRiders = 0;
+            first.RaidMarksmen = 2;
+            first.RaidMarauders = 1;
+            first.LimitAnimal = 7;
             _context.SaveChanges();
             var firstSettings = OasisRaidSettings.Read(_context, new AccountId(1), new FarmId(10));
             var secondSettings = OasisRaidSettings.Read(_context, new AccountId(1), new FarmId(11));
             firstSettings.Value.AllowedAnimals.ShouldContain(40);
             firstSettings.Value.SafetyFactor.ShouldBe(5);
+            firstSettings.Value.AttackTroop.ShouldBe(OasisAttackTroop.Marksman);
+            firstSettings.Value.RequiredTroops(0).ShouldBe((0L, 2L, 1L));
+            firstSettings.Value.LimitAnimal.ShouldBe(7);
             secondSettings.Value.AllowedAnimals.ShouldBeEmpty();
             secondSettings.Value.SafetyFactor.ShouldBe(2);
+            secondSettings.Value.AttackTroop.ShouldBe(OasisAttackTroop.SteppeRider);
+            secondSettings.Value.RequiredTroops(0).ShouldBe((2L, 0L, 0L));
+            secondSettings.Value.LimitAnimal.ShouldBe(0);
             OasisRaidSettings.Read(_context, new AccountId(2), new FarmId(10)).IsFailed.ShouldBeTrue();
             first.SafetyFactor = 0;
+            _context.SaveChanges();
+            OasisRaidSettings.Read(_context, new AccountId(1), new FarmId(10)).IsFailed.ShouldBeTrue();
+            first.SafetyFactor = 2;
+            first.LimitAnimal = -1;
             _context.SaveChanges();
             OasisRaidSettings.Read(_context, new AccountId(1), new FarmId(10)).IsFailed.ShouldBeTrue();
         }
@@ -107,7 +122,82 @@ namespace MainCore.Test
             result.IsSuccess.ShouldBeTrue();
             result.Value.SafetyFactor.ShouldBe(2);
             result.Value.AllowedAnimals.ShouldBeEmpty();
+            result.Value.AttackTroop.ShouldBe(OasisAttackTroop.SteppeRider);
+            result.Value.RequiredTroops(0).ShouldBe((2L, 0L, 0L));
         }
+
+        [Fact]
+        public void UpgradesPreviousFarmSettingsWithoutLosingValues()
+        {
+            _context.Database.ExecuteSqlRaw("DROP TABLE \"FarmOasisSettings\"");
+            _context.Database.ExecuteSqlRaw("""
+                CREATE TABLE "FarmOasisSettings" (
+                    "FarmId" INTEGER PRIMARY KEY,
+                    "AllowedAnimals" INTEGER NOT NULL,
+                    "SafetyFactor" INTEGER NOT NULL,
+                    FOREIGN KEY ("FarmId") REFERENCES "FarmLists" ("Id") ON DELETE CASCADE
+                )
+                """);
+            _context.Database.ExecuteSqlRaw("""INSERT INTO "FarmOasisSettings" VALUES (10, 4, 5)""");
+            _context.InitializeFarmOasisSettings();
+            _context.InitializeFarmOasisSettings();
+            var settings = _context.FarmOasisSettings.AsNoTracking().Single(x => x.FarmId == 10);
+            settings.AllowedAnimals.ShouldBe(4);
+            settings.SafetyFactor.ShouldBe(5);
+            settings.AttackTroop.ShouldBe(OasisAttackTroop.SteppeRider);
+            settings.RaidSteppeRiders.ShouldBe(2);
+            settings.RaidMarksmen.ShouldBe(0);
+            settings.RaidMarauders.ShouldBe(0);
+            settings.LimitAnimal.ShouldBe(0);
+        }
+
+        [Fact]
+        public void UpgradesTroopSettingsWithUnlimitedAnimalDefault()
+        {
+            _context.Database.ExecuteSqlRaw("DROP TABLE \"FarmOasisSettings\"");
+            _context.Database.ExecuteSqlRaw("""
+                CREATE TABLE "FarmOasisSettings" (
+                    "FarmId" INTEGER PRIMARY KEY,
+                    "AllowedAnimals" INTEGER NOT NULL,
+                    "SafetyFactor" INTEGER NOT NULL,
+                    "AttackTroop" INTEGER NOT NULL,
+                    "RaidSteppeRiders" INTEGER NOT NULL,
+                    "RaidMarksmen" INTEGER NOT NULL,
+                    "RaidMarauders" INTEGER NOT NULL
+                )
+                """);
+            _context.Database.ExecuteSqlRaw("""INSERT INTO "FarmOasisSettings" VALUES (10, 4, 5, 1, 0, 3, 1)""");
+            _context.InitializeFarmOasisSettings();
+            _context.InitializeFarmOasisSettings();
+            var settings = _context.FarmOasisSettings.AsNoTracking().Single(x => x.FarmId == 10);
+            settings.AttackTroop.ShouldBe(OasisAttackTroop.Marksman);
+            settings.RaidMarksmen.ShouldBe(3);
+            settings.RaidMarauders.ShouldBe(1);
+            settings.LimitAnimal.ShouldBe(0);
+        }
+
+        [Theory]
+        [InlineData(OasisAttackTroop.SteppeRider, 12, 0, 0)]
+        [InlineData(OasisAttackTroop.Marksman, 0, 12, 0)]
+        [InlineData(OasisAttackTroop.Marauder, 0, 0, 12)]
+        public void SelectedAttackTroopUsesAnimalCountAndSafetyFactor(
+            OasisAttackTroop troop, long steppe, long marksmen, long marauders)
+        {
+            var settings = new OasisRaidSettings(new HashSet<int> { 31 }, 3, troop, 1, 2, 3);
+            settings.RequiredTroops(4).ShouldBe((steppe, marksmen, marauders));
+            settings.RequiredTroops(0).ShouldBe((1L, 2L, 3L));
+        }
+
+        [Theory]
+        [InlineData(2, 0, 0, true)]
+        [InlineData(1, 1, 0, true)]
+        [InlineData(1, 1, 1, true)]
+        [InlineData(0, 2, 0, true)]
+        [InlineData(0, 0, 0, false)]
+        [InlineData(-1, 2, 0, false)]
+        [InlineData(1000000, 0, 0, false)]
+        public void ValidatesEmptyOasisTroopCounts(int steppe, int marksmen, int marauders, bool valid) =>
+            OasisRaidSettings.IsValidRaidComposition(steppe, marksmen, marauders).ShouldBe(valid);
 
         [Fact]
         public void InputRoundTripsAllAnimalBitsAndSafetyFactor()
@@ -116,11 +206,21 @@ namespace MainCore.Test
             var input = new FarmOasisSettingInput();
             for (var mask = 0; mask < 1024; mask++)
             {
-                input.Set(new FarmOasisSetting { FarmId = 10, AllowedAnimals = mask, SafetyFactor = 6 });
+                input.Set(new FarmOasisSetting
+                {
+                    FarmId = 10, AllowedAnimals = mask, SafetyFactor = 6,
+                    AttackTroop = OasisAttackTroop.Marauder, RaidSteppeRiders = 1, RaidMarksmen = 2, RaidMarauders = 3,
+                    LimitAnimal = 17,
+                });
                 var result = input.Get(11);
                 result.FarmId.ShouldBe(11);
                 result.AllowedAnimals.ShouldBe(mask);
                 result.SafetyFactor.ShouldBe(6);
+                result.AttackTroop.ShouldBe(OasisAttackTroop.Marauder);
+                result.RaidSteppeRiders.ShouldBe(1);
+                result.RaidMarksmen.ShouldBe(2);
+                result.RaidMarauders.ShouldBe(3);
+                result.LimitAnimal.ShouldBe(17);
             }
         }
 

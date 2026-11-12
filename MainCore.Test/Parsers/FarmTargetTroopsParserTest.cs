@@ -98,6 +98,30 @@ namespace MainCore.Test.Parsers
             result.Value.AvailableMarauders.ShouldBe(5);
         }
 
+        [Theory]
+        [InlineData("225", "101", "0", true)]
+        [InlineData("225", "unknown", "0", false)]
+        public async Task ReadsAvailableHunTroopsFromLinksAndDisabledSpans(
+            string steppe, string marksman, string marauder, bool success)
+        {
+            await using var context = await CreateContextAsync();
+            var page = await context.NewPageAsync();
+            await page.SetContentAsync($"""
+                <div id="build"><div class="a2b"><form action="/build.php?gid=16&amp;tt=2">
+                <table id="troops"><tbody>
+                <tr><td><img class="unit u64"><input name="troop[t4]">&nbsp;/&nbsp;<a href="#">&#8237;{steppe}&#8236;</a></td></tr>
+                <tr><td><img class="unit u65"><input name="troop[t5]">&nbsp;/&nbsp;<a href="#">&#8237;{marksman}&#8236;</a></td></tr>
+                <tr><td><img class="unit u66"><input name="troop[t6]" disabled>&nbsp;/&nbsp;<span class="none">&#8237;{marauder}&#8236;</span></td></tr>
+                </tbody></table></form></div></div>
+                """);
+            var result = await FarmTargetTroopsParser.ReadSteppeRiderDraft(page);
+            result.IsSuccess.ShouldBe(success);
+            if (!success) return;
+            result.Value.AvailableSteppeRiders.ShouldBe(225);
+            result.Value.AvailableMarksmen.ShouldBe(101);
+            result.Value.AvailableMarauders.ShouldBe(0);
+        }
+
         [Fact]
         public async Task ReadsOnlySelectedListsSlotsAndFindsExactEditLink()
         {

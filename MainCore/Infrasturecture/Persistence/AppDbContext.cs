@@ -44,10 +44,28 @@ namespace MainCore.Infrasturecture.Persistence
                     "FarmId" INTEGER NOT NULL CONSTRAINT "PK_FarmOasisSettings" PRIMARY KEY,
                     "AllowedAnimals" INTEGER NOT NULL,
                     "SafetyFactor" INTEGER NOT NULL,
+                    "AttackTroop" INTEGER NOT NULL DEFAULT 0,
+                    "RaidSteppeRiders" INTEGER NOT NULL DEFAULT 2,
+                    "RaidMarksmen" INTEGER NOT NULL DEFAULT 0,
+                    "RaidMarauders" INTEGER NOT NULL DEFAULT 0,
+                    "LimitAnimal" INTEGER NOT NULL DEFAULT 0,
                     CONSTRAINT "FK_FarmOasisSettings_FarmLists_FarmId"
                         FOREIGN KEY ("FarmId") REFERENCES "FarmLists" ("Id") ON DELETE CASCADE
                 )
                 """);
+
+            var columns = Database.SqlQueryRaw<string>(
+                """SELECT "name" AS "Value" FROM pragma_table_info('FarmOasisSettings')""").ToHashSet();
+            if (!columns.Contains("AttackTroop"))
+                Database.ExecuteSqlRaw("""ALTER TABLE "FarmOasisSettings" ADD COLUMN "AttackTroop" INTEGER NOT NULL DEFAULT 0""");
+            if (!columns.Contains("RaidSteppeRiders"))
+                Database.ExecuteSqlRaw("""ALTER TABLE "FarmOasisSettings" ADD COLUMN "RaidSteppeRiders" INTEGER NOT NULL DEFAULT 2""");
+            if (!columns.Contains("RaidMarksmen"))
+                Database.ExecuteSqlRaw("""ALTER TABLE "FarmOasisSettings" ADD COLUMN "RaidMarksmen" INTEGER NOT NULL DEFAULT 0""");
+            if (!columns.Contains("RaidMarauders"))
+                Database.ExecuteSqlRaw("""ALTER TABLE "FarmOasisSettings" ADD COLUMN "RaidMarauders" INTEGER NOT NULL DEFAULT 0""");
+            if (!columns.Contains("LimitAnimal"))
+                Database.ExecuteSqlRaw("""ALTER TABLE "FarmOasisSettings" ADD COLUMN "LimitAnimal" INTEGER NOT NULL DEFAULT 0""");
 
             var existing = FarmOasisSettings.Select(x => x.FarmId).ToHashSet();
             var legacyKeys = OasisRaidSettings.LegacyAnimalSettings.Keys

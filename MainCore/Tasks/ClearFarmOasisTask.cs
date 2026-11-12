@@ -26,8 +26,7 @@ namespace MainCore.Tasks
             using var context = contextFactory.CreateDbContext();
             var settings = OasisRaidSettings.Read(context, task.AccountId, task.FarmId);
             if (settings.IsFailed) return Stop.Error.WithErrors(settings.Errors);
-            var scan = await scanner.Scan(task.FarmId, settings.Value.AllowedAnimals,
-                settings.Value.SafetyFactor, task.ResumeTargetIndex, cancellationToken);
+            var scan = await scanner.Scan(task.FarmId, settings.Value, task.ResumeTargetIndex, cancellationToken);
             if (scan.IsFailed) return Result.Fail(scan.Errors);
 
             task.ResumeTargetIndex = scan.Value.NextTargetIndex;
@@ -37,7 +36,7 @@ namespace MainCore.Tasks
                     retryAt = DateTime.Now.AddSeconds(5);
                 task.ExecuteAt = retryAt;
                 return Skip.Error.WithError(
-                    $"Insufficient Steppe Riders. Resume from target index {task.ResumeTargetIndex} at {retryAt:yyyy-MM-dd HH:mm:ss}");
+                    $"Insufficient troops. Resume from target index {task.ResumeTargetIndex} at {retryAt:yyyy-MM-dd HH:mm:ss}");
             }
 
             task.ResumeTargetIndex = 0;

@@ -146,11 +146,11 @@ namespace MainCore.Parsers
                     .find(td => td.querySelector('img.unit.u66'));
                 if (!steppeCell || !marksmanCell || !marauderCell) return null;
                 const steppeInput = steppeCell.querySelector('input[name=""troop[t4]""]');
-                const steppeAvailable = steppeCell.querySelector('span');
+                const steppeAvailable = steppeCell.querySelector('a, span');
                 const marksmanInput = marksmanCell.querySelector('input[name=""troop[t5]""]');
-                const marksmanAvailable = marksmanCell.querySelector('span');
+                const marksmanAvailable = marksmanCell.querySelector('a, span');
                 const marauderInput = marauderCell.querySelector('input[name=""troop[t6]""]');
-                const marauderAvailable = marauderCell.querySelector('span');
+                const marauderAvailable = marauderCell.querySelector('a, span');
                 if (!steppeInput || !steppeAvailable || !marksmanInput || !marksmanAvailable ||
                     !marauderInput || !marauderAvailable) return null;
                 const action = form.getAttribute('action') || '';
@@ -166,20 +166,26 @@ namespace MainCore.Parsers
             var steppeText = snapshot.GetProperty("steppeText").GetString() ?? "";
             var marksmanText = snapshot.GetProperty("marksmanText").GetString() ?? "";
             var marauderText = snapshot.GetProperty("marauderText").GetString() ?? "";
-            var steppe = steppeText.ParseLong();
-            var marksman = marksmanText.ParseLong();
-            var marauder = marauderText.ParseLong();
-            if (steppe < 0)
+            if (!TryParseTroopCount(steppeText, out var steppe))
                 return Result.Fail("Steppe Rider available amount is invalid.");
-            if (marksman < 0)
+            if (!TryParseTroopCount(marksmanText, out var marksman))
                 return Result.Fail("Marksman available amount is invalid.");
-            if (marauder < 0)
+            if (!TryParseTroopCount(marauderText, out var marauder))
                 return Result.Fail("Marauder available amount is invalid.");
             var action = snapshot.GetProperty("action").GetString() ?? "";
             var sendTroopsUrl = string.IsNullOrWhiteSpace(action)
                 ? page.Url
                 : new Uri(new Uri(page.Url), action).AbsoluteUri;
             return Result.Ok(new RallyPointDraft(steppe, marksman, marauder, sendTroopsUrl));
+        }
+
+        private static bool TryParseTroopCount(string text, out long count)
+        {
+            var cleaned = new string(text.Where(c =>
+                !char.IsWhiteSpace(c) && c is not '\u200e' and not '\u200f' &&
+                (c < '\u202a' || c > '\u202e') && (c < '\u2066' || c > '\u2069')).ToArray());
+            return long.TryParse(cleaned, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out count);
         }
 
         public static async Task<Result<bool>> HasTroops(IPage page, string targetHref)
