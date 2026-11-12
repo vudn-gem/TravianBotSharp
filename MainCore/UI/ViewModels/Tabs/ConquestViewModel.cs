@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 
 using MainCore.UI.Models.Output;
@@ -41,8 +42,7 @@ namespace MainCore.UI.ViewModels.Tabs
         [Reactive]
         private string _targetY = "";
 
-        [Reactive]
-        private string _troopWaves = "";
+        public ObservableCollection<ConquestWaveViewModel> TroopWaves { get; } = [new(1)];
 
         [Reactive]
         private string _slowestTroopSpeed = "6";
@@ -61,9 +61,6 @@ namespace MainCore.UI.ViewModels.Tabs
 
         [Reactive]
         private string _arrivalTime = "13:00:00";
-
-        [Reactive]
-        private int _catapultTargetIndex;
 
         [Reactive]
         private string _planPreview = "Choose a village and enter target coordinates to calculate the plan.";
@@ -188,7 +185,29 @@ namespace MainCore.UI.ViewModels.Tabs
                 $"{Environment.NewLine}Arrive: {plan.ArrivalAt:yyyy-MM-dd HH:mm:ss} | Waves: {plan.Waves.Count}";
         }
 
-        [ReactiveCommand(RunInBackground = true)]
+        [ReactiveCommand]
+        private async Task AddWave()
+        {
+            if (TroopWaves.Count >= ConquestWave.MaxWaves)
+            {
+                await _dialogService.SendMessage("Warning", $"Wave Builder supports at most {ConquestWave.MaxWaves} waves.");
+                return;
+            }
+            TroopWaves.Add(new ConquestWaveViewModel(TroopWaves.Count + 1));
+        }
+
+        [ReactiveCommand]
+        private async Task CopyWave()
+        {
+            if (TroopWaves.Count >= ConquestWave.MaxWaves)
+            {
+                await _dialogService.SendMessage("Warning", $"Wave Builder supports at most {ConquestWave.MaxWaves} waves.");
+                return;
+            }
+            TroopWaves.Add(TroopWaves[^1].Copy(TroopWaves.Count + 1));
+        }
+
+        [ReactiveCommand]
         private async Task Action()
         {
             var result = TryBuildPlan();
@@ -204,8 +223,7 @@ namespace MainCore.UI.ViewModels.Tabs
                 plan.VillageId,
                 plan.TargetX,
                 plan.TargetY,
-                plan.TroopWaves,
-                plan.CatapultTarget,
+                plan.Waves,
                 plan.ArrivalAt,
                 plan.Calculation.SendAt,
                 plan.DelaySeconds));
@@ -234,16 +252,19 @@ namespace MainCore.UI.ViewModels.Tabs
                 !double.TryParse(ArtifactMultiplier, NumberStyles.Float, CultureInfo.InvariantCulture, out var artifact) ||
                 !double.TryParse(DelaySeconds, NumberStyles.Float, CultureInfo.InvariantCulture, out var delay))
                 return Result.Fail("Speed, boots, artifact, and delay values must be valid numbers (use '.' for decimals).");
-            if (CatapultTargetIndex is < 0 or > 4)
-                return Result.Fail("Select a catapult target.");
             if (ArrivalDate is null ||
                 !TimeOnly.TryParseExact(ArrivalTime, ["H:mm:ss", "HH:mm:ss"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var time))
                 return Result.Fail("Choose an arrival date and enter the time as HH:mm:ss.");
 
-            var waves = ConquestTask.ParseTroopWaves(TroopWaves);
-            if (waves.IsFailed) return Result.Fail(waves.Errors);
-            if (waves.Value.Count > 8)
-                return Result.Fail("Wave Builder supports at most 8 waves.");
+            if (TroopWaves.Count is < 1 or > ConquestWave.MaxWaves)
+                return Result.Fail($"Wave Builder supports 1 to {ConquestWave.MaxWaves} waves.");
+            var waves = new List<ConquestWave>();
+            foreach (var row in TroopWaves)
+            {
+                var wave = row.BuildWave();
+                if (wave.IsFailed) return Result.Fail(wave.Errors);
+                waves.Add(wave.Value);
+            }
 
             using var context = _contextFactory.CreateDbContext();
             var village = context.Villages
@@ -279,12 +300,10 @@ namespace MainCore.UI.ViewModels.Tabs
                 new VillageId(Villages.SelectedItem.Id),
                 targetX,
                 targetY,
-                TroopWaves,
-                CatapultTargetIndex + 1,
                 arrivalAt,
                 calculation.Value,
                 delay,
-                waves.Value));
+                waves));
         }
 
         private static bool TryParseCoordinate(string input, out int coordinate) =>
@@ -297,11 +316,9 @@ namespace MainCore.UI.ViewModels.Tabs
             VillageId VillageId,
             int TargetX,
             int TargetY,
-            string TroopWaves,
-            int CatapultTarget,
             DateTime ArrivalAt,
             ConquestPlanCalculation Calculation,
             double DelaySeconds,
-            IReadOnlyList<IReadOnlyList<long>> Waves);
+            IReadOnlyList<ConquestWave> Waves);
     }
 }

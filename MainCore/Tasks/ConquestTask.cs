@@ -7,8 +7,6 @@ namespace MainCore.Tasks
     [Handler]
     public sealed partial class ConquestTask(IChromeBrowser browser)
     {
-        private const int MaxWaves = 8;
-
         public sealed class Task : VillageTask
         {
             public Task(
@@ -16,16 +14,14 @@ namespace MainCore.Tasks
                 VillageId villageId,
                 int targetX,
                 int targetY,
-                string troopWaves,
-                int catapultTarget,
+                IReadOnlyList<ConquestWave> waves,
                 DateTime arrivalAt,
                 DateTime sendAt,
                 double delaySeconds) : base(accountId, villageId)
             {
                 TargetX = targetX;
                 TargetY = targetY;
-                TroopWaves = troopWaves;
-                CatapultTarget = catapultTarget;
+                Waves = Array.AsReadOnly(waves.ToArray());
                 ArrivalAt = arrivalAt;
                 SendAt = sendAt;
                 DelaySeconds = delaySeconds;
@@ -34,8 +30,7 @@ namespace MainCore.Tasks
 
             public int TargetX { get; }
             public int TargetY { get; }
-            public string TroopWaves { get; }
-            public int CatapultTarget { get; }
+            public IReadOnlyList<ConquestWave> Waves { get; }
             public DateTime ArrivalAt { get; }
             public DateTime SendAt { get; }
             public double DelaySeconds { get; }
@@ -50,7 +45,9 @@ namespace MainCore.Tasks
                 $"Conquest attack from village {VillageId.Value} to ({TargetX}|{TargetY}), arrival {ArrivalAt:yyyy-MM-dd HH:mm:ss}";
 
             public override string Key =>
-                $"{AccountId}-{VillageId}-{TargetX}-{TargetY}-{ArrivalAt.Ticks}-{SendAt.Ticks}-{CatapultTarget}-{TroopWaves}";
+                $"{AccountId}-{VillageId}-{TargetX}-{TargetY}-{ArrivalAt.Ticks}-{SendAt.Ticks}-" +
+                string.Join(",", Waves.Select(wave =>
+                    $"{string.Join("/", wave.Troops)}:{wave.CatapultTarget1}:{wave.CatapultTarget2}"));
 
             private static DateTime Max(DateTime left, DateTime right) => left > right ? left : right;
         }
@@ -87,12 +84,13 @@ namespace MainCore.Tasks
 
         private async System.Threading.Tasks.Task<Result> PrepareAndSend(Task task, string baseUrl, CancellationToken cancellationToken)
         {
-            var wavesResult = ParseTroopWaves(task.TroopWaves);
-            if (wavesResult.IsFailed) return Stop.Error.WithErrors(wavesResult.Errors);
-            if (wavesResult.Value.Count is < 1 or > MaxWaves)
-                return Stop.Error.WithError($"Wave Builder supports 1 to {MaxWaves} waves.");
-            if (task.CatapultTarget is < 1 or > 5)
-                return Stop.Error.WithError("Catapult target must be between 1 and 5.");
+            if (task.Waves.Count is < 1 or > ConquestWave.MaxWaves)
+                return Stop.Error.WithError($"Wave Builder supports 1 to {ConquestWave.MaxWaves} waves.");
+            foreach (var wave in task.Waves)
+            {
+                var validation = wave.Validate();
+                if (validation.IsFailed) return Stop.Error.WithErrors(validation.Errors);
+            }
 
             var builder = new UriBuilder(baseUrl)
             {
@@ -104,7 +102,7 @@ namespace MainCore.Tasks
 
             var page = browser.CurrentPage;
             await page.Locator("#troopSendForm").WaitForAsync();
-            for (var waveIndex = 0; waveIndex < wavesResult.Value.Count; waveIndex++)
+            for (var waveIndex = 0; waveIndex < task.Waves.Count; waveIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (waveIndex > 0)
@@ -116,7 +114,8 @@ namespace MainCore.Tasks
                     await page.Locator("#troopSendForm input[name='troop[t1]']").WaitForAsync();
                 }
 
-                var fillResult = await FillWave(page, wavesResult.Value[waveIndex], task);
+                var wave = task.Waves[waveIndex];
+                var fillResult = await FillWave(page, wave.Troops, task);
                 if (fillResult.IsFailed) return fillResult;
 
                 var sendButton = page.Locator("#troopSendForm button[type='submit']:not(#addWave):not(#confirmSendTroops)");
@@ -124,22 +123,22 @@ namespace MainCore.Tasks
                     return Stop.Error.WithError("The Rally Point troop form submit button is missing or ambiguous.");
                 await sendButton.ClickAsync();
                 await page.Locator("#troopSendForm #confirmSendTroops").WaitForAsync();
-                var catapultCount = wavesResult.Value[waveIndex].ElementAtOrDefault(7);
-                if (catapultCount > 0)
-                {
-                    var targetSelect = page.Locator($"#troopSendForm select[name='troops[{waveIndex}][catapultTarget1]']");
-                    if (await targetSelect.CountAsync() != 1)
-                        return Stop.Error.WithError($"Catapult target selector for wave {waveIndex + 1} is missing or ambiguous.");
-                    var selectedValue = await ResolveCatapultTarget(targetSelect, task.CatapultTarget);
-                    if (selectedValue.IsFailed) return Stop.Error.WithErrors(selectedValue.Errors);
-                    await targetSelect.SelectOptionAsync(selectedValue.Value);
-                }
+                var targetsResult = await SetCatapultTargets(page, waveIndex, wave);
+                if (targetsResult.IsFailed) return targetsResult;
 
-                var verifyResult = await VerifyWave(page, waveIndex, wavesResult.Value[waveIndex], task);
+                var verifyResult = await VerifyWave(page, waveIndex, wave.Troops, task);
                 if (verifyResult.IsFailed) return verifyResult;
             }
 
-            var travelTimes = await ReadTravelTimes(page, wavesResult.Value.Count);
+            for (var waveIndex = 0; waveIndex < task.Waves.Count; waveIndex++)
+            {
+                var verifyResult = await VerifyWave(page, waveIndex, task.Waves[waveIndex].Troops, task);
+                if (verifyResult.IsFailed) return verifyResult;
+                var targetsResult = await VerifyCatapultTargets(page, waveIndex, task.Waves[waveIndex]);
+                if (targetsResult.IsFailed) return targetsResult;
+            }
+
+            var travelTimes = await ReadTravelTimes(page, task.Waves.Count);
             if (travelTimes.IsFailed) return Stop.Error.WithErrors(travelTimes.Errors);
             if (WillArriveLate(travelTimes.Value, task))
                 return Skip.Error.WithError("Estimated arrival is later than the planned arrival time; the attack was skipped.");
@@ -196,9 +195,13 @@ namespace MainCore.Tasks
 
             var attackType = form.Locator("input[type='radio'][name='c'][value='3'], input[type='radio'][name='eventType'][value='3']");
             var attackTypeCount = await attackType.CountAsync();
-            if (attackTypeCount > 1)
-                return Stop.Error.WithError("Rally Point attack type selector is ambiguous.");
-            if (attackTypeCount == 1) await attackType.CheckAsync();
+            if (attackTypeCount != 1)
+                return Stop.Error.WithError("Rally Point Attack: Normal selector is missing or ambiguous.");
+            if (!await attackType.IsEnabledAsync())
+                return Stop.Error.WithError("Rally Point Attack: Normal option is disabled.");
+            await attackType.CheckAsync();
+            if (!await attackType.IsCheckedAsync())
+                return Stop.Error.WithError("Rally Point Attack: Normal option could not be selected.");
 
             return Result.Ok();
         }
@@ -240,37 +243,46 @@ namespace MainCore.Tasks
             return Result.Ok();
         }
 
-        private static async System.Threading.Tasks.Task<Result<string>> ResolveCatapultTarget(ILocator targetSelect, int target)
+        private static async System.Threading.Tasks.Task<Result> SetCatapultTargets(IPage page, int waveIndex, ConquestWave wave)
         {
-            var options = await targetSelect.Locator("option:not([disabled])").EvaluateAllAsync<string[]>(
-                "options => options.map(option => JSON.stringify({ value: option.value, text: option.textContent.trim() }))");
-            var parsed = new List<(string Value, string Text)>();
-            foreach (var option in options)
+            if (wave.Troops[7] == 0) return Result.Ok();
+
+            foreach (var (target, number) in new[] { ((int?)wave.CatapultTarget1, 1), (wave.CatapultTarget2, 2) })
             {
-                using var document = System.Text.Json.JsonDocument.Parse(option);
-                parsed.Add((
-                    document.RootElement.GetProperty("value").GetString() ?? "",
-                    document.RootElement.GetProperty("text").GetString() ?? ""));
+                var select = page.Locator($"#troopSendForm select[name='troops[{waveIndex}][catapultTarget{number}]']");
+                var count = await select.CountAsync();
+                if (number == 2 && target is null && count == 0) continue;
+                if (count != 1)
+                    return Stop.Error.WithError($"Catapult target {number} selector for wave {waveIndex + 1} is missing or ambiguous.");
+
+                var value = target?.ToString(CultureInfo.InvariantCulture) ?? "";
+                var availableValues = await select.Locator("option").EvaluateAllAsync<string[]>(
+                    "options => options.filter(option => !option.disabled && !option.parentElement.disabled).map(option => option.value)");
+                if (!availableValues.Contains(value))
+                    return Stop.Error.WithError($"Catapult target '{value}' is unavailable for wave {waveIndex + 1}, target {number}.");
+                await select.SelectOptionAsync(value);
             }
 
-            var matches = target switch
+            return await VerifyCatapultTargets(page, waveIndex, wave);
+        }
+
+        private static async System.Threading.Tasks.Task<Result> VerifyCatapultTargets(IPage page, int waveIndex, ConquestWave wave)
+        {
+            if (wave.Troops[7] == 0) return Result.Ok();
+
+            foreach (var (target, number) in new[] { ((int?)wave.CatapultTarget1, 1), (wave.CatapultTarget2, 2) })
             {
-                1 => parsed.Where(x => x.Text.Equals("Random", StringComparison.OrdinalIgnoreCase)),
-                2 => parsed.Where(x => x.Text.Equals("Cropland", StringComparison.OrdinalIgnoreCase)),
-                3 => parsed.Where(x => x.Text.Equals("Residence", StringComparison.OrdinalIgnoreCase)),
-                4 => parsed.Where(x => x.Text.Equals("Treasury", StringComparison.OrdinalIgnoreCase)),
-                5 => parsed.Where(x =>
-                    x.Text.Equals("Residence", StringComparison.OrdinalIgnoreCase) ||
-                    x.Text.Equals("Palace", StringComparison.OrdinalIgnoreCase) ||
-                    x.Text.Equals("Command Center", StringComparison.OrdinalIgnoreCase)),
-                _ => [],
-            };
-            var availableMatches = matches.ToList();
-            if (availableMatches.Count == 0)
-                return Result.Fail($"Catapult target option {target} is not available in the Rally Point.");
-            if (availableMatches.Count > 1)
-                return Result.Fail($"Catapult target option {target} is ambiguous in the Rally Point.");
-            return Result.Ok(availableMatches[0].Value);
+                var name = $"troops[{waveIndex}][catapultTarget{number}]";
+                var input = page.Locator($"#troopSendForm select[name='{name}']");
+                if (await input.CountAsync() == 0)
+                    input = page.Locator($"#troopSendForm input[type='hidden'][name='{name}']");
+                var count = await input.CountAsync();
+                if (number == 2 && target is null && count == 0) continue;
+                if (count != 1 || await input.InputValueAsync() != (target?.ToString(CultureInfo.InvariantCulture) ?? ""))
+                    return Stop.Error.WithError($"Catapult target {number} for wave {waveIndex + 1} does not match the plan.");
+            }
+
+            return Result.Ok();
         }
 
         private static async System.Threading.Tasks.Task<Result<List<TimeSpan>>> ReadTravelTimes(IPage page, int expectedWaveCount)

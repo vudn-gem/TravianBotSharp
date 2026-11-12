@@ -27,8 +27,9 @@ namespace WPFUI.Views.Tabs
                 this.Bind(ViewModel, vm => vm.BootsPercent, view => view.BootsPercent.Text).DisposeWith(disposables);
                 this.Bind(ViewModel, vm => vm.ArtifactMultiplier, view => view.ArtifactMultiplier.Text).DisposeWith(disposables);
                 this.Bind(ViewModel, vm => vm.DelaySeconds, view => view.DelaySeconds.Text).DisposeWith(disposables);
-                this.Bind(ViewModel, vm => vm.CatapultTargetIndex, view => view.CatapultTarget.SelectedIndex).DisposeWith(disposables);
-                this.Bind(ViewModel, vm => vm.TroopWaves, view => view.TroopWaves.Text).DisposeWith(disposables);
+                this.OneWayBind(ViewModel, vm => vm.TroopWaves, view => view.TroopWaves.ItemsSource).DisposeWith(disposables);
+                this.BindCommand(ViewModel, vm => vm.AddWaveCommand, view => view.AddWaveButton).DisposeWith(disposables);
+                this.BindCommand(ViewModel, vm => vm.CopyWaveCommand, view => view.CopyWaveButton).DisposeWith(disposables);
                 this.OneWayBind(ViewModel, vm => vm.OriginCoordinates, view => view.OriginCoordinates.Text).DisposeWith(disposables);
                 this.OneWayBind(ViewModel, vm => vm.TournamentSquareText, view => view.TournamentSquareLevel.Text).DisposeWith(disposables);
                 this.OneWayBind(ViewModel, vm => vm.PlanPreview, view => view.PlanPreview.Text).DisposeWith(disposables);

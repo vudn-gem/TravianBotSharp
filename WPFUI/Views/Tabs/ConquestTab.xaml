@@ -5,9 +5,32 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:models="clr-namespace:MainCore.Models;assembly=MainCore"
     mc:Ignorable="d"
     d:DesignHeight="450"
     d:DesignWidth="800">
+    <v:ConquestTabBase.Resources>
+        <CollectionViewSource x:Key="CatapultTargets" Source="{x:Static models:ConquestCatapultTargets.Options}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="Group" />
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
+        <CollectionViewSource x:Key="OptionalCatapultTargets" Source="{x:Static models:ConquestCatapultTargets.OptionalOptions}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="Group" />
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
+        <Style x:Key="CatapultTargetSelector" TargetType="ComboBox">
+            <Setter Property="DisplayMemberPath" Value="Name" />
+            <Setter Property="SelectedValuePath" Value="Value" />
+            <Setter Property="IsSynchronizedWithCurrentItem" Value="False" />
+            <Setter Property="MinWidth" Value="160" />
+            <Setter Property="Margin" Value="4" />
+        </Style>
+        <DataTemplate x:Key="TargetGroupHeader">
+            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="4" />
+        </DataTemplate>
+    </v:ConquestTabBase.Resources>
     <Grid Background="#FFE5E5E5">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <Border Margin="8" Padding="12" Style="{DynamicResource Box}">
@@ -22,7 +45,6 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -76,27 +98,67 @@
                             <TextBlock Text="Network delay (seconds)" />
                             <TextBox x:Name="DelaySeconds" />
                         </StackPanel>
-                        <StackPanel Grid.Row="5" Grid.Column="0" Margin="4">
-                            <TextBlock Text="Catapult target" />
-                            <ComboBox x:Name="CatapultTarget" SelectedIndex="0">
-                                <ComboBoxItem Content="Random" />
-                                <ComboBoxItem Content="Cropland" />
-                                <ComboBoxItem Content="Residence" />
-                                <ComboBoxItem Content="Artefact (Treasury)" />
-                                <ComboBoxItem Content="Auto: Residence / Palace / Command Center" />
-                            </ComboBox>
-                        </StackPanel>
                     </Grid>
                     <TextBlock Margin="4,12,4,4"
                                FontWeight="SemiBold"
-                               Text="Troop waves (11 counts per wave, t1 to t11 with hero last; separate waves by commas or new lines)" />
-                    <TextBox x:Name="TroopWaves"
-                             MinHeight="90"
-                             AcceptsReturn="True"
-                             TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto" />
-                    <TextBlock Margin="4,8,4,4"
-                               Text="Example: 19/0/0/0/0/0/0/1/0/0/0,19/0/0/0/0/0/0/1/0/0/0" />
+                               Text="Troop waves" />
+                    <TextBlock Margin="4" TextWrapping="Wrap"
+                               Text="t1-t10 follow the Rally Point troop order; t8 = Catapult, last = Hero. Target 2 is optional and available from 20 catapults. Targets use the game's names and values; availability is checked when preparing the attack." />
+                    <ItemsControl x:Name="TroopWaves">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="DarkGray" BorderThickness="1" Padding="6" Margin="4">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Number, StringFormat='Wave {0}'}" FontWeight="SemiBold" Margin="4" />
+                                        <ItemsControl ItemsSource="{Binding Troops}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Columns="11" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Margin="2">
+                                                        <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" />
+                                                        <TextBox Text="{Binding Count, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 MinWidth="38" HorizontalContentAlignment="Center" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <WrapPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="Catapult target 1" Margin="4,4,4,0" />
+                                                <ComboBox Style="{StaticResource CatapultTargetSelector}"
+                                                          ItemsSource="{Binding Source={StaticResource CatapultTargets}}"
+                                                          IsEnabled="{Binding HasCatapults}"
+                                                          SelectedValue="{Binding CatapultTarget1, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                    <ComboBox.GroupStyle>
+                                                        <GroupStyle HeaderTemplate="{StaticResource TargetGroupHeader}" />
+                                                    </ComboBox.GroupStyle>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="Catapult target 2 (20+)" Margin="4,4,4,0" />
+                                                <ComboBox Style="{StaticResource CatapultTargetSelector}"
+                                                          ItemsSource="{Binding Source={StaticResource OptionalCatapultTargets}}"
+                                                          IsEnabled="{Binding CanSelectSecondTarget}"
+                                                          SelectedValue="{Binding CatapultTarget2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                    <ComboBox.GroupStyle>
+                                                        <GroupStyle HeaderTemplate="{StaticResource TargetGroupHeader}" />
+                                                    </ComboBox.GroupStyle>
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button x:Name="AddWaveButton" Content="Add" Margin="4" Padding="14,6" />
+                        <Button x:Name="CopyWaveButton" Content="Copy last wave" Margin="4" Padding="14,6" />
+                    </StackPanel>
                     <TextBlock x:Name="PlanPreview"
                                Margin="4,12"
                                TextWrapping="Wrap" />
