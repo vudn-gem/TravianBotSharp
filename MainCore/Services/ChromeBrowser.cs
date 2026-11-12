@@ -162,7 +162,14 @@ namespace MainCore.Services
             if (!IsInitialized) return Stop.DriverNotReady;
             try
             {
-                await locator.FillAsync(content);
+                await locator.ClickAsync();
+                await locator.PressAsync("ControlOrMeta+A");
+                await locator.PressAsync("Backspace");
+                if (!string.IsNullOrEmpty(content))
+                {
+                    var typingDelay = Random.Shared.Next(45, 121);
+                    await locator.TypeAsync(content, new() { Delay = typingDelay });
+                }
                 await DelayClick();
                 return Result.Ok();
             }
