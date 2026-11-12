@@ -1,3 +1,5 @@
+using System;
+
 using MainCore.UI.ViewModels.Tabs;
 
 using ReactiveUI;
