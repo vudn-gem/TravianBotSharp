@@ -120,7 +120,7 @@ namespace MainCore.Services
                 }
                 catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
                 {
-                    browser.Logger.Warning("Clear oasis target {SlotId} failed ({ErrorType})",
+                    browser.Logger.Warning(ex, "Clear oasis target {SlotId} failed ({ErrorType})",
                         target.SlotId, ex.GetType().Name);
                 }
                 finally
