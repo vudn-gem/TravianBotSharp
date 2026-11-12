@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 
 using MainCore.Infrasturecture.Extensions;
+using MainCore.Tasks.Base;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -76,19 +77,19 @@ namespace MainCore.Services
         {
             var taskQueue = _taskManager.GetTaskQueue(accountId);
 
-            var status = taskQueue.Status;
-            if (status != StatusEnums.Online) return;
-            var tasks = taskQueue.Tasks.OrderBy(x => x.ExecuteAt).ToList();
-            if (tasks.Count == 0) return;
-            var task = tasks[0];
-
-            if (task.ExecuteAt > DateTime.Now) return;
-
-            taskQueue.IsExecuting = true;
-            var cts = new CancellationTokenSource();
-            taskQueue.CancellationTokenSource = cts;
-
-            task.Stage = StageEnums.Executing;
+            BaseTask task;
+            CancellationTokenSource cts;
+            lock (taskQueue)
+            {
+                if (taskQueue.Status != StatusEnums.Online) return;
+                var next = taskQueue.Tasks.OrderBy(x => x.ExecuteAt).FirstOrDefault();
+                if (next is null || next.ExecuteAt > DateTime.Now) return;
+                task = next;
+                taskQueue.IsExecuting = true;
+                cts = new CancellationTokenSource();
+                taskQueue.CancellationTokenSource = cts;
+                task.Stage = StageEnums.Executing;
+            }
             _rxQueue.Enqueue(new TasksModified(accountId));
 
             var cacheExecuteTime = task.ExecuteAt;
@@ -114,7 +115,10 @@ namespace MainCore.Services
             ResilienceContextPool.Shared.Return(resilienceContext);
             ///===========================================================///
 
-            task.Stage = StageEnums.Waiting;
+            lock (taskQueue)
+            {
+                task.Stage = StageEnums.Waiting;
+            }
             _rxQueue.Enqueue(new TasksModified(accountId));
 
             taskQueue.IsExecuting = false;

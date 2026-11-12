@@ -252,10 +252,12 @@ namespace MainCore.Services
                 .Select(x => x.Name).Distinct().OrderBy(x => x).ToList();
             if (blocked.Count > 0)
             {
+                var deactivated = await FarmTargetDeactivator.Deactivate(browser, farmId, target, cancellationToken);
+                if (deactivated.IsFailed) return Result.Fail(deactivated.Errors);
                 browser.Logger.Information(
-                    "Clear oasis target {SlotId}: blocked animals [{Blocked}], skipped",
+                    "Clear oasis target {SlotId}: blocked animals [{Blocked}]; checking deactivation",
                     target.SlotId, string.Join(", ", blocked));
-                return Result.Ok(new ProcessTargetResult(false, false, null));
+                return Result.Ok(new ProcessTargetResult(false, false, null, true));
             }
 
             var clearable = troops.Value.Where(x => x.Count > 0 && settings.AllowedAnimals.Contains(x.UnitId)).ToList();

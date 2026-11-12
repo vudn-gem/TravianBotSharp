@@ -28,6 +28,7 @@ namespace WPFUI.Views.Tabs
                 this.BindCommand(ViewModel, vm => vm.UpdateFarmListCommand, v => v.Load).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.CheckTargetTroopsCommand, v => v.CheckTargetTroopsButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.ClearOasisCommand, v => v.ClearOasisButton).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.RemoveClearOasisCommand, v => v.RemoveClearOasisButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.SaveOasisSettingsCommand, v => v.SaveOasisSettingsButton).DisposeWith(d);
 
                 this.OneWayBind(ViewModel, vm => vm.FarmLists.Items, v => v.FarmlistGrid.ItemsSource).DisposeWith(d);

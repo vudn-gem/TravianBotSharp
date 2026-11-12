@@ -79,6 +79,21 @@ namespace MainCore.Services
             actor.Remove(task);
         }
 
+        public ClearOasisRemovalResult RemoveClearOasis(AccountId accountId, FarmId farmId)
+        {
+            var queue = GetTaskQueue(accountId);
+            lock (queue)
+            {
+                var task = queue.Tasks.OfType<ClearFarmOasisTask.Task>()
+                    .FirstOrDefault(x => x.FarmId == farmId);
+                if (task is null) return ClearOasisRemovalResult.NotFound;
+                if (task.Stage == StageEnums.Executing) return ClearOasisRemovalResult.Executing;
+                queue.Tasks.Remove(task);
+            }
+            rxQueue.Enqueue(new TasksModified(accountId));
+            return ClearOasisRemovalResult.Removed;
+        }
+
         public void Remove<T>(AccountId accountId) where T : AccountTask
         {
             var actor = GetActor(accountId);
@@ -174,6 +189,13 @@ namespace MainCore.Services
             }
             return true;
         }
+    }
+
+    public enum ClearOasisRemovalResult
+    {
+        Removed,
+        NotFound,
+        Executing,
     }
 
     public class TaskQueue

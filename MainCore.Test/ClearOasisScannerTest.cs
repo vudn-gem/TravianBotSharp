@@ -14,7 +14,10 @@ namespace MainCore.Test
         [InlineData(5, true, true, false, 0, 2)]
         [InlineData(0, true, true, false, 0, 2)]
         [InlineData(4, false, false, false, 1, 1)]
-        public async Task DeactivatesTargetsAboveAnimalLimitAndContinues(
+        [InlineData(5, false, true, true, 1, 1)]
+        [InlineData(0, false, true, true, 1, 1)]
+        [InlineData(5, false, false, false, 1, 1)]
+        public async Task DeactivatesTargetsWithExcessOrDisallowedAnimalsAndContinues(
             int limit, bool allowAll, bool persist, bool expectedDisabled, int expectedSaves, int expectedRaids)
         {
             await using var context = await CreateContextAsync();
@@ -116,6 +119,8 @@ namespace MainCore.Test
             result.Value.RaidCount.ShouldBe(expectedRaids);
             if (expectedSaves == 1 && !persist)
                 logger.Received().Warning("Clear oasis target {SlotId}: deactivation was not confirmed", "1");
+            if (expectedDisabled)
+                logger.Received().Information("Clear oasis target {SlotId}: deactivation confirmed", "1");
         }
 
         [Theory]

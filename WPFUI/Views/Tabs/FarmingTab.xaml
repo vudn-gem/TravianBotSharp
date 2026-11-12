@@ -49,6 +49,8 @@
                             ToolTip="Check oasis targets and deactivate those containing troops" />
                     <Button x:Name="ClearOasisButton" Content="Clear oasis" Margin="10"
                             ToolTip="Use the selected farm list's troop settings to raid oasis targets" />
+                    <Button x:Name="RemoveClearOasisButton" Content="Remove clear oasis task" Margin="10"
+                            ToolTip="Remove the waiting clear oasis task for the selected farm list" />
                     <GroupBox x:Name="OasisSettingsGroup" Header="Selected farm list oasis settings" Margin="10,0,10,10">
                         <StackPanel Margin="8">
                             <uc:AmountInputUc x:Name="OasisRaidSafetyFactor" Text="Oasis raid safety factor" Unit="x" />

@@ -159,6 +159,31 @@ namespace MainCore.UI.ViewModels.Tabs
         }
 
         [ReactiveCommand(RunInBackground = true)]
+        private async Task RemoveClearOasis()
+        {
+            var selected = FarmLists.SelectedItem;
+            if (selected is null)
+            {
+                await _dialogService.SendMessage("Warning", "No farm list selected");
+                return;
+            }
+
+            var result = _taskManager.RemoveClearOasis(AccountId, new FarmId(selected.Id));
+            switch (result)
+            {
+                case ClearOasisRemovalResult.Removed:
+                    await _dialogService.SendMessage("Information", "Removed clear oasis task for the selected farm list.");
+                    break;
+                case ClearOasisRemovalResult.Executing:
+                    await _dialogService.SendMessage("Warning", "Clear oasis is running for the selected farm list. Wait until it finishes before removing its task.");
+                    break;
+                case ClearOasisRemovalResult.NotFound:
+                    await _dialogService.SendMessage("Information", "No clear oasis task found for the selected farm list.");
+                    break;
+            }
+        }
+
+        [ReactiveCommand(RunInBackground = true)]
         private async Task Start()
         {
             using var context = _contextFactory.CreateDbContext();
