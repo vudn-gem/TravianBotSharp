@@ -10,10 +10,11 @@ namespace MainCore.Services
         private IPlaywright? _playwright;
         private IBrowserContext? _browser;
         private IPage? _mainPage;
+        private readonly List<IPage> _newTabs = [];
 
-        public IPage CurrentPage => _mainPage ?? throw new InvalidOperationException("Main page is not initialized.");
+        public IPage CurrentPage => _newTabs.LastOrDefault() ?? _mainPage ?? throw new InvalidOperationException("Main page is not initialized.");
 
-        public string CurrentUrl => _mainPage?.Url ?? "";
+        public string CurrentUrl => IsInitialized ? CurrentPage.Url : "";
 
         public ILogger Logger { get; set; } = null!;
 
@@ -101,13 +102,13 @@ namespace MainCore.Services
 
         public async Task<string> Screenshot()
         {
-            if (_mainPage is null)
+            if (!IsInitialized)
             {
                 Logger.Error("Screenshot failed: main page is null");
                 return "";
             }
 
-            var screenshot = await _mainPage.ScreenshotAsync();
+            var screenshot = await CurrentPage.ScreenshotAsync();
             if (screenshot is null)
             {
                 Logger.Error("Screenshot failed: screenshot is null");
@@ -122,17 +123,17 @@ namespace MainCore.Services
 
         public async Task<Result> Refresh()
         {
-            if (_mainPage is null) return Stop.DriverNotReady;
-            await _mainPage.ReloadAsync();
+            if (!IsInitialized) return Stop.DriverNotReady;
+            await CurrentPage.ReloadAsync();
             return Result.Ok();
         }
 
         public async Task<Result> Navigate(string url)
         {
-            if (_mainPage is null) return Stop.DriverNotReady;
+            if (!IsInitialized) return Stop.DriverNotReady;
             try
             {
-                await _mainPage.GotoAsync(url);
+                await CurrentPage.GotoAsync(url);
                 return Result.Ok();
             }
             catch (TimeoutException ex)
@@ -143,7 +144,7 @@ namespace MainCore.Services
 
         public async Task<Result> Click(ILocator locator, [CallerArgumentExpression(nameof(locator))] string? expression = null)
         {
-            if (_mainPage is null) return Stop.DriverNotReady;
+            if (!IsInitialized) return Stop.DriverNotReady;
             try
             {
                 await locator.ClickAsync();
@@ -158,7 +159,7 @@ namespace MainCore.Services
 
         public async Task<Result> Input(ILocator locator, string content, [CallerArgumentExpression(nameof(locator))] string? expression = null)
         {
-            if (_mainPage is null) return Stop.DriverNotReady;
+            if (!IsInitialized) return Stop.DriverNotReady;
             try
             {
                 await locator.FillAsync(content);
@@ -173,15 +174,15 @@ namespace MainCore.Services
 
         public async Task<Result> ExecuteJsScript(string javascript)
         {
-            if (_mainPage is null) return Stop.DriverNotReady;
-            await _mainPage.EvaluateAsync(javascript);
+            if (!IsInitialized) return Stop.DriverNotReady;
+            await CurrentPage.EvaluateAsync(javascript);
             await DelayClick();
             return Result.Ok();
         }
 
         public async Task<Result> Wait(ILocator locator, [CallerArgumentExpression(nameof(locator))] string? expression = null)
         {
-            if (_mainPage is null) return Stop.DriverNotReady;
+            if (!IsInitialized) return Stop.DriverNotReady;
             try
             {
                 await locator.WaitForAsync();
@@ -195,7 +196,7 @@ namespace MainCore.Services
 
         public async Task<Result> Wait(ILocator locator, string condition, [CallerArgumentExpression(nameof(locator))] string? expression = null)
         {
-            if (_mainPage is null) return Stop.DriverNotReady;
+            if (!IsInitialized) return Stop.DriverNotReady;
             try
             {
                 await locator.WaitForFunctionAsync(condition);
@@ -209,21 +210,39 @@ namespace MainCore.Services
 
         public async Task<Result> WaitPageChanged(string url)
         {
-            if (_mainPage is null) return Stop.DriverNotReady;
+            if (!IsInitialized) return Stop.DriverNotReady;
 
             try
             {
                 const int timeout = 180_000; // 3 minutes in milliseconds
-                await _mainPage.WaitForURLAsync(new Regex(url, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)), new() { Timeout = timeout });
-                await _mainPage.WaitForLoadStateAsync();
-                await LoginParser.GetServerTime(_mainPage).WaitForAsync(new() { Timeout = timeout });
+                await CurrentPage.WaitForURLAsync(new Regex(url, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)), new() { Timeout = timeout });
+                await CurrentPage.WaitForLoadStateAsync();
+                await LoginParser.GetServerTime(CurrentPage).WaitForAsync(new() { Timeout = timeout });
                 return Result.Ok();
             }
             catch (TimeoutException ex)
             {
-                string actualUrl = _mainPage.Url;
+                string actualUrl = CurrentPage.Url;
                 return Retry.Error.WithError($"Navigation or page load failed. Expected URL: [{url}]. Current URL: [{actualUrl}]. Details: {ex.Message}");
             }
+        }
+
+        public async Task<Result> OpenNewTab()
+        {
+            if (_browser is null) return Stop.DriverNotReady;
+            var page = await _browser.NewPageAsync();
+            _newTabs.Add(page);
+            return Result.Ok();
+        }
+
+        public async Task<Result> CloseNewTab()
+        {
+            if (_newTabs.Count == 0)
+                return Stop.Error.WithError("There is no browser tab to close.");
+            var page = _newTabs[^1];
+            _newTabs.RemoveAt(_newTabs.Count - 1);
+            await page.CloseAsync();
+            return Result.Ok();
         }
     }
 }

@@ -57,6 +57,26 @@ namespace MainCore.Services
 
             var actor = GetActor(task.AccountId);
             actor.Add(task, first);
+            rxQueue.Enqueue(new TasksModified(task.AccountId));
+        }
+
+        public bool TryAdd<T>(T task) where T : AccountTask
+        {
+            if (!ValidateTaskOwnership(task))
+            {
+                return false;
+            }
+
+            var actor = GetActor(task.AccountId);
+            var queue = actor.GetQueue();
+            lock (queue)
+            {
+                if (queue.Tasks.OfType<T>().Any(existing => existing.Key == task.Key))
+                    return false;
+                actor.Add(task, first: false);
+            }
+            rxQueue.Enqueue(new TasksModified(task.AccountId));
+            return true;
         }
 
         public bool IsExist<T>(AccountId accountId) where T : BaseTask

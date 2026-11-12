@@ -19,6 +19,10 @@ namespace MainCore.Services
 
         Task<Result> Navigate(string url);
 
+        Task<Result> OpenNewTab();
+
+        Task<Result> CloseNewTab();
+
         Task<Result> Refresh();
 
         Task<string> Screenshot();

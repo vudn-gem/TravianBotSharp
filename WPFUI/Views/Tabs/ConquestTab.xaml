@@ -1,0 +1,111 @@
+<v:ConquestTabBase
+    x:Class="WPFUI.Views.Tabs.ConquestTab"
+    xmlns:v="clr-namespace:WPFUI.Views.Tabs"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    mc:Ignorable="d"
+    d:DesignHeight="450"
+    d:DesignWidth="800">
+    <Grid Background="#FFE5E5E5">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <Border Margin="8" Padding="12" Style="{DynamicResource Box}">
+                <StackPanel>
+                    <TextBlock Margin="0,0,0,10"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Text="Plan a timed attack" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="4">
+                            <TextBlock Text="Origin village" />
+                            <ComboBox x:Name="OriginVillage" MinWidth="240">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Content}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="4">
+                            <TextBlock Text="Origin coordinates" />
+                            <TextBlock x:Name="OriginCoordinates" Margin="0,6" />
+                            <TextBlock x:Name="TournamentSquareLevel" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="4">
+                            <TextBlock Text="Target X (-200 to 200)" />
+                            <TextBox x:Name="TargetX" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="4">
+                            <TextBlock Text="Target Y (-200 to 200)" />
+                            <TextBox x:Name="TargetY" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="0" Margin="4">
+                            <TextBlock Text="Arrival date" />
+                            <DatePicker x:Name="ArrivalDate" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="1" Margin="4">
+                            <TextBlock Text="Arrival time (HH:mm:ss)" />
+                            <TextBox x:Name="ArrivalTime" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="3" Grid.Column="0" Margin="4">
+                            <TextBlock Text="Slowest troop speed (fields/hour)" />
+                            <TextBox x:Name="SlowestTroopSpeed" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="3" Grid.Column="1" Margin="4">
+                            <TextBlock Text="Boots bonus (%)" />
+                            <TextBox x:Name="BootsPercent" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="4" Grid.Column="0" Margin="4">
+                            <TextBlock Text="Artifact multiplier (1 = none)" />
+                            <TextBox x:Name="ArtifactMultiplier" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="4" Grid.Column="1" Margin="4">
+                            <TextBlock Text="Network delay (seconds)" />
+                            <TextBox x:Name="DelaySeconds" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="5" Grid.Column="0" Margin="4">
+                            <TextBlock Text="Catapult target" />
+                            <ComboBox x:Name="CatapultTarget" SelectedIndex="0">
+                                <ComboBoxItem Content="Random" />
+                                <ComboBoxItem Content="Cropland" />
+                                <ComboBoxItem Content="Residence" />
+                                <ComboBoxItem Content="Artefact (Treasury)" />
+                                <ComboBoxItem Content="Auto: Residence / Palace / Command Center" />
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Margin="4,12,4,4"
+                               FontWeight="SemiBold"
+                               Text="Troop waves (11 counts per wave, t1 to t11 with hero last; separate waves by commas or new lines)" />
+                    <TextBox x:Name="TroopWaves"
+                             MinHeight="90"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" />
+                    <TextBlock Margin="4,8,4,4"
+                               Text="Example: 19/0/0/0/0/0/0/1/0/0/0,19/0/0/0/0/0/0/1/0/0/0" />
+                    <TextBlock x:Name="PlanPreview"
+                               Margin="4,12"
+                               TextWrapping="Wrap" />
+                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                        <Button x:Name="CalculatePlanButton" Content="Calculate" Margin="4" Padding="14,6" />
+                        <Button x:Name="ActionButton" Content="Action" Margin="4" Padding="14,6" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </ScrollViewer>
+    </Grid>
+</v:ConquestTabBase>

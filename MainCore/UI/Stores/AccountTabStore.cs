@@ -28,9 +28,10 @@ namespace MainCore.UI.Stores
         private readonly VillageViewModel _villageViewModel;
         private readonly EditAccountViewModel _editAccountViewModel;
         private readonly FarmingViewModel _farmingViewModel;
+        private readonly ConquestViewModel _conquestViewModel;
         private readonly DebugViewModel _debugViewModel;
 
-        public AccountTabStore(NoAccountViewModel noAccountViewModel, AddAccountViewModel addAccountViewModel, AddAccountsViewModel addAccountsViewModel, EditAccountViewModel editAccountViewModel, DebugViewModel debugViewModel, AccountSettingViewModel accountSettingViewModel, VillageViewModel villageViewModel, FarmingViewModel farmingViewModel)
+        public AccountTabStore(NoAccountViewModel noAccountViewModel, AddAccountViewModel addAccountViewModel, AddAccountsViewModel addAccountsViewModel, EditAccountViewModel editAccountViewModel, DebugViewModel debugViewModel, AccountSettingViewModel accountSettingViewModel, VillageViewModel villageViewModel, FarmingViewModel farmingViewModel, ConquestViewModel conquestViewModel)
         {
             _noAccountViewModel = noAccountViewModel;
             _addAccountViewModel = addAccountViewModel;
@@ -40,6 +41,7 @@ namespace MainCore.UI.Stores
             _debugViewModel = debugViewModel;
             _villageViewModel = villageViewModel;
             _farmingViewModel = farmingViewModel;
+            _conquestViewModel = conquestViewModel;
         }
 
         public void SetTabType(AccountTabType tabType)
@@ -96,5 +98,6 @@ namespace MainCore.UI.Stores
         public EditAccountViewModel EditAccountViewModel => _editAccountViewModel;
         public DebugViewModel DebugViewModel => _debugViewModel;
         public FarmingViewModel FarmingViewModel => _farmingViewModel;
+        public ConquestViewModel ConquestViewModel => _conquestViewModel;
     }
 }

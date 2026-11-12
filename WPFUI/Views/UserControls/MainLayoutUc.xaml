@@ -128,6 +128,9 @@
                 <TabItem x:Name="FarmingTab" Header="Farming">
                     <v_tab:FarmingTab x:Name="Farming" />
                 </TabItem>
+                <TabItem x:Name="ConquestTab" Header="Conquest">
+                    <v_tab:ConquestTab x:Name="Conquest" />
+                </TabItem>
                 <TabItem x:Name="EditAccountTab" Header="Edit account">
                     <v_tab:EditAccountTab x:Name="EditAccount" />
                 </TabItem>
