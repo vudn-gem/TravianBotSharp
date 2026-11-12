@@ -12,8 +12,11 @@ namespace MainCore.Services
         IDbContextFactory<AppDbContext> contextFactory,
         LostReportTargetScanner lostReportTargetScanner)
     {
-        public async Task Scan(AccountId accountId, CancellationToken cancellationToken)
+        public void Reset(AccountId accountId) => monitor.Reset(accountId);
+
+        public async Task<bool> Scan(AccountId accountId, CancellationToken cancellationToken)
         {
+            var requiresFarmPageReopen = false;
             cancellationToken.ThrowIfCancellationRequested();
             var session = monitor.GetSession(accountId);
             try
@@ -24,7 +27,7 @@ namespace MainCore.Services
                 if (!notify && !deactivate)
                 {
                     monitor.Reset(accountId);
-                    return;
+                    return requiresFarmPageReopen;
                 }
                 var result = await ReportParser.GetUnreadCount(browser.CurrentPage);
                 cancellationToken.ThrowIfCancellationRequested();
@@ -33,6 +36,7 @@ namespace MainCore.Services
                     var changed = monitor.Observe(accountId, session, result.Value, dataService.AccountData, notify);
                     if (changed && deactivate)
                     {
+                        requiresFarmPageReopen = true;
                         try
                         {
                             await lostReportTargetScanner.Scan(cancellationToken);
@@ -56,6 +60,7 @@ namespace MainCore.Services
             catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
             {
                 browser.Logger.Warning("Report badge scan failed; keeping the previous count until the next scan");
+                return true;
             }
             catch (DbException ex)
             {
@@ -69,6 +74,8 @@ namespace MainCore.Services
             {
                 browser.Logger.Error(ex, "Unable to access notification storage; keeping the previous count");
             }
+
+            return requiresFarmPageReopen;
         }
     }
 }

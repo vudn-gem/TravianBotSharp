@@ -30,10 +30,21 @@ namespace MainCore.Tasks
             if (!useStartAll && farmLists.Count == 0)
                 return Skip.Error.WithError("No farmlist is active");
 
-            await reportBadgeScanner.Scan(task.AccountId, cancellationToken);
+            var requiresFarmPageReopen = false;
+            if (ShouldScanReportBadge(task.AccountId))
+            {
+                requiresFarmPageReopen = await reportBadgeScanner.Scan(task.AccountId, cancellationToken);
+            }
+            else
+            {
+                reportBadgeScanner.Reset(task.AccountId);
+            }
             cancellationToken.ThrowIfCancellationRequested();
-            result = await toFarmListPageCommand.HandleAsync(new(task.AccountId), cancellationToken);
-            if (result.IsFailed) return result;
+            if (requiresFarmPageReopen)
+            {
+                result = await toFarmListPageCommand.HandleAsync(new(task.AccountId), cancellationToken);
+                if (result.IsFailed) return result;
+            }
 
             if (useStartAll)
             {
@@ -81,6 +92,13 @@ namespace MainCore.Tasks
                 .Select(x => new FarmId(x.Id))
                 .ToList();
             return farmLists;
+        }
+
+        private bool ShouldScanReportBadge(AccountId accountId)
+        {
+            using var context = contextFactory.CreateDbContext();
+            return context.BooleanByName(accountId, AccountSettingEnums.EnableReportNotifications) ||
+                context.BooleanByName(accountId, AccountSettingEnums.EnableAutoDeactivateLostReportTargets);
         }
     }
 }

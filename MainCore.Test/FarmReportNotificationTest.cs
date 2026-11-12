@@ -86,13 +86,13 @@ namespace MainCore.Test
             _navigate.HandleAsync(Arg.Any<ToFarmListPageCommand.Command>(), Arg.Any<CancellationToken>())
                 .Returns(_ =>
                 {
-                    if (++navigations % 2 == 0) scanned.ShouldBeTrue();
+                    navigations++;
                     return Result.Ok();
                 });
             _browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(_ =>
             {
                 scanned.ShouldBeTrue();
-                (navigations % 2).ShouldBe(0);
+                navigations.ShouldBe(1);
                 clicked = true;
                 return Result.Ok();
             });
@@ -106,14 +106,17 @@ namespace MainCore.Test
             var task = new StartFarmListTask.Task(_accountId);
             var before = DateTime.Now;
             (await _handler.HandleAsync(task, CancellationToken.None)).IsSuccess.ShouldBeTrue();
+            navigations.ShouldBe(1);
             task.ExecuteAt.ShouldBeGreaterThanOrEqualTo(before.AddSeconds(120));
             task.ExecuteAt.ShouldBeLessThanOrEqualTo(DateTime.Now.AddSeconds(180));
             _outbox.GetNext(DateTime.UtcNow).ShouldBeNull();
 
             clicked = false;
             scanned = false;
+            navigations = 0;
             json = "{\"valid\":true,\"text\":\"1\"}";
             (await _handler.HandleAsync(task, CancellationToken.None)).IsSuccess.ShouldBeTrue();
+            navigations.ShouldBe(1);
             _outbox.GetNext(DateTime.UtcNow)!.Text.ShouldContain("0 -> 1");
         }
 

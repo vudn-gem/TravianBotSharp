@@ -18,6 +18,9 @@ namespace MainCore.Commands.Navigate
             Command command,
             CancellationToken cancellationToken)
         {
+            if (await IsOnFarmListPage())
+                return Result.Ok();
+
             var accountId = command.AccountId;
             var rallypointVillageId = GetHasRallypointVillage(accountId);
             if (rallypointVillageId == VillageId.Empty) return Skip.Error.WithError("No rallypoint found. Recheck & load village has rallypoint in Village>Build tab");
@@ -41,6 +44,15 @@ namespace MainCore.Commands.Navigate
             if (result.IsFailed) return result;
 
             return Result.Ok();
+        }
+
+        private async Task<bool> IsOnFarmListPage()
+        {
+            var page = browser.CurrentPage;
+            var farmListPanel = page.Locator("#rallyPointFarmList");
+            if (await farmListPanel.CountAsync() == 0) return false;
+            var startButtons = FarmListParser.GetStartAllButton(page);
+            return await startButtons.CountAsync() > 0;
         }
 
         private VillageId GetHasRallypointVillage(AccountId accountId)
