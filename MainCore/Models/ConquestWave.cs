@@ -55,6 +55,7 @@ namespace MainCore.Models
             new(18, "Embassy", "Infrastructure"),
             new(24, "Town Hall", "Infrastructure"),
             new(25, "Residence", "Infrastructure"),
+            new(44, "Command Center", "Infrastructure"),
             new(26, "Palace", "Infrastructure"),
             new(27, "Treasury", "Infrastructure"),
             new(28, "Trade Office", "Infrastructure"),
@@ -71,6 +72,7 @@ namespace MainCore.Models
             new(29, "Great Barracks", "Military"),
             new(30, "Great Stable", "Military"),
             new(37, "Hero's Mansion", "Military"),
+            new(41, "Horse Drinking Trough", "Military"),
             new(46, "Hospital", "Military"),
         ]);
 

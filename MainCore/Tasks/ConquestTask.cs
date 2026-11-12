@@ -101,6 +101,7 @@ namespace MainCore.Tasks
             if (navigateResult.IsFailed) return navigateResult;
 
             var page = browser.CurrentPage;
+            var preparedWaves = task.Waves.ToArray();
             await page.Locator("#troopSendForm").WaitForAsync();
             for (var waveIndex = 0; waveIndex < task.Waves.Count; waveIndex++)
             {
@@ -124,7 +125,8 @@ namespace MainCore.Tasks
                 await sendButton.ClickAsync();
                 await page.Locator("#troopSendForm #confirmSendTroops").WaitForAsync();
                 var targetsResult = await SetCatapultTargets(page, waveIndex, wave);
-                if (targetsResult.IsFailed) return targetsResult;
+                if (targetsResult.IsFailed) return Stop.Error.WithErrors(targetsResult.Errors);
+                preparedWaves[waveIndex] = targetsResult.Value;
 
                 var verifyResult = await VerifyWave(page, waveIndex, wave.Troops, task);
                 if (verifyResult.IsFailed) return verifyResult;
@@ -134,7 +136,7 @@ namespace MainCore.Tasks
             {
                 var verifyResult = await VerifyWave(page, waveIndex, task.Waves[waveIndex].Troops, task);
                 if (verifyResult.IsFailed) return verifyResult;
-                var targetsResult = await VerifyCatapultTargets(page, waveIndex, task.Waves[waveIndex]);
+                var targetsResult = await VerifyCatapultTargets(page, waveIndex, preparedWaves[waveIndex]);
                 if (targetsResult.IsFailed) return targetsResult;
             }
 
@@ -243,9 +245,11 @@ namespace MainCore.Tasks
             return Result.Ok();
         }
 
-        private static async System.Threading.Tasks.Task<Result> SetCatapultTargets(IPage page, int waveIndex, ConquestWave wave)
+        private async System.Threading.Tasks.Task<Result<ConquestWave>> SetCatapultTargets(IPage page, int waveIndex, ConquestWave wave)
         {
-            if (wave.Troops[7] == 0) return Result.Ok();
+            if (wave.Troops[7] == 0) return Result.Ok(wave);
+            var firstTarget = wave.CatapultTarget1;
+            var secondTarget = wave.CatapultTarget2;
 
             foreach (var (target, number) in new[] { ((int?)wave.CatapultTarget1, 1), (wave.CatapultTarget2, 2) })
             {
@@ -253,17 +257,28 @@ namespace MainCore.Tasks
                 var count = await select.CountAsync();
                 if (number == 2 && target is null && count == 0) continue;
                 if (count != 1)
-                    return Stop.Error.WithError($"Catapult target {number} selector for wave {waveIndex + 1} is missing or ambiguous.");
+                    return Result.Fail($"Catapult target {number} selector for wave {waveIndex + 1} is missing or ambiguous.");
 
                 var value = target?.ToString(CultureInfo.InvariantCulture) ?? "";
                 var availableValues = await select.Locator("option").EvaluateAllAsync<string[]>(
                     "options => options.filter(option => !option.disabled && !option.parentElement.disabled).map(option => option.value)");
                 if (!availableValues.Contains(value))
-                    return Stop.Error.WithError($"Catapult target '{value}' is unavailable for wave {waveIndex + 1}, target {number}.");
+                {
+                    if (target is null || !availableValues.Contains("99"))
+                        return Result.Fail($"Catapult target '{value}' is unavailable for wave {waveIndex + 1}, target {number}, and cannot be replaced with Random.");
+                    browser.Logger.Warning(
+                        "Wave {Wave}, catapult target {TargetNumber}: target {Target} is unavailable; using Random (99)",
+                        waveIndex + 1, number, value);
+                    value = "99";
+                    if (number == 1) firstTarget = 99;
+                    else secondTarget = 99;
+                }
                 await select.SelectOptionAsync(value);
             }
 
-            return await VerifyCatapultTargets(page, waveIndex, wave);
+            var preparedWave = new ConquestWave(wave.Troops, firstTarget, secondTarget);
+            var verification = await VerifyCatapultTargets(page, waveIndex, preparedWave);
+            return verification.IsFailed ? Result.Fail(verification.Errors) : Result.Ok(preparedWave);
         }
 
         private static async System.Threading.Tasks.Task<Result> VerifyCatapultTargets(IPage page, int waveIndex, ConquestWave wave)

@@ -1,4 +1,5 @@
 using MainCore.Entities;
+using MainCore.Enums;
 using MainCore.Models;
 using MainCore.Tasks;
 using MainCore.UI.ViewModels.UserControls;
@@ -7,6 +8,51 @@ namespace MainCore.Test
 {
     public class ConquestWaveTest
     {
+        [Theory]
+        [InlineData(TribeEnums.Romans, "Legionnaire", "Fire Catapult", "Senator")]
+        [InlineData(TribeEnums.Teutons, "Clubswinger", "Catapult", "Chief")]
+        [InlineData(TribeEnums.Gauls, "Phalanx", "Trebuchet", "Chieftain")]
+        [InlineData(TribeEnums.Egyptians, "Slave Militia", "Stone Catapult", "Nomarch")]
+        [InlineData(TribeEnums.Huns, "Mercenary", "Catapult", "Logades")]
+        [InlineData(TribeEnums.Spartan, "Hoplite", "Catapult", "Ephor")]
+        public void LabelsFollowVillageTribeWithoutChangingWaveData(
+            TribeEnums tribe, string firstTroop, string catapult, string chief)
+        {
+            var wave = new ConquestWaveViewModel(1);
+            wave.Troops[0].Count = "19";
+            wave.Troops[7].Count = "20";
+            wave.CatapultTarget1 = 4;
+            wave.CatapultTarget2 = 25;
+            wave.SetTribe(tribe);
+            wave.Troops[0].Label.ShouldBe($"t1: {firstTroop}");
+            wave.Troops[7].Label.ShouldBe($"t8: {catapult}");
+            wave.Troops[8].Label.ShouldBe($"t9: {chief}");
+            wave.Troops[9].Label.ShouldBe("t10: Settler");
+            wave.Troops[10].Label.ShouldBe("Hero");
+            var copy = wave.Copy(2);
+            copy.Troops.Select(troop => troop.Label).ShouldBe(wave.Troops.Select(troop => troop.Label));
+            wave.SetTribe(TribeEnums.Any);
+            wave.Troops[0].Label.ShouldBe("t1");
+            wave.Troops[9].Label.ShouldBe("t10");
+            wave.Troops[10].Label.ShouldBe("Hero");
+            wave.Troops[0].Count.ShouldBe("19");
+            wave.CatapultTarget1.ShouldBe(4);
+            wave.CatapultTarget2.ShouldBe(25);
+        }
+
+        [Fact]
+        public void HunTroopOrderMatchesRallyPoint()
+        {
+            var wave = new ConquestWaveViewModel(1);
+            wave.SetTribe(TribeEnums.Huns);
+            wave.Troops.Select(troop => troop.Label).ShouldBe(new[]
+            {
+                "t1: Mercenary", "t2: Bowman", "t3: Spotter", "t4: Steppe Rider",
+                "t5: Marksman", "t6: Marauder", "t7: Ram", "t8: Catapult",
+                "t9: Logades", "t10: Settler", "Hero",
+            });
+        }
+
         [Theory]
         [InlineData("0", false, false)]
         [InlineData("1", true, false)]
@@ -78,6 +124,10 @@ namespace MainCore.Test
         [InlineData(20, 4, 25, true)]
         [InlineData(21, 4, 25, true)]
         [InlineData(1, 27, null, true)]
+        [InlineData(1, 44, null, true)]
+        [InlineData(20, 4, 44, true)]
+        [InlineData(1, 41, null, true)]
+        [InlineData(20, 4, 41, true)]
         [InlineData(20, 999, null, false)]
         [InlineData(20, 4, 999, false)]
         public void WaveValidationUsesGameTargetValuesAndTwentyCatapultThreshold(
@@ -91,11 +141,19 @@ namespace MainCore.Test
         [Fact]
         public void CatalogMatchesSuppliedGameOptions()
         {
-            ConquestCatapultTargets.Options.Count.ShouldBe(34);
-            ConquestCatapultTargets.Options.Select(option => option.Value).Distinct().Count().ShouldBe(34);
+            ConquestCatapultTargets.Options.Count.ShouldBe(36);
+            ConquestCatapultTargets.Options.Select(option => option.Value).Distinct().Count().ShouldBe(36);
             ConquestCatapultTargets.Options.Single(option => option.Name == "Random").Value.ShouldBe(99);
             ConquestCatapultTargets.Options.Single(option => option.Name == "Cropland").Value.ShouldBe(4);
             ConquestCatapultTargets.Options.Single(option => option.Name == "Residence").Value.ShouldBe(25);
+            var commandCenter = ConquestCatapultTargets.Options.Single(option => option.Name == "Command Center");
+            commandCenter.Value.ShouldBe(44);
+            commandCenter.Group.ShouldBe("Infrastructure");
+            ConquestCatapultTargets.OptionalOptions.ShouldContain(commandCenter);
+            var horseDrinkingTrough = ConquestCatapultTargets.Options.Single(option => option.Name == "Horse Drinking Trough");
+            horseDrinkingTrough.Value.ShouldBe(41);
+            horseDrinkingTrough.Group.ShouldBe("Military");
+            ConquestCatapultTargets.OptionalOptions.ShouldContain(horseDrinkingTrough);
             ConquestCatapultTargets.Options.Single(option => option.Name == "Palace").Value.ShouldBe(26);
             ConquestCatapultTargets.Options.Single(option => option.Name == "Treasury").Value.ShouldBe(27);
             ConquestCatapultTargets.OptionalOptions[0].Value.ShouldBeNull();

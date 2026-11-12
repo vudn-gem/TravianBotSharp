@@ -119,7 +119,9 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Margin="2">
-                                                        <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Label}" ToolTip="{Binding Label}"
+                                                                   TextWrapping="Wrap" TextAlignment="Center"
+                                                                   MinHeight="48" HorizontalAlignment="Center" />
                                                         <TextBox Text="{Binding Count, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                  MinWidth="38" HorizontalContentAlignment="Center" />
                                                     </StackPanel>

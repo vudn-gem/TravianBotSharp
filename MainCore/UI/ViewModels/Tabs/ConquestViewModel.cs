@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 
+using MainCore.Infrasturecture.Extensions;
 using MainCore.UI.Models.Output;
 using MainCore.UI.ViewModels.Abstract;
 using MainCore.UI.ViewModels.UserControls;
@@ -18,6 +19,7 @@ namespace MainCore.UI.ViewModels.Tabs
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
         private readonly TaskManager _taskManager;
         private readonly DialogService _dialogService;
+        private TribeEnums _originTribe;
 
         public ListBoxItemViewModel Villages { get; } = new();
 
@@ -85,6 +87,7 @@ namespace MainCore.UI.ViewModels.Tabs
                 {
                     if (detail is null)
                     {
+                        SetTroopTribe(TribeEnums.Any);
                         OriginCoordinates = "";
                         OriginX = 0;
                         OriginY = 0;
@@ -94,6 +97,7 @@ namespace MainCore.UI.ViewModels.Tabs
                     }
 
                     OriginCoordinates = $"({detail.X}|{detail.Y})";
+                    SetTroopTribe(detail.Tribe);
                     OriginX = detail.X;
                     OriginY = detail.Y;
                     TournamentSquareLevel = detail.TournamentSquareLevel;
@@ -123,6 +127,7 @@ namespace MainCore.UI.ViewModels.Tabs
         protected override Task OnAccountContextInvalidated()
         {
             Villages.Load([]);
+            SetTroopTribe(TribeEnums.Any);
             OriginCoordinates = "";
             OriginX = 0;
             OriginY = 0;
@@ -156,7 +161,7 @@ namespace MainCore.UI.ViewModels.Tabs
             if (villageId <= 0 || AccountId == AccountId.Empty) return null;
 
             using var context = _contextFactory.CreateDbContext();
-            return context.Villages
+            var detail = context.Villages
                 .Where(village => village.Id == villageId && village.AccountId == AccountId.Value)
                 .Select(village => new VillageDetail(
                     village.X,
@@ -165,6 +170,16 @@ namespace MainCore.UI.ViewModels.Tabs
                         .Where(building => building.Type == BuildingEnums.TournamentSquare)
                         .Max(building => (int?)building.Level) ?? 0))
                 .SingleOrDefault();
+            return detail is null ? null : detail with
+            {
+                Tribe = (TribeEnums)context.ByName(new VillageId(villageId), VillageSettingEnums.Tribe),
+            };
+        }
+
+        private void SetTroopTribe(TribeEnums tribe)
+        {
+            _originTribe = tribe;
+            foreach (var wave in TroopWaves) wave.SetTribe(tribe);
         }
 
         [ReactiveCommand]
@@ -193,7 +208,9 @@ namespace MainCore.UI.ViewModels.Tabs
                 await _dialogService.SendMessage("Warning", $"Wave Builder supports at most {ConquestWave.MaxWaves} waves.");
                 return;
             }
-            TroopWaves.Add(new ConquestWaveViewModel(TroopWaves.Count + 1));
+            var wave = new ConquestWaveViewModel(TroopWaves.Count + 1);
+            wave.SetTribe(_originTribe);
+            TroopWaves.Add(wave);
         }
 
         [ReactiveCommand]
@@ -310,7 +327,10 @@ namespace MainCore.UI.ViewModels.Tabs
             int.TryParse(input, NumberStyles.Integer, CultureInfo.InvariantCulture, out coordinate) &&
             coordinate is >= -200 and <= 200;
 
-        public sealed record VillageDetail(int X, int Y, int TournamentSquareLevel);
+        public sealed record VillageDetail(int X, int Y, int TournamentSquareLevel)
+        {
+            public TribeEnums Tribe { get; init; }
+        }
 
         private sealed record PlannedConquest(
             VillageId VillageId,

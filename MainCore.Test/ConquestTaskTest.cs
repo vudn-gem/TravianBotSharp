@@ -10,9 +10,18 @@ namespace MainCore.Test
     public sealed class ConquestTaskTest(PlaywrightFixture fixture) : ParserTestBase(fixture)
     {
         [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public async Task SendsPerWaveTargetsOrStopsWhenAnOptionIsUnavailable(bool unavailable)
+        [InlineData(false, 4, 25)]
+        [InlineData(true, 4, 25)]
+        [InlineData(false, 44, 25)]
+        [InlineData(false, 4, 44)]
+        [InlineData(true, 44, 25)]
+        [InlineData(false, 41, 25)]
+        [InlineData(false, 4, 41)]
+        [InlineData(true, 41, 25)]
+        [InlineData(true, 41, 41)]
+        [InlineData(true, 4, 4)]
+        [InlineData(true, 99, 25)]
+        public async Task SendsPerWaveTargetsWithRandomFallback(bool unavailable, int firstTarget, int secondTarget)
         {
             await using var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -23,6 +32,7 @@ namespace MainCore.Test
                 window.waves = [];
                 window.confirmed = false;
                 window.unavailable = false;
+                window.unavailableTarget = '4';
                 const form = document.querySelector('#troopSendForm');
                 function field(name, value) {
                     return `<input type="hidden" name="${name}" value="${value}">`;
@@ -50,11 +60,11 @@ namespace MainCore.Test
                         '<button type="submit">Continue</button>';
                 }
                 function targets(index, number) {
-                    const options = [['99', 'Random'], ['4', 'Cropland'], ['25', 'Residence'], ['27', 'Treasury']];
+                    const options = [['99', 'Random'], ['4', 'Cropland'], ['25', 'Residence'], ['44', 'Command Center'], ['41', 'Horse Drinking Trough'], ['27', 'Treasury']];
                     return `<select name="troops[${index}][catapultTarget${number}]">` +
                         (number === 2 ? '<option value=""></option>' : '') +
                         options.map(([value, name]) =>
-                            `<option value="${value}" ${unavailable && value === '4' ? 'disabled' : ''}>${name}</option>`).join('') +
+                            `<option value="${value}" ${unavailable && value === unavailableTarget ? 'disabled' : ''}>${name}</option>`).join('') +
                         '</select>';
                 }
                 function confirmPage() {
@@ -87,7 +97,9 @@ namespace MainCore.Test
                 </script>
                 """);
             await page.EvaluateAsync("value => window.unavailable = value", unavailable);
+            await page.EvaluateAsync("value => window.unavailableTarget = String(value)", firstTarget);
             var browser = Substitute.For<IChromeBrowser>();
+            browser.Logger.Returns(Substitute.For<Serilog.ILogger>());
             browser.IsInitialized.Returns(true);
             browser.CurrentPage.Returns(page);
             browser.CurrentUrl.Returns("https://example.com/dorf1.php");
@@ -102,23 +114,28 @@ namespace MainCore.Test
             second[0] = 19;
             second[7] = 1;
             var task = new ConquestTask.Task(new AccountId(1), new VillageId(2), -50, 50,
-                [new ConquestWave(first, 4, 25), new ConquestWave(second, 27)],
+                [new ConquestWave(first, firstTarget, secondTarget), new ConquestWave(second, 27)],
                 DateTime.Now.AddHours(2), DateTime.Now.AddSeconds(-1), 0);
             var handler = new ConquestTask.HandleBehavior(new ConquestTask(browser));
 
             var result = await handler.HandleAsync(task, CancellationToken.None);
-            result.IsSuccess.ShouldBe(!unavailable);
-            (await page.EvaluateAsync<bool>("window.confirmed")).ShouldBe(!unavailable);
+            var randomUnavailable = unavailable && firstTarget == 99;
+            result.IsSuccess.ShouldBe(!randomUnavailable);
+            (await page.EvaluateAsync<bool>("window.confirmed")).ShouldBe(!randomUnavailable);
             await browser.Received(1).CloseNewTab();
-            if (unavailable)
+            if (randomUnavailable)
             {
                 task.ConfirmationAttempted.ShouldBeFalse();
                 result.Errors.ShouldContain(error => error.Message.Contains("unavailable"));
                 return;
             }
 
-            (await page.EvaluateAsync<string[]>("waves.map(wave => wave.target1)")).ShouldBe(["4", "27"]);
-            (await page.EvaluateAsync<string[]>("waves.map(wave => wave.target2)")).ShouldBe(["25", ""]);
+            (await page.EvaluateAsync<string[]>("waves.map(wave => wave.target1)"))
+                .ShouldBe([unavailable ? "99" : firstTarget.ToString(), "27"]);
+            (await page.EvaluateAsync<string[]>("waves.map(wave => wave.target2)"))
+                .ShouldBe([unavailable && secondTarget == firstTarget ? "99" : secondTarget.ToString(), ""]);
+            task.Waves[0].CatapultTarget1.ShouldBe(firstTarget);
+            task.Waves[0].CatapultTarget2.ShouldBe(secondTarget);
             (await page.EvaluateAsync<string[]>("waves.map(wave => wave.counts[7])")).ShouldBe(["20", "1"]);
         }
     }

@@ -36,6 +36,10 @@ Currently, TBS only runs on Windows.
 
 In **Conquest**, enter troops in the 11 fields of each wave, following the
 Rally Point order (`t1` to `t10`, then Hero; `t8` is Catapult).
+Troop labels follow the selected origin village's saved tribe, including new
+and copied waves. If its tribe has not been identified, labels remain `t1`
+to `t10`; Hero always remains the last field. Changing the village updates
+labels without changing entered troop counts or catapult targets.
 **Add** creates an empty wave; **Copy last wave** duplicates the last wave,
 including both catapult targets. Up to eight waves can be planned.
 
@@ -43,9 +47,13 @@ Each wave has its own catapult target. A second, optional target is enabled
 from **20 catapults** and cleared if the count drops below 20.
 Target names, groups, and values match the supplied Rally Point HTML:
 for example, Random = 99, Cropland = 4, Residence = 25, Palace = 26,
-and Treasury = 27. The former combined/automatic target is replaced by
+Treasury = 27, and Command Center = 44 (for Hun targets when offered by the game).
+Horse Drinking Trough = 41 is included under Military for Roman targets.
+The former combined/automatic target is replaced by
 explicit building choices. If a selected target is unavailable in the game,
-the task stops without confirming the attack.
+the task selects Random (99) for that target and logs a warning. This applies
+to either catapult target, including Command Center and Horse Drinking Trough. An empty second target
+remains empty. If Random is also unavailable, the task stops before confirming.
 
 **Calculate** previews the plan; **Action** queues a snapshot of all waves.
 Later edits to the wave inputs do not change an already queued task.
