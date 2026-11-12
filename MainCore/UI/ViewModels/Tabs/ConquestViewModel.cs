@@ -166,9 +166,7 @@ namespace MainCore.UI.ViewModels.Tabs
                     village.Y,
                     village.Buildings
                         .Where(building => building.Type == BuildingEnums.TournamentSquare)
-                        .Select(building => building.Level)
-                        .DefaultIfEmpty(0)
-                        .Max()))
+                        .Max(building => (int?)building.Level) ?? 0))
                 .SingleOrDefault();
         }
 
@@ -255,9 +253,7 @@ namespace MainCore.UI.ViewModels.Tabs
                     item.Y,
                     item.Buildings
                         .Where(building => building.Type == BuildingEnums.TournamentSquare)
-                        .Select(building => building.Level)
-                        .DefaultIfEmpty(0)
-                        .Max()))
+                        .Max(building => (int?)building.Level) ?? 0))
                 .SingleOrDefault();
             if (village is null)
                 return Result.Fail("Selected village no longer belongs to this account.");
