@@ -57,8 +57,9 @@ clicking **Hero clear oasis**.
 - Set inclusive **Min animal** and **Max animal** limits and allowed animal types.
   Any positive count of a disallowed animal skips the target without disabling it.
 - Configure fixed Hun sub troop counts: Steppe Rider, Marksman and Marauder.
-  Zero for all three sends only the hero. Other attacker troop inputs are cleared;
-  troop upgrade levels and hero equipment are left unchanged.
+  Zero for all three sends only the hero. For other attacker troop inputs, only
+  positive counts are cleared; zero and empty fields are left untouched.
+  Troop upgrade levels and hero equipment are left unchanged.
 - **Min hero health allow** applies twice: current health below the minimum
   cancels this task; simulated remaining health below it skips only the target.
 - **Max hero health lost** measures health percentage points, not a fraction of

@@ -11,6 +11,39 @@ namespace MainCore.Test
 {
     public sealed class HeroClearOasisScannerTest(PlaywrightFixture fixture) : ParserTestBase(fixture)
     {
+        [Fact]
+        public async Task ClearsOnlyPositiveUnselectedSimulatorTroopFields()
+        {
+            await using var context = await CreateContextAsync();
+            var page = await context.NewPageAsync();
+            var values = new[] { "0", "", "7", "0", "9", "0", "00", "3", "", "0" };
+            await page.SetContentAsync($"""
+                <form id="combatSimulatorForm"><div class="role attacker">
+                <input type="radio" name="movement" value="raid">
+                <div class="troops attack"><table><tbody>
+                <tr class="troopIcons"><td><i class="u64"></i><i class="u65"></i><i class="u66"></i></td></tr>
+                <tr class="troopUnits">
+                {string.Concat(values.Select((value, i) => $"<td><input data-t='t{i + 1}' value='{value}' oninput=\"this.dataset.edited='true'\"></td>"))}
+                <td><input type="checkbox" name="hero"></td></tr>
+                <tr class="troopLevels"><td><input name="unit1" value="20"></td></tr>
+                </tbody></table></div></div></form>
+                """);
+
+            var result = await HeroOasisParser.FillSimulator(page,
+                new HeroOasisSetting { SteppeRiders = 1, Marksmen = 0, Marauders = 0 });
+
+            result.IsSuccess.ShouldBeTrue();
+            var expected = new[] { "0", "", "", "1", "", "0", "00", "", "", "0" };
+            for (var i = 0; i < values.Length; i++)
+            {
+                var input = page.Locator($".troopUnits input[data-t='t{i + 1}']");
+                (await input.InputValueAsync()).ShouldBe(expected[i]);
+                (await input.GetAttributeAsync("data-edited")).ShouldBe(
+                    i is 2 or 3 or 4 or 7 ? "true" : null);
+            }
+            (await page.Locator(".troopLevels input").InputValueAsync()).ShouldBe("20");
+        }
+
         [Theory]
         [InlineData(90, 61, 50, 29, 0, 0, true)]
         [InlineData(90, 61, 61, 29, 0, 0, true)]

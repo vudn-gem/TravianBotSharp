@@ -57,8 +57,19 @@ namespace MainCore.Parsers
             await attacker.Locator("input[name='movement'][value='raid']").CheckAsync();
             var troops = HeroOasisSettings.Troops(settings);
             for (var i = 1; i <= 10; i++)
-                await attacker.Locator($".troops.attack tr.troopUnits input[data-t='t{i}']")
-                    .FillAsync(troops[i - 1] == 0 ? "" : troops[i - 1].ToString(CultureInfo.InvariantCulture));
+            {
+                var input = attacker.Locator($".troops.attack tr.troopUnits input[data-t='t{i}']");
+                if (troops[i - 1] > 0)
+                {
+                    await input.FillAsync(troops[i - 1].ToString(CultureInfo.InvariantCulture));
+                    continue;
+                }
+                var text = await input.InputValueAsync();
+                if (string.IsNullOrWhiteSpace(text)) continue;
+                if (!TryCount(text, out var count))
+                    return Result.Fail($"Simulator troop count at t{i} is invalid.");
+                if (count > 0) await input.FillAsync("");
+            }
             await attacker.Locator(".troops.attack tr.troopUnits input[name='hero']").CheckAsync();
             return Result.Ok();
         }
