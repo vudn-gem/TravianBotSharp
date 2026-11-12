@@ -9,6 +9,29 @@ namespace MainCore.Test
 {
     public sealed class CustomServiceScopeExtensionTest
     {
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task ExecutesConquestTaskWithItsHandler(bool success)
+        {
+            var handler = Substitute.For<IHandler<ConquestTask.Task, Result>>();
+            var expected = success ? Result.Ok() : Result.Fail("handler result");
+            handler.HandleAsync(Arg.Any<ConquestTask.Task>(), Arg.Any<CancellationToken>())
+                .Returns(expected);
+            using var provider = new ServiceCollection().AddSingleton(handler).BuildServiceProvider();
+            using var scope = provider.CreateScope();
+            using var cancellation = new CancellationTokenSource();
+            var arrival = DateTime.Now.AddHours(2);
+            var task = new ConquestTask.Task(new AccountId(1), new VillageId(30943), -3, 34,
+                [new MainCore.Models.ConquestWave([19, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0])],
+                arrival, arrival.AddHours(-1), 0.4);
+
+            var result = await scope.Execute(task, cancellation.Token);
+
+            result.ShouldBeSameAs(expected);
+            await handler.Received(1).HandleAsync(task, cancellation.Token);
+        }
+
         [Fact]
         public async Task ExecutesHeroClearOasisTaskWithItsHandler()
         {
