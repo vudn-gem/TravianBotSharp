@@ -22,6 +22,40 @@ namespace MainCore.UI.ViewModels.Tabs
         private TribeEnums _originTribe;
 
         public ListBoxItemViewModel Villages { get; } = new();
+        [Reactive]
+        private IReadOnlyList<ConquestTaskRow> _conquests = [];
+
+        [Reactive]
+        private ConquestTaskRow? _selectedConquest;
+
+        public sealed record ConquestTaskRow(
+            ConquestTask.Task Task, string Origin, string Target, int Waves,
+            DateTime PrepareAt, DateTime SendAt, DateTime ArrivalAt,
+            string Status, int Attempts, string LastError);
+
+        public void RefreshConquests()
+        {
+            var selected = SelectedConquest?.Task;
+            Conquests = _taskManager.GetConquests(AccountId).Select(task => new ConquestTaskRow(
+                task, task.OriginName, task.Target, task.WaveCount, task.PrepareAt,
+                task.SendAt, task.ArrivalAt, task.Status, task.Attempts, task.LastError)).ToList();
+            SelectedConquest = Conquests.FirstOrDefault(row => ReferenceEquals(row.Task, selected));
+        }
+
+        [ReactiveCommand]
+        private async Task CancelConquest()
+        {
+            var row = SelectedConquest;
+            if (row is null)
+            {
+                await _dialogService.SendMessage("Warning", "Select a conquest task to cancel.");
+                return;
+            }
+            if (!_taskManager.CancelConquest(AccountId, row.Task))
+                await _dialogService.SendMessage("Warning",
+                    "This task cannot be canceled: it has finished or confirmation was already attempted. Check the game if confirmation was attempted.");
+            RefreshConquests();
+        }
 
         [Reactive]
         private int _originX;
@@ -121,12 +155,15 @@ namespace MainCore.UI.ViewModels.Tabs
 
         protected override async Task Load(AccountId accountId)
         {
+            RefreshConquests();
             await LoadVillagesCommand.Execute(accountId);
         }
 
         protected override Task OnAccountContextInvalidated()
         {
             Villages.Load([]);
+            Conquests = [];
+            SelectedConquest = null;
             SetTroopTribe(TribeEnums.Any);
             OriginCoordinates = "";
             OriginX = 0;
@@ -235,7 +272,7 @@ namespace MainCore.UI.ViewModels.Tabs
             }
 
             var plan = result.Value;
-            var added = _taskManager.TryAdd(new ConquestTask.Task(
+            var task = new ConquestTask.Task(
                 AccountId,
                 plan.VillageId,
                 plan.TargetX,
@@ -243,7 +280,12 @@ namespace MainCore.UI.ViewModels.Tabs
                 plan.Waves,
                 plan.ArrivalAt,
                 plan.Calculation.SendAt,
-                plan.DelaySeconds));
+                plan.DelaySeconds)
+            {
+                OriginName = Villages.SelectedItem?.Content ?? plan.VillageId.Value.ToString(),
+            };
+            var added = _taskManager.TryAdd(task);
+            RefreshConquests();
 
             if (!added)
             {

@@ -16,7 +16,8 @@ namespace MainCore.UI.ViewModels
     public partial class MainViewModel(
         IWaitingOverlayViewModel waitingOverlayViewModel,
         IDbContextFactory<AppDbContext> contextFactory,
-        ChromeManager chromeManager)
+        ChromeManager chromeManager,
+        TaskManager taskManager)
         : ViewModelBase
     {
         [Reactive]
@@ -43,6 +44,8 @@ namespace MainCore.UI.ViewModels
                         .ExecuteDelete();
                 }
                 context.InitializeFarmOasisSettings();
+                context.InitializeConquestPlans();
+                taskManager.RestoreConquests();
             }, RxSchedulers.TaskpoolScheduler);
 
             await waitingOverlayViewModel.ChangeMessage("loading program layout");

@@ -26,6 +26,7 @@ namespace MainCore.Tasks
                 SendAt = sendAt;
                 DelaySeconds = delaySeconds;
                 ExecuteAt = Max(DateTime.Now, sendAt.AddMinutes(-2));
+                PrepareAt = ExecuteAt;
             }
 
             public int TargetX { get; }
@@ -35,6 +36,30 @@ namespace MainCore.Tasks
             public DateTime SendAt { get; }
             public double DelaySeconds { get; }
             public bool ConfirmationAttempted { get; set; }
+            public Guid PlanId { get; set; } = Guid.NewGuid();
+            public Action? Persist { get; set; }
+            private readonly CancellationTokenSource _cancel = new();
+            public CancellationToken CancelToken => _cancel.Token;
+            public bool CancelRequested => _cancel.IsCancellationRequested;
+            public string Status { get; set; } = "Scheduled";
+            public string LastError { get; set; } = "";
+            public int Attempts { get; set; }
+            public DateTime PrepareAt { get; set; }
+            public string OriginName { get; set; } = "";
+            public string Target => $"({TargetX}|{TargetY})";
+            public int WaveCount => Waves.Count;
+            public bool IsFinished { get; set; }
+
+            public bool RequestCancel()
+            {
+                lock (this)
+                {
+                    if (ConfirmationAttempted || IsFinished) return false;
+                    _cancel.Cancel();
+                    Persist?.Invoke();
+                    return true;
+                }
+            }
 
             protected override string TaskName => $"Conquest attack ({TargetX}|{TargetY})";
 
@@ -64,9 +89,13 @@ namespace MainCore.Tasks
             if (openResult.IsFailed) return openResult;
 
             var result = Result.Ok();
+            System.Threading.Tasks.Task<Result>? preparation = null;
             try
             {
-                result = await PrepareAndSend(task, baseUrl, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                task.Status = "Preparing";
+                preparation = PrepareAndSend(task, baseUrl, cancellationToken);
+                result = await preparation.WaitAsync(cancellationToken);
             }
             finally
             {
@@ -76,6 +105,14 @@ namespace MainCore.Tasks
                     browser.Logger.Error("Could not close the conquest tab: {Errors}",
                         string.Join(Environment.NewLine, closeResult.Errors.Select(x => x.Message)));
                     if (result.IsSuccess) result = closeResult;
+                }
+                if (cancellationToken.IsCancellationRequested && preparation is not null)
+                {
+                    try { await preparation; }
+                    catch (Exception ex)
+                    {
+                        browser.Logger.Information("Conquest preparation ended after cancellation: {Message}", ex.Message);
+                    }
                 }
             }
 
@@ -158,6 +195,8 @@ namespace MainCore.Tasks
                 return Skip.Error.WithError("Estimated arrival is later than the planned arrival time; the attack was skipped.");
 
             var wait = task.SendAt - DateTime.Now;
+            task.Status = "Waiting to send";
+            task.Persist?.Invoke();
             if (wait > TimeSpan.Zero)
                 await System.Threading.Tasks.Task.Delay(wait, cancellationToken);
 
@@ -169,7 +208,13 @@ namespace MainCore.Tasks
             if (await confirmButton.CountAsync() != 1)
                 return Stop.Error.WithError("The Rally Point confirmation button is missing or ambiguous.");
 
-            task.ConfirmationAttempted = true;
+            lock (task)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                task.ConfirmationAttempted = true;
+                task.Status = "Confirming";
+                task.Persist?.Invoke();
+            }
             await confirmButton.ClickAsync();
             await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
 

@@ -28,6 +28,32 @@ namespace MainCore.Infrasturecture.Persistence
         public DbSet<Farm> FarmLists { get; set; }
         public DbSet<FarmOasisSetting> FarmOasisSettings { get; set; }
         public DbSet<HeroOasisSetting> HeroOasisSettings { get; set; }
+        public DbSet<ConquestPlan> ConquestPlans { get; set; }
+
+        public void InitializeConquestPlans()
+        {
+            Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "ConquestPlans" (
+                    "Id" TEXT NOT NULL PRIMARY KEY,
+                    "AccountId" INTEGER NOT NULL,
+                    "VillageId" INTEGER NOT NULL,
+                    "TargetX" INTEGER NOT NULL,
+                    "TargetY" INTEGER NOT NULL,
+                    "WavesJson" TEXT NOT NULL,
+                    "ArrivalAt" TEXT NOT NULL,
+                    "SendAt" TEXT NOT NULL,
+                    "PrepareAt" TEXT NOT NULL,
+                    "DelaySeconds" REAL NOT NULL,
+                    "OriginName" TEXT NOT NULL,
+                    "Status" TEXT NOT NULL,
+                    "LastError" TEXT NOT NULL,
+                    "Attempts" INTEGER NOT NULL,
+                    "ConfirmationAttempted" INTEGER NOT NULL,
+                    "CancelRequested" INTEGER NOT NULL,
+                    "IsFinished" INTEGER NOT NULL
+                )
+                """);
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

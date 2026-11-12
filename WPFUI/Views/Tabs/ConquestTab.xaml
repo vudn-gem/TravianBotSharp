@@ -168,6 +168,26 @@
                         <Button x:Name="CalculatePlanButton" Content="Calculate" Margin="4" Padding="14,6" />
                         <Button x:Name="ActionButton" Content="Action" Margin="4" Padding="14,6" />
                     </StackPanel>
+                    <TextBlock Text="Saved Conquest tasks" FontWeight="SemiBold" Margin="4,16,4,4" />
+                    <DataGrid x:Name="ConquestTasks" AutoGenerateColumns="False" IsReadOnly="True"
+                              CanUserAddRows="False" SelectionMode="Single" Height="230"
+                              HorizontalScrollBarVisibility="Auto">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Origin" Binding="{Binding Origin}" />
+                            <DataGridTextColumn Header="Target" Binding="{Binding Target}" />
+                            <DataGridTextColumn Header="Waves" Binding="{Binding Waves}" />
+                            <DataGridTextColumn Header="Prepare" Binding="{Binding PrepareAt, StringFormat='yyyy-MM-dd HH:mm:ss'}" />
+                            <DataGridTextColumn Header="Send" Binding="{Binding SendAt, StringFormat='yyyy-MM-dd HH:mm:ss'}" />
+                            <DataGridTextColumn Header="Arrival" Binding="{Binding ArrivalAt, StringFormat='yyyy-MM-dd HH:mm:ss'}" />
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" />
+                            <DataGridTextColumn Header="Attempts" Binding="{Binding Attempts}" />
+                            <DataGridTextColumn Header="Last error" Binding="{Binding LastError}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <Button x:Name="CancelConquestButton" Content="Cancel selected" HorizontalAlignment="Right"
+                            Margin="4" Padding="14,6" />
+                    <TextBlock Margin="4" TextWrapping="Wrap"
+                               Text="Plans and history are saved. Unsent, unexpired plans are restored after restart and run when the account is online. Once Confirm has been attempted, check the attack in game." />
                 </StackPanel>
             </Border>
         </ScrollViewer>

@@ -37,6 +37,13 @@ namespace MainCore.Services
                 if (!args.Context.Properties.TryGetValue(contextDataKey, out var contextData)) return;
 
                 var (taskName, browser) = contextData;
+                if (contextData.Task is ConquestTask.Task conquest)
+                {
+                    conquest.Status = "Waiting to retry";
+                    conquest.LastError = args.Outcome.Exception?.Message ??
+                        string.Join(Environment.NewLine, args.Outcome.Result?.Reasons.Select(reason => reason.Message) ?? []);
+                    conquest.Persist?.Invoke();
+                }
                 var error = args.Outcome;
                 if (error.Exception is not null)
                 {
@@ -52,7 +59,8 @@ namespace MainCore.Services
                         browser.Logger.Warning("{Message}", message);
                     }
                 }
-                await browser.Refresh();
+                if (contextData.Task is not ConquestTask.Task)
+                    await browser.Refresh();
                 browser.Logger.Warning("{TaskName} will retry after {RetryDelay} (#{AttemptNumber} times)", taskName, args.RetryDelay, args.AttemptNumber + 1);
             }
 
@@ -62,9 +70,27 @@ namespace MainCore.Services
                 Delay = TimeSpan.FromSeconds(30),
                 UseJitter = true,
                 BackoffType = DelayBackoffType.Exponential,
-                ShouldHandle = new PredicateBuilder<Result>()
-                   .Handle<Exception>()
-                   .HandleResult(static x => x.HasError<Retry>()),
+                ShouldHandle = args =>
+                {
+                    if (args.Outcome.Exception is OperationCanceledException ||
+                        args.Context.CancellationToken.IsCancellationRequested)
+                        return ValueTask.FromResult(false);
+
+                    if (args.Context.Properties.TryGetValue(contextDataKey, out var data) &&
+                        data.Task is ConquestTask.Task conquest)
+                    {
+                        return ValueTask.FromResult(
+                            args.AttemptNumber < 1 &&
+                            conquest.Attempts < 2 &&
+                            !conquest.ConfirmationAttempted &&
+                            (args.Outcome.Exception is not null ||
+                             (args.Outcome.Result is { IsFailed: true } result &&
+                              !result.HasError<Skip>() && !result.HasError<Cancel>())));
+                    }
+
+                    return ValueTask.FromResult(args.Outcome.Exception is not null ||
+                        args.Outcome.Result?.HasError<Retry>() == true);
+                },
                 OnRetry = OnRetry
             };
 
@@ -86,7 +112,9 @@ namespace MainCore.Services
                 if (next is null || next.ExecuteAt > DateTime.Now) return;
                 task = next;
                 taskQueue.IsExecuting = true;
-                cts = new CancellationTokenSource();
+                cts = task is ConquestTask.Task conquest
+                    ? CancellationTokenSource.CreateLinkedTokenSource(conquest.CancelToken)
+                    : new CancellationTokenSource();
                 taskQueue.CancellationTokenSource = cts;
                 task.Stage = StageEnums.Executing;
             }
@@ -100,7 +128,7 @@ namespace MainCore.Services
             var browser = scope.ServiceProvider.GetRequiredService<IChromeBrowser>();
             var logger = browser.Logger;
 
-            var contextData = new ContextData(task.Description, browser);
+            var contextData = new ContextData(task.Description, browser) { Task = task };
 
             ///===========================================================///
             var resilienceContext = ResilienceContextPool.Shared.Get(cts.Token);
@@ -108,7 +136,25 @@ namespace MainCore.Services
             resilienceContext.Properties.Set(contextDataKey, contextData);
 
             var poliResult = await _pipeline.ExecuteOutcomeAsync(
-                async (ctx, state) => Outcome.FromResult(await scope.Execute(state, ctx.CancellationToken)),
+                async (ctx, state) =>
+                {
+                    ctx.CancellationToken.ThrowIfCancellationRequested();
+                    if (state is ConquestTask.Task conquest)
+                    {
+                        if (conquest.ConfirmationAttempted || conquest.Attempts >= 2)
+                            return Outcome.FromResult((Result)Stop.Error.WithError(
+                                "Conquest confirmation was already attempted or the two-attempt limit was reached."));
+                        if (conquest.SendAt <= DateTime.Now)
+                        {
+                            conquest.Status = "Expired";
+                            return Outcome.FromResult((Result)Skip.Error.WithError("The planned send time has passed."));
+                        }
+                        conquest.Attempts++;
+                        conquest.Status = "Preparing";
+                        conquest.Persist?.Invoke();
+                    }
+                    return Outcome.FromResult(await scope.Execute(state, ctx.CancellationToken));
+                },
                 resilienceContext,
                 task);
 
@@ -123,10 +169,53 @@ namespace MainCore.Services
 
             taskQueue.IsExecuting = false;
 
+            var wasCanceled = cts.IsCancellationRequested;
             cts.Dispose();
             taskQueue.CancellationTokenSource = null;
 
-            if (poliResult.Exception is not null)
+            var manuallyCanceledConquest = task is ConquestTask.Task { CancelRequested: true };
+            if (task is ConquestTask.Task completed)
+            {
+                completed.LastError = poliResult.Exception?.Message ??
+                    (poliResult.Result is { IsFailed: true } failure
+                        ? string.Join(Environment.NewLine, failure.Reasons.Select(reason => reason.Message))
+                        : completed.LastError);
+                completed.Status = manuallyCanceledConquest ? "Canceled" :
+                    completed.ConfirmationAttempted && (poliResult.Exception is not null || poliResult.Result?.IsFailed == true)
+                    ? "Check in game" :
+                    wasCanceled ? "Paused" :
+                    poliResult.Result?.IsSuccess == true ? "Completed" :
+                    poliResult.Result?.HasError<Skip>() == true
+                        ? completed.Status == "Expired" ? "Expired" : "Skipped" : "Failed";
+                completed.IsFinished = !wasCanceled || manuallyCanceledConquest;
+                completed.Persist?.Invoke();
+            }
+
+            var cancelFailedConquest = task is ConquestTask.Task &&
+                poliResult.Exception is not OperationCanceledException &&
+                !wasCanceled &&
+                (poliResult.Exception is not null || poliResult.Result is { IsFailed: true });
+
+            if (manuallyCanceledConquest)
+            {
+                logger.Information("Conquest task canceled by user: {TaskName}", task.Description);
+                _taskManager.Remove(accountId, task);
+                _rxQueue.Enqueue(new TasksModified(accountId));
+            }
+            else if (cancelFailedConquest)
+            {
+                if (poliResult.Exception is not null)
+                    logger.Error(poliResult.Exception, "Conquest task failed: {Message}", poliResult.Exception.Message);
+                if (poliResult.Result is { } failedResult)
+                    logger.Warning("Conquest task failed: {Errors}",
+                        string.Join(Environment.NewLine, failedResult.Reasons.Select(reason => reason.Message)));
+                if (task is ConquestTask.Task { ConfirmationAttempted: true })
+                    logger.Warning("Confirmation was attempted. Check the game for the attack outcome; this task will not be sent again.");
+                logger.Warning("Canceling {TaskName}; continuing with the next task", task.Description);
+                _taskManager.Remove(accountId, task);
+                _rxQueue.Enqueue(new TasksModified(accountId));
+            }
+            else if (poliResult.Exception is not null)
             {
                 var ex = poliResult.Exception;
 
@@ -145,7 +234,7 @@ namespace MainCore.Services
                 _taskManager.SetStatus(accountId, StatusEnums.Paused);
             }
 
-            if (poliResult.Result is not null)
+            if (!manuallyCanceledConquest && !cancelFailedConquest && poliResult.Result is not null)
             {
                 var result = poliResult.Result;
                 if (result.IsFailed)
@@ -237,6 +326,9 @@ namespace MainCore.Services
             }, cancellationTokenSource.Token);
         }
 
-        public record ContextData(string TaskName, IChromeBrowser Browser);
+        public record ContextData(string TaskName, IChromeBrowser Browser)
+        {
+            public BaseTask? Task { get; init; }
+        }
     }
 }

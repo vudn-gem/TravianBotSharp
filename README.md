@@ -68,6 +68,31 @@ Their hidden coordinates and normal-attack type are checked rather than edited.
 The browser flow is: switch village, open Rally Point, click **Send troops**,
 fill troops and coordinates, select **Attack: Normal**, submit to Confirm,
 then add any additional waves before the final timed confirmation.
+If Conquest preparation fails, the attempt's tab is closed and the task is
+retried once using the existing retry delay. A second failure removes the task
+and lets the account continue with its queue instead of pausing it. Late-arrival
+skips are not retried. Once final confirmation has been attempted, failures
+are not retried to avoid sending duplicate attacks; check the game for the
+outcome. Manual pause/cancellation retains its existing behavior.
+
+The **Saved Conquest tasks** table shows origin, target, waves,
+preparation/send/arrival times, status, attempt count, and the last error.
+Select a row and use **Cancel selected** to remove a scheduled task or cancel
+preparation, the send-time wait, or the retry delay. Its dedicated tab is closed
+before execution finishes, and the account continues with its next task without
+being paused. Cancel is separate from the account's Pause button.
+Tasks whose final confirmation has already been attempted cannot be canceled;
+an uncertain outcome is shown as **Check in game** and must not be resent.
+Plans, wave counts/targets, attempt counts, cancellation, and history are saved
+in the existing SQLite database. On startup, TBS restores unfinished plans
+whose send time is still in the future and whose origin still belongs to the
+account. They run only when the account is online; opening TBS does not log in
+or start the account automatically. Past send times become **Expired**.
+The two-attempt limit is retained across restarts. Completed, canceled, expired,
+and failed plans remain as history and are not queued again.
+Before clicking final Confirm, TBS durably records that confirmation was
+attempted. If TBS stops at that point, the plan becomes **Check in game** on
+restart and is never automatically resent. Keep the database when moving TBS.
 
 ## FAQs
 
