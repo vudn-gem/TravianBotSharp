@@ -44,20 +44,30 @@ namespace MainCore.Test
                     }
                 }
                 function entry() {
+                    const additional = waves.length > 0;
                     form.onsubmit = event => {
                         event.preventDefault();
-                        if (form.querySelector('input[name="eventType"]:checked')?.value !== '3')
+                        const attackType = additional
+                            ? form.querySelector('input[type="hidden"][name="eventType"]')
+                            : form.querySelector('input[name="eventType"]:checked');
+                        if (attackType?.value !== '3')
                             throw new Error('Conquest must select Attack: Normal, not Raid');
                         const counts = Array.from({length: 11}, (_, i) =>
-                            form.querySelector(`[name="troop[t${i + 1}]"]`).value);
+                            form.querySelector(`[name="troop[t${i + 1}]"]`)?.value || '0');
                         waves.push({ counts, target1: '99', target2: '' });
                         confirmPage();
                     };
-                    form.innerHTML = Array.from({length: 11}, (_, i) =>
-                        `<input name="troop[t${i + 1}]" value="0">`).join('') +
-                        '<input name="x"><input name="y"><input type="radio" name="eventType" value="3">' +
-                        '<input type="radio" name="eventType" value="4" checked>' +
-                        '<button type="submit">Continue</button>';
+                    const previous = waves.map((wave, index) =>
+                        wave.counts.map((count, i) => field(`troops[${index}][t${i + 1}]`, count)).join('') +
+                        field(`troops[${index}][villageId]`, '2')).join('');
+                    form.innerHTML = previous + Array.from({length: additional ? 10 : 11}, (_, i) =>
+                        `<input name="troop[t${i + 1}]" value="0" ${additional && i === 1 ? 'disabled' : ''}>`).join('') +
+                        (additional
+                            ? field('x', '-50') + field('y', '50') + field('eventType', '3') +
+                                '<button type="submit" id="addAsWaveBtn">Add as wave</button>'
+                            : '<input name="x"><input name="y"><input type="radio" name="eventType" value="3">' +
+                                '<input type="radio" name="eventType" value="4" checked>' +
+                                '<button type="submit">Continue</button>');
                 }
                 function targets(index, number) {
                     const options = [['99', 'Random'], ['4', 'Cropland'], ['25', 'Residence'], ['44', 'Command Center'], ['41', 'Horse Drinking Trough'], ['27', 'Treasury']];

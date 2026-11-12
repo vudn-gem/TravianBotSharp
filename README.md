@@ -63,6 +63,8 @@ remains empty. If Random is also unavailable, the task stops before confirming.
 Later edits to the wave inputs do not change an already queued task.
 Conquest always selects **Attack: Normal**, never **Attack: Raid**. If the
 normal attack option is missing or disabled, the task stops before submitting.
+Additional waves use the Confirm page's **Add a wave**, then **Add as wave**.
+Their hidden coordinates and normal-attack type are checked rather than edited.
 
 ## FAQs
 

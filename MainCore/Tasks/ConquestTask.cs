@@ -116,10 +116,12 @@ namespace MainCore.Tasks
                 }
 
                 var wave = task.Waves[waveIndex];
-                var fillResult = await FillWave(page, wave.Troops, task);
+                var fillResult = await FillWave(page, wave.Troops, task, waveIndex > 0);
                 if (fillResult.IsFailed) return fillResult;
 
-                var sendButton = page.Locator("#troopSendForm button[type='submit']:not(#addWave):not(#confirmSendTroops)");
+                var sendButton = waveIndex > 0
+                    ? page.Locator("#troopSendForm #addAsWaveBtn")
+                    : page.Locator("#troopSendForm button[type='submit']:not(#addWave):not(#confirmSendTroops)");
                 if (await sendButton.CountAsync() != 1)
                     return Stop.Error.WithError("The Rally Point troop form submit button is missing or ambiguous.");
                 await sendButton.ClickAsync();
@@ -169,7 +171,7 @@ namespace MainCore.Tasks
             return Result.Ok();
         }
 
-        private static async System.Threading.Tasks.Task<Result> FillWave(IPage page, IReadOnlyList<long> troops, Task task)
+        private static async System.Threading.Tasks.Task<Result> FillWave(IPage page, IReadOnlyList<long> troops, Task task, bool additionalWave)
         {
             var form = page.Locator("#troopSendForm");
             if (await form.CountAsync() != 1)
@@ -192,7 +194,24 @@ namespace MainCore.Tasks
                 var input = form.Locator($"input[name='{name}']");
                 if (await input.CountAsync() != 1)
                     return Stop.Error.WithError($"Rally Point coordinate field '{name}' is missing or ambiguous.");
-                await input.FillAsync(coordinate.ToString(CultureInfo.InvariantCulture));
+                var value = coordinate.ToString(CultureInfo.InvariantCulture);
+                if (additionalWave)
+                {
+                    if (await input.GetAttributeAsync("type") != "hidden" || await input.InputValueAsync() != value)
+                        return Stop.Error.WithError("Wave Builder target coordinates do not match the plan.");
+                }
+                else
+                {
+                    await input.FillAsync(value);
+                }
+            }
+
+            if (additionalWave)
+            {
+                var eventType = form.Locator("input[type='hidden'][name='eventType']");
+                if (await eventType.CountAsync() != 1 || await eventType.InputValueAsync() != "3")
+                    return Stop.Error.WithError("Wave Builder did not retain Attack: Normal.");
+                return Result.Ok();
             }
 
             var attackType = form.Locator("input[type='radio'][name='c'][value='3'], input[type='radio'][name='eventType'][value='3']");
