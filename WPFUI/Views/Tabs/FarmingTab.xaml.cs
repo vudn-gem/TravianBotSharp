@@ -30,6 +30,28 @@ namespace WPFUI.Views.Tabs
                 this.BindCommand(ViewModel, vm => vm.ClearOasisCommand, v => v.ClearOasisButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.RemoveClearOasisCommand, v => v.RemoveClearOasisButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.SaveOasisSettingsCommand, v => v.SaveOasisSettingsButton).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.SaveHeroOasisSettingsCommand, v => v.SaveHeroOasisSettingsButton).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.HeroClearOasisCommand, v => v.HeroClearOasisButton).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.RemoveHeroClearOasisCommand, v => v.RemoveHeroClearOasisButton).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.HasHeroOasisSettings, v => v.HeroOasisSettingsGroup.IsEnabled).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.MinAnimal, v => v.HeroMinAnimal.ViewModel).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.MaxAnimal, v => v.HeroMaxAnimal.ViewModel).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.SteppeRiders, v => v.HeroSteppeRiders.ViewModel).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.Marksmen, v => v.HeroMarksmen.ViewModel).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.Marauders, v => v.HeroMarauders.ViewModel).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.MinHeroHealth, v => v.HeroMinHealth.ViewModel).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.MaxHeroHealthLost, v => v.HeroMaxHealthLost.ViewModel).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.MaxSubTroopLost, v => v.HeroMaxSubTroopLost.ViewModel).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.HeroOasisSettingInput.Animals.AllowRat, v => v.HeroAllowRat.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.HeroOasisSettingInput.Animals.AllowSpider, v => v.HeroAllowSpider.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.HeroOasisSettingInput.Animals.AllowSnake, v => v.HeroAllowSnake.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.HeroOasisSettingInput.Animals.AllowBat, v => v.HeroAllowBat.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.HeroOasisSettingInput.Animals.AllowWildBoar, v => v.HeroAllowWildBoar.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.HeroOasisSettingInput.Animals.AllowWolf, v => v.HeroAllowWolf.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.HeroOasisSettingInput.Animals.AllowBear, v => v.HeroAllowBear.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.HeroOasisSettingInput.Animals.AllowCrocodile, v => v.HeroAllowCrocodile.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.HeroOasisSettingInput.Animals.AllowTiger, v => v.HeroAllowTiger.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.HeroOasisSettingInput.Animals.AllowElephant, v => v.HeroAllowElephant.IsChecked).DisposeWith(d);
 
                 this.OneWayBind(ViewModel, vm => vm.FarmLists.Items, v => v.FarmlistGrid.ItemsSource).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.FarmLists.SelectedItem, v => v.FarmlistGrid.SelectedItem).DisposeWith(d);

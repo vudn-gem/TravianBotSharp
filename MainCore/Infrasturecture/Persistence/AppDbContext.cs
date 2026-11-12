@@ -27,6 +27,7 @@ namespace MainCore.Infrasturecture.Persistence
         public DbSet<VillageSetting> VillagesSetting { get; set; }
         public DbSet<Farm> FarmLists { get; set; }
         public DbSet<FarmOasisSetting> FarmOasisSettings { get; set; }
+        public DbSet<HeroOasisSetting> HeroOasisSettings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -35,10 +36,35 @@ namespace MainCore.Infrasturecture.Persistence
                 .HasOne<Farm>().WithOne()
                 .HasForeignKey<FarmOasisSetting>(x => x.FarmId)
                 .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<HeroOasisSetting>()
+                .HasOne<Farm>().WithOne()
+                .HasForeignKey<HeroOasisSetting>(x => x.FarmId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
 
         public void InitializeFarmOasisSettings()
         {
+            Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "HeroOasisSettings" (
+                    "FarmId" INTEGER NOT NULL PRIMARY KEY,
+                    "AllowedAnimals" INTEGER NOT NULL DEFAULT 0,
+                    "MinAnimal" INTEGER NOT NULL DEFAULT 1,
+                    "MaxAnimal" INTEGER NOT NULL DEFAULT 100,
+                    "SteppeRiders" INTEGER NOT NULL DEFAULT 1,
+                    "Marksmen" INTEGER NOT NULL DEFAULT 1,
+                    "Marauders" INTEGER NOT NULL DEFAULT 1,
+                    "MinHeroHealth" INTEGER NOT NULL DEFAULT 50,
+                    "MaxHeroHealthLost" INTEGER NOT NULL DEFAULT 10,
+                    "MaxSubTroopLost" INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY ("FarmId") REFERENCES "FarmLists" ("Id") ON DELETE CASCADE
+                )
+                """);
+            var heroSettingsFarms = HeroOasisSettings.Select(x => x.FarmId).ToHashSet();
+            foreach (var farmId in FarmLists.Select(x => x.Id).ToList())
+            {
+                if (!heroSettingsFarms.Contains(farmId))
+                    HeroOasisSettings.Add(new HeroOasisSetting { FarmId = farmId });
+            }
             Database.ExecuteSqlRaw("""
                 CREATE TABLE IF NOT EXISTS "FarmOasisSettings" (
                     "FarmId" INTEGER NOT NULL CONSTRAINT "PK_FarmOasisSettings" PRIMARY KEY,

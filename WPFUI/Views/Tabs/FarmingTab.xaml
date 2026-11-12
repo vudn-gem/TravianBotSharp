@@ -85,6 +85,44 @@
                             <Button x:Name="SaveOasisSettingsButton" Content="Save oasis settings" Margin="0,8,0,0" />
                         </StackPanel>
                     </GroupBox>
+                    <GroupBox x:Name="HeroOasisSettingsGroup" Header="Hero clear oasis - selected farm list" Margin="10,0,10,10">
+                        <StackPanel Margin="8">
+                            <WrapPanel>
+                                <uc:AmountInputUc x:Name="HeroMinAnimal" Text="Min animal" Unit="animals" Margin="0,0,12,0" />
+                                <uc:AmountInputUc x:Name="HeroMaxAnimal" Text="Max animal" Unit="animals" />
+                            </WrapPanel>
+                            <TextBlock Text="Sub troops accompanying one hero (Hun)" FontWeight="SemiBold" Margin="0,8,0,4" />
+                            <WrapPanel>
+                                <uc:AmountInputUc x:Name="HeroSteppeRiders" Text="Steppe Rider" Unit="troops" Margin="0,0,12,0" />
+                                <uc:AmountInputUc x:Name="HeroMarksmen" Text="Marksman" Unit="troops" Margin="0,0,12,0" />
+                                <uc:AmountInputUc x:Name="HeroMarauders" Text="Marauder" Unit="troops" />
+                            </WrapPanel>
+                            <TextBlock Text="Allowed oasis animals" FontWeight="SemiBold" Margin="0,8,0,4" />
+                            <WrapPanel>
+                                <CheckBox x:Name="HeroAllowRat" Content="Rat" Margin="0,0,12,4" />
+                                <CheckBox x:Name="HeroAllowSpider" Content="Spider" Margin="0,0,12,4" />
+                                <CheckBox x:Name="HeroAllowSnake" Content="Snake" Margin="0,0,12,4" />
+                                <CheckBox x:Name="HeroAllowBat" Content="Bat" Margin="0,0,12,4" />
+                                <CheckBox x:Name="HeroAllowWildBoar" Content="Wild Boar" Margin="0,0,12,4" />
+                                <CheckBox x:Name="HeroAllowWolf" Content="Wolf" Margin="0,0,12,4" />
+                                <CheckBox x:Name="HeroAllowBear" Content="Bear" Margin="0,0,12,4" />
+                                <CheckBox x:Name="HeroAllowCrocodile" Content="Crocodile" Margin="0,0,12,4" />
+                                <CheckBox x:Name="HeroAllowTiger" Content="Tiger" Margin="0,0,12,4" />
+                                <CheckBox x:Name="HeroAllowElephant" Content="Elephant" Margin="0,0,12,4" />
+                            </WrapPanel>
+                            <GroupBox Header="Hero farm settings" Margin="0,8,0,0">
+                                <StackPanel Margin="8">
+                                    <uc:AmountInputUc x:Name="HeroMinHealth" Text="Min hero health allow" Unit="%" />
+                                    <uc:AmountInputUc x:Name="HeroMaxHealthLost" Text="Max hero health lost" Unit="points" />
+                                    <uc:AmountInputUc x:Name="HeroMaxSubTroopLost" Text="Max sub troop lost" Unit="troops" />
+                                    <TextBlock Text="Min health applies before and after simulation. Limits are inclusive." TextWrapping="Wrap" />
+                                </StackPanel>
+                            </GroupBox>
+                            <Button x:Name="SaveHeroOasisSettingsButton" Content="Save hero oasis settings" Margin="0,8,0,0" />
+                            <Button x:Name="HeroClearOasisButton" Content="Hero clear oasis" Margin="0,8,0,0" />
+                            <Button x:Name="RemoveHeroClearOasisButton" Content="Remove hero clear oasis task" Margin="0,8,0,0" />
+                        </StackPanel>
+                    </GroupBox>
                 </StackPanel>
                 </ScrollViewer>
                 <Button x:Name="StartButton"    Grid.Row="2" ToolTip="Start" Margin="10">

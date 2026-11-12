@@ -47,3 +47,41 @@ list/coordinates are skipped with warnings; no new targets are added.
 The English game UI is required. Check the account's **Debug** tab for
 per-target results and the final summary. This button does not send raids
 or toggle the local farm-list Active setting.
+
+## clearing oasis with the hero
+
+Select a farm list and configure **Hero clear oasis - selected farm list**.
+These settings are independent of normal clear-oasis settings. Save them before
+clicking **Hero clear oasis**.
+
+- Set inclusive **Min animal** and **Max animal** limits and allowed animal types.
+  Any positive count of a disallowed animal skips the target without disabling it.
+- Configure fixed Hun sub troop counts: Steppe Rider, Marksman and Marauder.
+  Zero for all three sends only the hero. Other attacker troop inputs are cleared;
+  troop upgrade levels and hero equipment are left unchanged.
+- **Min hero health allow** applies twice: current health below the minimum
+  cancels this task; simulated remaining health below it skips only the target.
+- **Max hero health lost** measures health percentage points, not a fraction of
+  current health. A change from 90 to 61 loses 29 points.
+- **Max sub troop lost** limits the total dead sub troops; zero permits no deaths.
+  Equality with any threshold is allowed. A dead hero is never sent.
+
+TBS switches to the farm list's village and checks hero availability in Send
+troops. The hero must be available there. Each eligible oasis is simulated as a
+raid with the configured army. TBS checks real troop availability and requires the
+confirmation army, village, coordinates and raid type to match the simulation
+exactly. Missing or reduced troops are never silently accepted.
+
+Only one hero-clear task can be queued per account. Automatic adventures wait
+while it is queued. After Confirm, success requires both the Overview URL
+(`tt=1`) and active Overview tab. The task then yields to the normal queue until
+the estimated return time (arrival plus outbound duration, with a five-second
+buffer). Actual hero availability is checked again on resumption. Return travel
+can differ if the army or speed bonuses change.
+
+Disabled targets are ignored. Insufficient sub troops skip the target. Unknown
+data stops sending and is logged. An uncertain final confirmation pauses the
+account and blocks automatic re-sending: check the game and remove the task
+before restarting it. **Remove hero clear oasis task** removes a waiting task,
+not any raid already sent. Queue progress and the confirmation guard are held in
+memory; they do not survive an application restart.

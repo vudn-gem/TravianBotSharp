@@ -2,6 +2,7 @@ using MainCore.Entities;
 using MainCore.Enums;
 using MainCore.Infrasturecture.Persistence;
 using MainCore.Services;
+using MainCore.Tasks;
 using MainCore.UI.Models.Input;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +29,47 @@ namespace MainCore.Test
                 new Farm { Id = 11, AccountId = 1, Name = "second" },
                 new Farm { Id = 20, AccountId = 2, Name = "third" });
             _context.SaveChanges();
+        }
+
+        [Fact]
+        public void HeroReservationIsAccountWideAndRemovalDoesNotAffectOtherTasks()
+        {
+            var factory = Substitute.For<IDbContextFactory<AppDbContext>>();
+            factory.CreateDbContext().Returns(_ =>
+                new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(_connection).Options));
+            var logger = Substitute.For<Serilog.ILogger>();
+            var outbox = new ReportNotificationOutbox(Path.Combine(Path.GetTempPath(), $"tbs-unused-{Guid.NewGuid():N}.db"));
+            var manager = new TaskManager(new RxQueue(factory), factory, logger,
+                new ReportMonitor(outbox, logger), new IncomingTroopsMonitor(outbox, TimeProvider.System));
+            var account = new AccountId(1);
+            manager.TryAddHeroClearOasis(account, new FarmId(10)).ShouldBeTrue();
+            manager.TryAddHeroClearOasis(account, new FarmId(11)).ShouldBeFalse();
+            manager.TryAddHeroClearOasis(new AccountId(2), new FarmId(10)).ShouldBeFalse();
+            manager.TryAddHeroClearOasis(new AccountId(2), new FarmId(20)).ShouldBeTrue();
+            var task = manager.GetTaskList(account).OfType<HeroClearFarmOasisTask.Task>().Single();
+            task.Stage = StageEnums.Executing;
+            manager.RemoveHeroClearOasis(account, new FarmId(10)).ShouldBe(ClearOasisRemovalResult.Executing);
+            task.Stage = StageEnums.Waiting;
+            manager.RemoveHeroClearOasis(account, new FarmId(10)).ShouldBe(ClearOasisRemovalResult.Removed);
+            manager.GetTaskList(new AccountId(2)).OfType<HeroClearFarmOasisTask.Task>().Count().ShouldBe(1);
+            manager.TryAddHeroClearOasis(account, new FarmId(11)).ShouldBeTrue();
+        }
+
+        [Fact]
+        public void InitializesIndependentHeroSettingsAndCascadesDeletion()
+        {
+            _context.InitializeFarmOasisSettings();
+            _context.HeroOasisSettings.Count().ShouldBe(3);
+            var setting = _context.HeroOasisSettings.Single(x => x.FarmId == 10);
+            setting.MinHeroHealth = 70;
+            setting.AllowedAnimals = 7;
+            _context.SaveChanges();
+            _context.InitializeFarmOasisSettings();
+            _context.HeroOasisSettings.Single(x => x.FarmId == 10).MinHeroHealth.ShouldBe(70);
+            _context.HeroOasisSettings.Single(x => x.FarmId == 11).AllowedAnimals.ShouldBe(0);
+            _context.FarmOasisSettings.Single(x => x.FarmId == 10).AllowedAnimals.ShouldBe(0);
+            _context.FarmLists.Where(x => x.Id == 10).ExecuteDelete();
+            _context.HeroOasisSettings.AsNoTracking().Any(x => x.FarmId == 10).ShouldBeFalse();
         }
 
         [Fact]

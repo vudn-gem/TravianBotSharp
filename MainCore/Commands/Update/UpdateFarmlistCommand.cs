@@ -35,6 +35,7 @@ namespace MainCore.Commands.Update
             {
                 context.Add(x.ToEntity(accountId));
                 context.FarmOasisSettings.Add(new FarmOasisSetting { FarmId = x.Id.Value });
+                context.HeroOasisSettings.Add(new HeroOasisSetting { FarmId = x.Id.Value });
             });
 
             foreach (var farm in farmUpdated)

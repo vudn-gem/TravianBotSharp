@@ -58,6 +58,9 @@ namespace MainCore.Services
         {
             switch (task)
             {
+                case HeroClearFarmOasisTask.Task heroOasisTask:
+                    return await scope.GetHandler<HeroClearFarmOasisTask.Task>().HandleAsync(heroOasisTask, cancellationToken);
+
                 case CheckFarmTargetTroopsTask.Task farmTargetsTask:
                     return await scope.GetHandler<CheckFarmTargetTroopsTask.Task>().HandleAsync(farmTargetsTask, cancellationToken);
 

@@ -94,6 +94,35 @@ namespace MainCore.Services
             return ClearOasisRemovalResult.Removed;
         }
 
+        public bool TryAddHeroClearOasis(AccountId accountId, FarmId farmId)
+        {
+            using var context = contextFactory.CreateDbContext();
+            if (!context.FarmLists.Any(x => x.Id == farmId.Value && x.AccountId == accountId.Value))
+                return false;
+            var queue = GetTaskQueue(accountId);
+            lock (queue)
+            {
+                if (queue.Tasks.OfType<HeroClearFarmOasisTask.Task>().Any()) return false;
+                queue.Tasks.Add(new HeroClearFarmOasisTask.Task(accountId, farmId));
+            }
+            rxQueue.Enqueue(new TasksModified(accountId));
+            return true;
+        }
+
+        public ClearOasisRemovalResult RemoveHeroClearOasis(AccountId accountId, FarmId farmId)
+        {
+            var queue = GetTaskQueue(accountId);
+            lock (queue)
+            {
+                var task = queue.Tasks.OfType<HeroClearFarmOasisTask.Task>().SingleOrDefault(x => x.FarmId == farmId);
+                if (task is null) return ClearOasisRemovalResult.NotFound;
+                if (task.Stage == StageEnums.Executing) return ClearOasisRemovalResult.Executing;
+                queue.Tasks.Remove(task);
+            }
+            rxQueue.Enqueue(new TasksModified(accountId));
+            return ClearOasisRemovalResult.Removed;
+        }
+
         public void Remove<T>(AccountId accountId) where T : AccountTask
         {
             var actor = GetActor(accountId);

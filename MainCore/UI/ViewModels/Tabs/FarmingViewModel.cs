@@ -18,11 +18,15 @@ namespace MainCore.UI.ViewModels.Tabs
     {
         public AccountSettingInput AccountSettingInput { get; } = new();
         public FarmOasisSettingInput FarmOasisSettingInput { get; } = new();
+        public HeroOasisSettingInput HeroOasisSettingInput { get; } = new();
         public ListBoxItemViewModel FarmLists { get; } = new();
         private int? _oasisSettingsFarmId;
 
         [Reactive]
         private bool _hasOasisSettings;
+
+        [Reactive]
+        private bool _hasHeroOasisSettings;
 
         private readonly DialogService _dialogService;
         private readonly IValidator<AccountSettingInput> _accountsettingInputValidator;
@@ -72,9 +76,18 @@ namespace MainCore.UI.ViewModels.Tabs
                 {
                     _oasisSettingsFarmId = null;
                     HasOasisSettings = false;
+                    HasHeroOasisSettings = false;
                     ActiveText = _activeTexts[selectedItem?.Color ?? SplatColor.Black];
                     if (selectedItem is null) return;
                     using var context = _contextFactory.CreateDbContext();
+                    var heroSetting = context.HeroOasisSettings.AsNoTracking().SingleOrDefault(x =>
+                        x.FarmId == selectedItem.Id &&
+                        context.FarmLists.Any(f => f.Id == x.FarmId && f.AccountId == AccountId.Value));
+                    if (heroSetting is not null)
+                    {
+                        HeroOasisSettingInput.Set(heroSetting);
+                        HasHeroOasisSettings = true;
+                    }
                     var setting = context.FarmOasisSettings.AsNoTracking().SingleOrDefault(x =>
                         x.FarmId == selectedItem.Id &&
                         context.FarmLists.Any(f => f.Id == x.FarmId && f.AccountId == AccountId.Value));
@@ -181,6 +194,83 @@ namespace MainCore.UI.ViewModels.Tabs
                     await _dialogService.SendMessage("Information", "No clear oasis task found for the selected farm list.");
                     break;
             }
+        }
+
+        [ReactiveCommand]
+        private async Task SaveHeroOasisSettings()
+        {
+            var selected = FarmLists.SelectedItem;
+            if (selected is null || !HasHeroOasisSettings)
+            {
+                await _dialogService.SendMessage("Warning", "Select a farm list with loaded hero oasis settings.");
+                return;
+            }
+            var setting = HeroOasisSettingInput.Get(selected.Id);
+            var valid = HeroOasisSettings.Validate(setting);
+            if (valid.IsFailed)
+            {
+                await _dialogService.SendMessage("Warning", string.Join(Environment.NewLine, valid.Errors.Select(x => x.Message)));
+                return;
+            }
+            using var context = _contextFactory.CreateDbContext();
+            var existing = context.HeroOasisSettings.SingleOrDefault(x => x.FarmId == selected.Id &&
+                context.FarmLists.Any(f => f.Id == x.FarmId && f.AccountId == AccountId.Value));
+            if (existing is null)
+            {
+                await _dialogService.SendMessage("Warning", "Selected farm list or hero settings no longer exist.");
+                return;
+            }
+            context.Entry(existing).CurrentValues.SetValues(setting);
+            context.SaveChanges();
+            await _dialogService.SendMessage("Information", "Hero oasis settings saved.");
+        }
+
+        [ReactiveCommand]
+        private async Task HeroClearOasis()
+        {
+            var selected = FarmLists.SelectedItem;
+            if (selected is null || !HasHeroOasisSettings)
+            {
+                await _dialogService.SendMessage("Warning", "Select a farm list with loaded hero oasis settings.");
+                return;
+            }
+            using var context = _contextFactory.CreateDbContext();
+            var saved = context.HeroOasisSettings.AsNoTracking().SingleOrDefault(x => x.FarmId == selected.Id &&
+                context.FarmLists.Any(f => f.Id == x.FarmId && f.AccountId == AccountId.Value));
+            if (saved is null)
+            {
+                await _dialogService.SendMessage("Warning", "Selected farm list or hero settings no longer exist.");
+                return;
+            }
+            var valid = HeroOasisSettings.Validate(saved);
+            if (valid.IsFailed)
+            {
+                await _dialogService.SendMessage("Warning", string.Join(Environment.NewLine, valid.Errors.Select(x => x.Message)));
+                return;
+            }
+            var added = _taskManager.TryAddHeroClearOasis(AccountId, new FarmId(selected.Id));
+            await _dialogService.SendMessage(added ? "Information" : "Warning", added
+                ? "Added hero clear oasis task using saved settings. Adventures will wait until it finishes."
+                : "A hero clear oasis task already exists for this account, or the farm list no longer exists.");
+        }
+
+        [ReactiveCommand]
+        private async Task RemoveHeroClearOasis()
+        {
+            var selected = FarmLists.SelectedItem;
+            if (selected is null)
+            {
+                await _dialogService.SendMessage("Warning", "No farm list selected.");
+                return;
+            }
+            var result = _taskManager.RemoveHeroClearOasis(AccountId, new FarmId(selected.Id));
+            await _dialogService.SendMessage(result == ClearOasisRemovalResult.Executing ? "Warning" : "Information",
+                result switch
+                {
+                    ClearOasisRemovalResult.Removed => "Removed hero clear oasis task. Any raid already sent continues in the game.",
+                    ClearOasisRemovalResult.Executing => "Hero clear oasis is running. Pause it before removing its task.",
+                    _ => "No hero clear oasis task found for the selected farm list.",
+                });
         }
 
         [ReactiveCommand(RunInBackground = true)]

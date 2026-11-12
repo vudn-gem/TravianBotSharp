@@ -7,6 +7,7 @@ namespace MainCore.Tasks
     [Handler]
     public sealed partial class StartAdventureTask(
         IChromeBrowser browser,
+        TaskManager taskManager,
         OpenAdventurePanelCommand.Handler openAdventurePanelCommand,
         ExploreAdeventureCommand.Handler exploreAdeventureCommand)
     {
@@ -25,6 +26,11 @@ namespace MainCore.Tasks
 
         private async ValueTask<Result> HandleAsync(Task task, CancellationToken cancellationToken)
         {
+            if (taskManager.GetTaskList(task.AccountId).OfType<HeroClearFarmOasisTask.Task>().Any())
+            {
+                task.ExecuteAt = DateTime.Now.AddMinutes(1);
+                return Skip.Error.WithError("Hero is reserved for clearing oasis.");
+            }
             var canStartAdventure = await AdventureParser.CanStartAdventure(browser.CurrentPage);
             if (!canStartAdventure) return Skip.Error.WithError("No adventure available");
 
