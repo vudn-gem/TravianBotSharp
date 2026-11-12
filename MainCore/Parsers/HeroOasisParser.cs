@@ -233,7 +233,12 @@ namespace MainCore.Parsers
             for (var i = 1; i <= 11; i++)
             {
                 var input = form.Locator($"input[name='{prefix}[t{i}]']");
-                if (await input.CountAsync() != 1 || !TryCount(await input.InputValueAsync(), out var count) ||
+                if (await input.CountAsync() != 1)
+                    return Result.Fail($"Army differs from simulation at t{i}; raid not confirmed.");
+                var text = await input.InputValueAsync();
+                if (expected[i - 1] == 0 && text.Length == 0) continue;
+                if (!TryCount(text, out var count) ||
+                    (expected[i - 1] > 0 && await input.IsDisabledAsync()) ||
                     count != expected[i - 1])
                     return Result.Fail($"Army differs from simulation at t{i}; raid not confirmed.");
             }

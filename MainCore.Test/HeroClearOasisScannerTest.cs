@@ -114,6 +114,30 @@ namespace MainCore.Test
         }
 
         [Fact]
+        public async Task SendsHeroOnlyWithBlankZeroCountsAndUnresearchedSubTroops()
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, heroOnly: true, blankZeros: true);
+            outcome.Result.IsSuccess.ShouldBeTrue(outcome.Details);
+            outcome.Confirms.ShouldBe(1, outcome.Details);
+            outcome.Task.HeroReturnAt.ShouldNotBeNull();
+            await outcome.Context.DisposeAsync();
+        }
+
+        [Theory]
+        [InlineData("1", false)]
+        [InlineData("invalid", false)]
+        [InlineData("-1", false)]
+        [InlineData("", true)]
+        public async Task RejectsUnexpectedTroopsOrMissingHeroInSimulatorAction(string value, bool changeHero)
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, heroOnly: true, blankZeros: true,
+                actionOverride: value, overrideHero: changeHero);
+            outcome.Confirms.ShouldBe(0);
+            outcome.Details.ShouldContain($"Army differs from simulation at t{(changeHero ? 11 : 1)}");
+            await outcome.Context.DisposeAsync();
+        }
+
+        [Fact]
         public async Task RetainsUncertainConfirmationGuardWhenOverviewDoesNotOpen()
         {
             var outcome = await Run(90, 61, 50, 40, 0, 0, overview: false);
@@ -130,7 +154,8 @@ namespace MainCore.Test
         private async Task<Outcome> Run(
             int health, int after, int minimum, int maxHealthLost, int lost, int maxTroopLost,
             bool hero = true, int availableMarauders = 10, bool reducedConfirmation = false, bool overview = true,
-            bool switchVillage = false, bool skipFirst = false)
+            bool switchVillage = false, bool skipFirst = false, bool heroOnly = false, bool blankZeros = false,
+            string? actionOverride = null, bool overrideHero = false)
         {
             var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -142,6 +167,12 @@ namespace MainCore.Test
                 FarmId = 10, AllowedAnimals = 1, MinHeroHealth = minimum,
                 MaxHeroHealthLost = maxHealthLost, MaxSubTroopLost = maxTroopLost,
             };
+            if (heroOnly)
+            {
+                settings.SteppeRiders = 0;
+                settings.Marksmen = 0;
+                settings.Marauders = 0;
+            }
             var army = HeroOasisSettings.Troops(settings);
             var simulationInputs = string.Concat(Enumerable.Range(1, 10).Select(i =>
                 $"<td><input data-t='t{i}' name='unit{i}' value='9'></td>"));
@@ -151,7 +182,14 @@ namespace MainCore.Test
             var initial = string.Concat(army.Select((count, i) => $"<td class='unit{i + 1}'>{count}</td>"));
             var loss = string.Concat(army.Select((_, i) => $"<td class='unit{i + 1}'>{(i == 3 ? $"\u202d\u2212{lost}\u202c" : "0")}</td>"));
             var remaining = string.Concat(army.Select((count, i) => $"<td class='unit{i + 1}'>{count - (i == 3 ? lost : 0)}</td>"));
-            var sendAction = HiddenArmy("troop", army);
+            var sendAction = HiddenArmy("troop", army, blankZeros);
+            if (actionOverride is not null)
+            {
+                var index = overrideHero ? 11 : 1;
+                var original = army[index - 1] == 0 && blankZeros ? "" : army[index - 1].ToString();
+                sendAction = sendAction.Replace($"name='troop[t{index}]' value='{original}'",
+                    $"name='troop[t{index}]' value='{actionOverride}'");
+            }
             var confirmArmy = army.ToArray();
             if (reducedConfirmation) confirmArmy[10] = 0;
             var returnUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds();
@@ -170,7 +208,7 @@ namespace MainCore.Test
                 if (HeroOasisParser.Query(uri, "stage") == "confirm")
                     body = $"""
                         <form id="troopSendForm">
-                        {HiddenArmy("troops[0]", confirmArmy)}
+                        {HiddenArmy("troops[0]", confirmArmy, blankZeros)}
                         <input name="troops[0][villageId]" value="2">
                         <input name="eventType" value="4"><input name="x" value="-125"><input name="y" value="-6">
                         <input name="redeployHero" value="">
@@ -187,7 +225,9 @@ namespace MainCore.Test
                         <table id="troops"><tbody><tr>
                         {string.Concat(Enumerable.Range(1, 11).Select(i => $"""
                             <td><img class="unit u{(i == 11 ? "hero" : (60 + i).ToString())}">
-                            <input name="troop[t{i}]" value=""><a>{(i == 11 ? (hero ? 1 : 0) : i == 6 ? availableMarauders : 10)}</a></td>
+                            <input name="troop[t{i}]" value="" {(heroOnly && i is 4 or 6 ? "disabled" : "")}>
+                            {(heroOnly && i is 4 or 6 ? "<span class='none'>0</span>" :
+                                $"<a>{(i == 11 ? (hero ? 1 : 0) : i == 6 ? availableMarauders : 10)}</a>")}</td>
                             """))}
                         </tr></tbody></table>
                         <input name="x" value="-125"><input name="y" value="-6">
@@ -301,7 +341,8 @@ namespace MainCore.Test
             return new(result, task, settings, scanner, context, confirms, simulates, details);
         }
 
-        private static string HiddenArmy(string prefix, int[] army) =>
-            string.Concat(army.Select((count, i) => $"<input type='hidden' name='{prefix}[t{i + 1}]' value='{count}'>"));
+        private static string HiddenArmy(string prefix, int[] army, bool blankZeros = false) =>
+            string.Concat(army.Select((count, i) =>
+                $"<input type='hidden' name='{prefix}[t{i + 1}]' value='{(blankZeros && count == 0 ? "" : count.ToString())}'>"));
     }
 }

@@ -48,24 +48,13 @@ namespace MainCore.Services
                 if (reopened.IsFailed) return Result.Fail(reopened.Errors);
             }
 
-            var prepared = await PrepareList(farmId, owner.Value);
+            var prepared = await FarmListPreparation.Prepare(browser, farmId, owner.Value);
             if (prepared.IsFailed) return Result.Fail(prepared.Errors);
-            var list = FarmTargetTroopsParser.GetList(page, farmId);
-            if (await list.CountAsync() != 1) return Result.Fail("Selected farm list not found.");
 
             var sendTroopsUrl = FarmTargetTroopsParser.BuildRallyPointTabUrl(farmUrl, 2);
             var draftResult = await ReadSteppeRiderDraft(sendTroopsUrl, farmUrl, farmId, owner.Value);
             if (draftResult.IsFailed) return Result.Fail(draftResult.Errors);
             var draft = draftResult.Value;
-
-            if (!await list.EvaluateAsync<bool>("node => node.classList.contains('expanded')"))
-            {
-                var expanded = await browser.Click(list.Locator(".farmListHeader a.expandCollapse"));
-                if (expanded.IsFailed) return Result.Fail(expanded.Errors);
-            }
-
-            var ready = await browser.Wait(list.Locator("table.slots"));
-            if (ready.IsFailed) return Result.Fail(ready.Errors);
 
             var targets = await FarmTargetTroopsParser.ReadTargets(page, farmId);
             if (targets.IsFailed) return Result.Fail(targets.Errors);
@@ -132,16 +121,8 @@ namespace MainCore.Services
                 }
 
                 if (restored.IsFailed) return Result.Fail(restored.Errors);
-                prepared = await PrepareList(farmId, owner.Value);
+                prepared = await FarmListPreparation.Prepare(browser, farmId, owner.Value);
                 if (prepared.IsFailed) return Result.Fail(prepared.Errors);
-
-                if (!await list.EvaluateAsync<bool>("node => node.classList.contains('expanded')"))
-                {
-                    var expanded = await browser.Click(list.Locator(".farmListHeader a.expandCollapse"));
-                    if (expanded.IsFailed) return Result.Fail(expanded.Errors);
-                }
-                ready = await browser.Wait(list.Locator("table.slots"));
-                if (ready.IsFailed) return Result.Fail(ready.Errors);
                 if (checkDeactivation)
                 {
                     if (await FarmTargetDeactivator.IsConfirmed(page, farmId, target))
@@ -175,7 +156,7 @@ namespace MainCore.Services
                 farmId.Value, parsed.Value.AvailableSteppeRiders, parsed.Value.AvailableMarksmen, parsed.Value.AvailableMarauders);
             var restored = await browser.Navigate(farmUrl);
             if (restored.IsFailed) return Result.Fail(restored.Errors);
-            var prepared = await PrepareList(farmId, owner);
+            var prepared = await FarmListPreparation.Prepare(browser, farmId, owner);
             if (prepared.IsFailed) return Result.Fail(prepared.Errors);
             return Result.Ok(new RaidDraft
             {
@@ -183,25 +164,6 @@ namespace MainCore.Services
                 MarksmenRemaining = parsed.Value.AvailableMarksmen,
                 MaraudersRemaining = parsed.Value.AvailableMarauders,
             });
-        }
-
-        private async Task<Result> PrepareList(FarmId farmId, VillageId owner)
-        {
-            var page = browser.CurrentPage;
-            if (await VillagePanelParser.GetCurrentVillageId(page) != owner)
-                return Result.Fail("Farm list owner village switch was not confirmed.");
-            var resolved = await FarmTargetTroopsParser.ReadOwnerVillage(page, farmId);
-            if (resolved.IsFailed) return Result.Fail(resolved.Errors);
-            if (resolved.Value != owner) return Result.Fail("Farm list owner changed during scan.");
-            var header = page.Locator(
-                $"#rallyPointFarmList .villageWrapper:has(.farmListHeader [data-list='{farmId.Value}']) > .villageHeader");
-            if (await header.CountAsync() != 1) return Result.Fail("Farm list village header is ambiguous.");
-            if (await header.EvaluateAsync<bool>("node => node.classList.contains('collapsed')"))
-            {
-                var expanded = await browser.Click(header.Locator("a.expandCollapse"));
-                if (expanded.IsFailed) return expanded;
-            }
-            return Result.Ok();
         }
 
         private async Task<Result<ProcessTargetResult>> ProcessTarget(

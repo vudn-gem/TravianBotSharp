@@ -34,6 +34,10 @@ stop the scan without changing targets. TBS confirms the active village and
 keeps that village context when reloading the farm page.
 It expands the village group and selected list, and checks its
 enabled target rows by opening each target's map-details dialog.
+Check oasis, Clear oasis and Hero clear oasis all expand the owning village
+group before the selected farm list, including lists inside a `dropContainer`.
+They wait for the rendered target count to match the list's target counter
+before scanning; a collapsed or partially loaded list is not treated as empty.
 For oasis targets, it reads the actual **Troops** table, not report history
 or the farm row's configured raiding troops. A `none` row or all-zero counts
 leaves the target unchanged. Any positive troop/animal count causes TBS to
@@ -60,6 +64,9 @@ clicking **Hero clear oasis**.
   Zero for all three sends only the hero. For other attacker troop inputs, only
   positive counts are cleared; zero and empty fields are left untouched.
   Troop upgrade levels and hero equipment are left unchanged.
+  Unresearched/disabled sub troops do not prevent a hero-only raid when their
+  configured counts are zero. Empty army fields are accepted as zero only for
+  unselected troops; the hero must still be exactly one.
 - **Min hero health allow** applies twice: current health below the minimum
   cancels this task; simulated remaining health below it skips only the target.
 - **Max hero health lost** measures health percentage points, not a fraction of

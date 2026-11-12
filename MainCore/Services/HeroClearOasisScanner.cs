@@ -44,25 +44,9 @@ namespace MainCore.Services
                 if (opened.IsFailed) return opened;
                 if (await VillagePanelParser.GetCurrentVillageId(page) != owner.Value)
                     return Stop.Error.WithError("Hero clear oasis village changed.");
-                var listOwner = await FarmTargetTroopsParser.ReadOwnerVillage(page, task.FarmId);
-                if (listOwner.IsFailed || listOwner.Value != owner.Value)
-                    return Stop.Error.WithError("Hero clear oasis farm list owner changed.");
+                var prepared = await FarmListPreparation.Prepare(browser, task.FarmId, owner.Value);
+                if (prepared.IsFailed) return Stop.Error.WithErrors(prepared.Errors);
                 var list = FarmTargetTroopsParser.GetList(page, task.FarmId);
-                if (await list.CountAsync() != 1) return Stop.Error.WithError("Farm list not found.");
-                var header = list.Locator("xpath=..").Locator(":scope > .villageHeader");
-                if (await header.CountAsync() == 1 &&
-                    await header.EvaluateAsync<bool>("node => node.classList.contains('collapsed')"))
-                {
-                    var expanded = await browser.Click(header.Locator("a.expandCollapse"));
-                    if (expanded.IsFailed) return expanded;
-                }
-                if (!await list.EvaluateAsync<bool>("node => node.classList.contains('expanded')"))
-                {
-                    var expanded = await browser.Click(list.Locator(".farmListHeader a.expandCollapse"));
-                    if (expanded.IsFailed) return expanded;
-                }
-                ready = await browser.Wait(list.Locator("table.slots"));
-                if (ready.IsFailed) return ready;
                 var targets = await FarmTargetTroopsParser.ReadTargets(page, task.FarmId);
                 if (targets.IsFailed) return Stop.Error.WithErrors(targets.Errors);
                 var target = targets.Value.FirstOrDefault(x => !x.Disabled && !task.ProcessedSlots.Contains(x.SlotId));
