@@ -99,7 +99,7 @@ namespace MainCore.Parsers
                 return Result.Fail("Attacker simulation result is missing or ambiguous.");
             var action = page.Locator("#combatSimulator .results .resultActionWrapper form");
             var expected = HeroOasisSettings.Troops(settings);
-            var valid = await ValidateComposition(action, "troop", expected);
+            var valid = await ValidateComposition(action, "troop", expected, allowMissingZeroInputs: true);
             if (valid.IsFailed) return Result.Fail(valid.Errors);
             var destination = await ValidateDestination(action, page.Url, owner, targetHref, false);
             if (destination.IsFailed) return Result.Fail(destination.Errors);
@@ -225,7 +225,8 @@ namespace MainCore.Parsers
             return Result.Ok(arrival.Add(duration).LocalDateTime);
         }
 
-        private static async Task<Result> ValidateComposition(ILocator form, string prefix, int[] expected)
+        private static async Task<Result> ValidateComposition(
+            ILocator form, string prefix, int[] expected, bool allowMissingZeroInputs = false)
         {
             if (await form.CountAsync() != 1) return Result.Fail("Army form is missing or ambiguous.");
             if (await form.Locator("input[name^='troops['][name$='[t11]']").CountAsync() > 1)
@@ -233,7 +234,9 @@ namespace MainCore.Parsers
             for (var i = 1; i <= 11; i++)
             {
                 var input = form.Locator($"input[name='{prefix}[t{i}]']");
-                if (await input.CountAsync() != 1)
+                var inputCount = await input.CountAsync();
+                if (inputCount == 0 && allowMissingZeroInputs && expected[i - 1] == 0) continue;
+                if (inputCount != 1)
                     return Result.Fail($"Army differs from simulation at t{i}; raid not confirmed.");
                 var text = await input.InputValueAsync();
                 if (expected[i - 1] == 0 && text.Length == 0) continue;

@@ -124,6 +124,42 @@ namespace MainCore.Test
         }
 
         [Theory]
+        [InlineData(true, 1, true)]
+        [InlineData(false, 1, true)]
+        [InlineData(false, 4, false)]
+        [InlineData(true, 11, false)]
+        public async Task AllowsMissingSimulatorInputsOnlyForZeroTroops(bool heroOnly, int missingTroop, bool sends)
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, heroOnly: heroOnly,
+                missingActionTroops: [missingTroop]);
+            outcome.Confirms.ShouldBe(sends ? 1 : 0, outcome.Details);
+            if (!sends) outcome.Details.ShouldContain($"Army differs from simulation at t{missingTroop}");
+            await outcome.Context.DisposeAsync();
+        }
+
+        [Fact]
+        public async Task SendsHeroOnlyWithSparseSimulatorActionFromGame()
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, heroOnly: true,
+                missingActionTroops: [1, 3, 5]);
+            outcome.Confirms.ShouldBe(1, outcome.Details);
+            outcome.Result.IsSuccess.ShouldBeTrue(outcome.Details);
+            await outcome.Context.DisposeAsync();
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task StillRejectsDuplicateSimulatorInputOrMissingConfirmationInput(bool missingConfirmation)
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, heroOnly: true,
+                duplicateActionInput: !missingConfirmation, missingConfirmationInput: missingConfirmation);
+            outcome.Confirms.ShouldBe(0);
+            outcome.Details.ShouldContain("Army differs from simulation at t1");
+            await outcome.Context.DisposeAsync();
+        }
+
+        [Theory]
         [InlineData("1", false)]
         [InlineData("invalid", false)]
         [InlineData("-1", false)]
@@ -155,7 +191,8 @@ namespace MainCore.Test
             int health, int after, int minimum, int maxHealthLost, int lost, int maxTroopLost,
             bool hero = true, int availableMarauders = 10, bool reducedConfirmation = false, bool overview = true,
             bool switchVillage = false, bool skipFirst = false, bool heroOnly = false, bool blankZeros = false,
-            string? actionOverride = null, bool overrideHero = false)
+            string? actionOverride = null, bool overrideHero = false, int[]? missingActionTroops = null,
+            bool duplicateActionInput = false, bool missingConfirmationInput = false)
         {
             var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -183,6 +220,13 @@ namespace MainCore.Test
             var loss = string.Concat(army.Select((_, i) => $"<td class='unit{i + 1}'>{(i == 3 ? $"\u202d\u2212{lost}\u202c" : "0")}</td>"));
             var remaining = string.Concat(army.Select((count, i) => $"<td class='unit{i + 1}'>{count - (i == 3 ? lost : 0)}</td>"));
             var sendAction = HiddenArmy("troop", army, blankZeros);
+            foreach (var index in missingActionTroops ?? [])
+            {
+                var value = blankZeros && army[index - 1] == 0 ? "" : army[index - 1].ToString();
+                sendAction = sendAction.Replace($"<input type='hidden' name='troop[t{index}]' value='{value}'>", "");
+            }
+            if (duplicateActionInput)
+                sendAction += "<input type='hidden' name='troop[t1]' value='0'>";
             if (actionOverride is not null)
             {
                 var index = overrideHero ? 11 : 1;
@@ -192,6 +236,9 @@ namespace MainCore.Test
             }
             var confirmArmy = army.ToArray();
             if (reducedConfirmation) confirmArmy[10] = 0;
+            var confirmationInputs = HiddenArmy("troops[0]", confirmArmy, blankZeros);
+            if (missingConfirmationInput)
+                confirmationInputs = confirmationInputs.Replace("<input type='hidden' name='troops[0][t1]' value='0'>", "");
             var returnUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds();
             var switched = !switchVillage;
             await page.RouteAsync("https://example.com/**", async route =>
@@ -208,7 +255,7 @@ namespace MainCore.Test
                 if (HeroOasisParser.Query(uri, "stage") == "confirm")
                     body = $"""
                         <form id="troopSendForm">
-                        {HiddenArmy("troops[0]", confirmArmy, blankZeros)}
+                        {confirmationInputs}
                         <input name="troops[0][villageId]" value="2">
                         <input name="eventType" value="4"><input name="x" value="-125"><input name="y" value="-6">
                         <input name="redeployHero" value="">
