@@ -102,7 +102,6 @@ namespace MainCore.Test
         }
 
         [Theory]
-        [InlineData("")]
         [InlineData("-1")]
         [InlineData("1.5")]
         [InlineData("9223372036854775808")]
@@ -117,6 +116,35 @@ namespace MainCore.Test
         public void EmptyWaveIsRejected()
         {
             new ConquestWaveViewModel(1).BuildWave().IsFailed.ShouldBeTrue();
+        }
+
+        [Theory]
+        [InlineData("0", true)]
+        [InlineData("", true)]
+        [InlineData(" ", true)]
+        [InlineData("00", true)]
+        [InlineData("1", false)]
+        [InlineData("-1", false)]
+        [InlineData("invalid", false)]
+        public void OnlyEmptyOrZeroTroopRowsAreDrafts(string input, bool expectedDraft)
+        {
+            var row = new ConquestWaveViewModel(1);
+            row.Troops[0].Count = input;
+            row.IsDraft.ShouldBe(expectedDraft);
+        }
+
+        [Fact]
+        public void FilledWaveTreatsBlankFieldsAsZero()
+        {
+            var row = new ConquestWaveViewModel(1);
+            foreach (var troop in row.Troops) troop.Count = "";
+            row.Troops[0].Count = "19";
+            row.IsDraft.ShouldBeFalse();
+            var result = row.BuildWave();
+            result.IsSuccess.ShouldBeTrue();
+            result.Value.Troops[0].ShouldBe(19);
+            result.Value.Troops.Skip(1).ShouldAllBe(count => count == 0);
+            ConquestWave.MaxWaves.ShouldBe(8);
         }
 
         [Theory]

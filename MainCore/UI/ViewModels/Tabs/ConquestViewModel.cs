@@ -278,10 +278,13 @@ namespace MainCore.UI.ViewModels.Tabs
             var waves = new List<ConquestWave>();
             foreach (var row in TroopWaves)
             {
+                if (row.IsDraft) continue;
                 var wave = row.BuildWave();
                 if (wave.IsFailed) return Result.Fail(wave.Errors);
                 waves.Add(wave.Value);
             }
+            if (waves.Count == 0)
+                return Result.Fail("Enter troops in at least one wave. Empty draft waves are ignored.");
 
             using var context = _contextFactory.CreateDbContext();
             var village = context.Villages

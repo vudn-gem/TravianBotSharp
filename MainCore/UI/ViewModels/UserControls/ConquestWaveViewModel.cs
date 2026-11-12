@@ -113,11 +113,16 @@ namespace MainCore.UI.ViewModels.UserControls
         [Reactive]
         private bool _canSelectSecondTarget;
 
+        public bool IsDraft => Troops.All(troop =>
+            string.IsNullOrWhiteSpace(troop.Count) ||
+            (long.TryParse(troop.Count, NumberStyles.None, CultureInfo.InvariantCulture, out var count) && count == 0));
+
         public Result<ConquestWave> BuildWave()
         {
             var amounts = new long[11];
             for (var index = 0; index < amounts.Length; index++)
             {
+                if (string.IsNullOrWhiteSpace(Troops[index].Count)) continue;
                 if (!long.TryParse(Troops[index].Count, NumberStyles.None, CultureInfo.InvariantCulture, out amounts[index]))
                     return Result.Fail($"Wave {Number}: {Troops[index].Label} must be a non-negative whole number.");
             }

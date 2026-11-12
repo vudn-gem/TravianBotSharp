@@ -42,6 +42,10 @@ to `t10`; Hero always remains the last field. Changing the village updates
 labels without changing entered troop counts or catapult targets.
 **Add** creates an empty wave; **Copy last wave** duplicates the last wave,
 including both catapult targets. Up to eight waves can be planned.
+Rows containing only blank or zero troop counts are drafts: **Calculate** and
+**Action** ignore them without removing them from the editor. Blank fields in
+a filled wave count as zero. Invalid or negative counts still report an error,
+and at least one non-empty wave is required.
 
 Each wave has its own catapult target. A second, optional target is enabled
 from **20 catapults** and cleared if the count drops below 20.
@@ -55,7 +59,7 @@ the task selects Random (99) for that target and logs a warning. This applies
 to either catapult target, including Command Center and Horse Drinking Trough. An empty second target
 remains empty. If Random is also unavailable, the task stops before confirming.
 
-**Calculate** previews the plan; **Action** queues a snapshot of all waves.
+**Calculate** previews the plan; **Action** queues a snapshot of non-draft waves.
 Later edits to the wave inputs do not change an already queued task.
 Conquest always selects **Attack: Normal**, never **Attack: Raid**. If the
 normal attack option is missing or disabled, the task stops before submitting.
