@@ -47,10 +47,6 @@
                     <Button x:Name="ActiveButton" Margin="10" />
                     <Button x:Name="CheckTargetTroopsButton" Content="Check oasis" Margin="10"
                             ToolTip="Check oasis targets and deactivate those containing troops" />
-                    <Button x:Name="ClearOasisButton" Content="Clear oasis" Margin="10"
-                            ToolTip="Use the selected farm list's troop settings to raid oasis targets" />
-                    <Button x:Name="RemoveClearOasisButton" Content="Remove clear oasis task" Margin="10"
-                            ToolTip="Remove the waiting clear oasis task for the selected farm list" />
                     <GroupBox x:Name="OasisSettingsGroup" Header="Selected farm list oasis settings" Margin="10,0,10,10">
                         <StackPanel Margin="8">
                             <uc:AmountInputUc x:Name="OasisRaidSafetyFactor" Text="Oasis raid safety factor" Unit="x" />
@@ -83,6 +79,10 @@
                                 <CheckBox x:Name="AllowElephantOasisCheckBox" Content="Elephant" Margin="0,0,12,4" />
                             </WrapPanel>
                             <Button x:Name="SaveOasisSettingsButton" Content="Save oasis settings" Margin="0,8,0,0" />
+                            <Button x:Name="ClearOasisButton" Content="Clear oasis" Margin="0,8,0,0"
+                                    ToolTip="Use the selected farm list's troop settings to raid oasis targets" />
+                            <Button x:Name="RemoveClearOasisButton" Content="Remove clear oasis task" Margin="0,8,0,0"
+                                    ToolTip="Remove the waiting clear oasis task for the selected farm list" />
                         </StackPanel>
                     </GroupBox>
                     <GroupBox x:Name="HeroOasisSettingsGroup" Header="Hero clear oasis - selected farm list" Margin="10,0,10,10">
