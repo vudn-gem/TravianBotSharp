@@ -293,7 +293,7 @@ namespace MainCore.UI.ViewModels.Tabs
             int.TryParse(input, NumberStyles.Integer, CultureInfo.InvariantCulture, out coordinate) &&
             coordinate is >= -200 and <= 200;
 
-        private sealed record VillageDetail(int X, int Y, int TournamentSquareLevel);
+        public sealed record VillageDetail(int X, int Y, int TournamentSquareLevel);
 
         private sealed record PlannedConquest(
             VillageId VillageId,
