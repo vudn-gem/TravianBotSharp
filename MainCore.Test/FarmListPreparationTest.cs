@@ -24,11 +24,13 @@ namespace MainCore.Test
                 <style>
                 .villageHeader.collapsed + .dropContainer { display:none; }
                 .villageHeader a.expandCollapse { pointer-events:none; }
+                .villageHeader a.expandCollapse svg { pointer-events:auto; }
                 </style>
                 <div id="sidebarBoxVillageList"><div class="listEntry village active" data-did="2"><span class="name">Home</span></div></div>
                 <div id="rallyPointFarmList"><div class="villageWrapper">
-                <div class="villageHeader {{(villageCollapsed ? "collapsed" : "expanded")}}" onclick="setTimeout(() => this.className='villageHeader expanded', 30)"><div class="villageName">Home</div>
-                <a class="expandCollapse">Expand village</a></div>
+                <div class="villageHeader {{(villageCollapsed ? "collapsed" : "expanded")}}"><div class="villageName">Home</div>
+                <a class="expandCollapse" onclick="setTimeout(() => this.parentElement.className='villageHeader expanded', 30)">
+                <svg width="12" height="8" viewBox="0 0 12 8"><path d="M0 0L6 8L12 0Z"></path></svg></a></div>
                 <div class="dropContainer">
                 <div class="farmListWrapper collapsed" id="other"><div class="farmListHeader"><div data-list="20"></div>
                 <a class="expandCollapse" onclick="throw new Error('Wrong list expanded')">Other list</a></div></div>
@@ -53,6 +55,11 @@ namespace MainCore.Test
                 }
                 </script>
                 """);
+            if (villageCollapsed)
+            {
+                await page.Locator(".villageHeader .villageName").ClickAsync();
+                (await page.Locator(".villageHeader").GetAttributeAsync("class")).ShouldBe("villageHeader collapsed");
+            }
             if (!listCollapsed) await page.EvaluateAsync("loadTargets()");
             var browser = Substitute.For<IChromeBrowser>();
             browser.CurrentPage.Returns(page);

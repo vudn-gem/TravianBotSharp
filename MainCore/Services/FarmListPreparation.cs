@@ -16,7 +16,7 @@ namespace MainCore.Services
             if (await header.CountAsync() != 1) return Result.Fail("Farm list village header is missing or ambiguous.");
             if (await header.EvaluateAsync<bool>("node => node.classList.contains('collapsed')"))
             {
-                var expanded = await browser.Click(header);
+                var expanded = await browser.Click(header.Locator(":scope > a.expandCollapse svg").First);
                 if (expanded.IsFailed) return expanded;
                 await page.WaitForFunctionAsync("""
                     id => {

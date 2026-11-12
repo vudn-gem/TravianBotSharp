@@ -88,7 +88,7 @@ namespace MainCore.Test
                         </div>
                         """ + body.Replace(
                             "<div id=\"rallyPointFarmList\">",
-                            """<div id="rallyPointFarmList"><div class="villageWrapper"><div class="villageHeader collapsed" onclick="this.classList.replace('collapsed', 'expanded')"><div class="villageName">7</div><a class="expandCollapse">expand</a></div>""") + "</div>";
+                            """<div id="rallyPointFarmList"><div class="villageWrapper"><div class="villageHeader collapsed"><div class="villageName">7</div><a class="expandCollapse" onclick="this.parentElement.classList.replace('collapsed', 'expanded')"><svg width="12" height="8" viewBox="0 0 12 8"><path d="M0 0L6 8L12 0Z"></path></svg></a></div>""") + "</div>";
                 }
                 await route.FulfillAsync(new() { ContentType = "text/html", Body = body });
             });
