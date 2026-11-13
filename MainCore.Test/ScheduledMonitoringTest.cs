@@ -88,15 +88,15 @@ namespace MainCore.Test
             Set(1, AccountSettingEnums.EnableReportNotifications, report ? 1 : 0);
             Set(1, AccountSettingEnums.EnableIncomingTroopsNotifications, incoming ? 1 : 0);
             Set(1, AccountSettingEnums.EnableAutoDeactivateLostReportTargets, 1);
-            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMin, 2);
-            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMax, 4);
+            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes, 2);
+            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes, 4);
             var task = new ScheduledMonitoringTask.Task(new(1));
             var before = DateTime.Now;
             var result = await _handler.HandleAsync(task, CancellationToken.None);
             if (report || incoming)
             {
                 result.IsSuccess.ShouldBeTrue();
-                task.ExecuteAt.ShouldBeInRange(before.AddSeconds(2), DateTime.Now.AddSeconds(4));
+                task.ExecuteAt.ShouldBeInRange(before.AddMinutes(2), DateTime.Now.AddMinutes(4));
             }
             else result.IsFailed.ShouldBeTrue();
             await _toDorf.Received(report || incoming ? 1 : 0)
@@ -175,8 +175,8 @@ namespace MainCore.Test
             var task = _manager.GetTaskList(new(1)).OfType<ScheduledMonitoringTask.Task>().Single();
             task.Stage = StageEnums.Executing;
             var scheduledAt = task.ExecuteAt;
-            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMin, 3);
-            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMax, 3);
+            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes, 3);
+            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes, 3);
             _manager.UpdateScheduledMonitoring(new(1), context, reschedule: true);
             task.ExecuteAt.ShouldBe(scheduledAt);
         }
@@ -194,10 +194,10 @@ namespace MainCore.Test
             _manager.UpdateScheduledMonitoring(new(2), context);
             var first = _manager.GetTaskList(new(1)).OfType<ScheduledMonitoringTask.Task>().Single();
             var second = _manager.GetTaskList(new(2)).OfType<ScheduledMonitoringTask.Task>().Single();
-            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMin, 3);
-            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMax, 3);
+            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes, 3);
+            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes, 3);
             _manager.UpdateScheduledMonitoring(new(1), context, reschedule: true);
-            first.ExecuteAt.ShouldBeInRange(DateTime.Now.AddSeconds(2.5), DateTime.Now.AddSeconds(3.5));
+            first.ExecuteAt.ShouldBeInRange(DateTime.Now.AddSeconds(179), DateTime.Now.AddSeconds(181));
             Set(1, AccountSettingEnums.EnableScheduledMonitoring, 0);
             _manager.UpdateScheduledMonitoring(new(1), context);
             _manager.GetTaskList(new(1)).ShouldBeEmpty();
@@ -242,7 +242,7 @@ namespace MainCore.Test
             var task = new ScheduledMonitoringTask.Task(new(1));
             var before = DateTime.Now;
             (await _handler.HandleAsync(task, CancellationToken.None)).IsSuccess.ShouldBeTrue();
-            task.ExecuteAt.ShouldBeGreaterThanOrEqualTo(before.AddSeconds(600));
+            task.ExecuteAt.ShouldBeGreaterThanOrEqualTo(before.AddMinutes(10));
             await _page.Received(2).EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>());
             _logger.Received(1).Warning("Scheduled scan navigation failed; scanning current page: {Errors}",
                 "Navigation failed");
@@ -316,11 +316,11 @@ namespace MainCore.Test
         {
             using var context = new AppDbContext(_options);
             context.AccountsSetting.Remove(context.AccountsSetting.Single(x => x.AccountId == 2 &&
-                x.Setting == AccountSettingEnums.ScheduledMonitoringIntervalMin));
+                x.Setting == AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes));
             context.SaveChanges();
             context.FillAccountSettings();
             context.AccountsSetting.Single(x => x.AccountId == 2 &&
-                x.Setting == AccountSettingEnums.ScheduledMonitoringIntervalMin).Value.ShouldBe(600);
+                x.Setting == AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes).Value.ShouldBe(10);
         }
 
         [Fact]
@@ -328,16 +328,75 @@ namespace MainCore.Test
         {
             var input = new AccountSettingInput();
             input.Set(new());
-            input.ScheduledMonitoringInterval.Get().ShouldBe((600, 600));
+            input.ScheduledMonitoringInterval.Get().ShouldBe((10, 10));
             var validator = new AccountSettingInputValidator();
-            input.ScheduledMonitoringInterval.Set(0, 600);
+            input.ScheduledMonitoringInterval.Set(0, 10);
             validator.Validate(input).IsValid.ShouldBeFalse();
             input.ScheduledMonitoringInterval.Set(5, 4);
             validator.Validate(input).IsValid.ShouldBeFalse();
-            input.ScheduledMonitoringInterval.Set(1, 86401);
+            input.ScheduledMonitoringInterval.Set(1, 1441);
             validator.Validate(input).IsValid.ShouldBeFalse();
-            input.ScheduledMonitoringInterval.Set(1, 86400);
+            input.ScheduledMonitoringInterval.Set(1, 1440);
             validator.Validate(input).IsValid.ShouldBeTrue();
+        }
+
+        [Theory]
+        [InlineData(1, 1)]
+        [InlineData(60, 1)]
+        [InlineData(61, 2)]
+        [InlineData(600, 10)]
+        [InlineData(86400, 1440)]
+        public void LegacyImportConvertsSecondsAndPreservesNewMinuteValues(int seconds, int minutes)
+        {
+            var settings = new Dictionary<AccountSettingEnums, int>
+            {
+                [AccountSettingEnums.ScheduledMonitoringIntervalMin] = seconds,
+                [AccountSettingEnums.ScheduledMonitoringIntervalMax] = seconds,
+            };
+            ScheduledMonitoringSettings.ConvertLegacyIntervals(settings);
+            settings[AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes].ShouldBe(minutes);
+            settings[AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes].ShouldBe(minutes);
+            settings[AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes] = 3;
+            ScheduledMonitoringSettings.ConvertLegacyIntervals(settings);
+            settings[AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes].ShouldBe(3);
+        }
+
+        [Fact]
+        public void ExistingDatabaseMigratesIntervalsPerAccountOnlyOnce()
+        {
+            using var context = new AppDbContext(_options);
+            context.AccountsSetting.RemoveRange(context.AccountsSetting.Where(x => x.AccountId == 1 &&
+                (x.Setting == AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes ||
+                 x.Setting == AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes)));
+            context.AccountsSetting.AddRange(
+                new AccountSetting { AccountId = 1, Setting = AccountSettingEnums.ScheduledMonitoringIntervalMin, Value = 61 },
+                new AccountSetting { AccountId = 1, Setting = AccountSettingEnums.ScheduledMonitoringIntervalMax, Value = 600 });
+            context.SaveChanges();
+            context.FillAccountSettings();
+            context.AccountsSetting.Single(x => x.AccountId == 1 &&
+                x.Setting == AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes).Value.ShouldBe(2);
+            context.AccountsSetting.Single(x => x.AccountId == 1 &&
+                x.Setting == AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes).Value.ShouldBe(10);
+            context.AccountsSetting.Single(x => x.AccountId == 2 &&
+                x.Setting == AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes).Value.ShouldBe(10);
+            context.SaveAccountSetting(new(1), new() { [AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes] = 5 });
+            context.FillAccountSettings();
+            using var verify = new AppDbContext(_options);
+            verify.AccountsSetting.Single(x => x.AccountId == 1 &&
+                x.Setting == AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes).Value.ShouldBe(5);
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(1440)]
+        public void FixedIntervalIsScheduledInMinutes(int minutes)
+        {
+            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes, minutes);
+            Set(1, AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes, minutes);
+            using var context = new AppDbContext(_options);
+            var before = DateTime.Now;
+            var next = ScheduledMonitoringTask.NextRun(context, new(1));
+            next.ShouldBeInRange(before.AddMinutes(minutes), DateTime.Now.AddMinutes(minutes));
         }
 
         public void Dispose() => Directory.Delete(_directory, recursive: true);

@@ -171,8 +171,8 @@ namespace MainCore.Infrasturecture.Persistence
             {AccountSettingEnums.EnableBotStopNotifications, 0 },
             {AccountSettingEnums.EnableAutoDeactivateLostReportTargets, 0 },
             {AccountSettingEnums.EnableScheduledMonitoring, 0 },
-            {AccountSettingEnums.ScheduledMonitoringIntervalMin, 600 },
-            {AccountSettingEnums.ScheduledMonitoringIntervalMax, 600 },
+            {AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes, 10 },
+            {AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes, 10 },
             {AccountSettingEnums.AllowRaidRatOasis, 0 },
             {AccountSettingEnums.AllowRaidSpiderOasis, 0 },
             {AccountSettingEnums.AllowRaidSnakeOasis, 0 },
@@ -189,20 +189,24 @@ namespace MainCore.Infrasturecture.Persistence
         public void FillAccountSettings()
         {
             var existing = AccountsSetting.AsNoTracking()
-                .Select(x => new { x.AccountId, x.Setting }).AsEnumerable()
-                .Select(x => (x.AccountId, x.Setting)).ToHashSet();
+                .Select(x => new { x.AccountId, x.Setting, x.Value }).AsEnumerable()
+                .GroupBy(x => x.AccountId)
+                .ToDictionary(x => x.Key, x => x.ToDictionary(y => y.Setting, y => y.Value));
             var ids = Accounts.Select(x => x.Id).ToList();
             var settings = new List<AccountSetting>();
             foreach (var id in ids)
             {
+                var accountSettings = existing.GetValueOrDefault(id) ?? new Dictionary<AccountSettingEnums, int>();
+                var converted = new Dictionary<AccountSettingEnums, int>(accountSettings);
+                MainCore.Services.ScheduledMonitoringSettings.ConvertLegacyIntervals(converted);
                 foreach (var (setting, value) in AccountDefaultSettings)
                 {
-                    if (existing.Contains((id, setting))) continue;
+                    if (accountSettings.ContainsKey(setting)) continue;
                     settings.Add(new AccountSetting
                     {
                         AccountId = id,
                         Setting = setting,
-                        Value = value,
+                        Value = converted.GetValueOrDefault(setting, value),
                     });
                 }
             }

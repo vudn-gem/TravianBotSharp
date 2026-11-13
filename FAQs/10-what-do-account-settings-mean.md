@@ -18,9 +18,10 @@
 - **Enable auto set hero point**: auto assign hero points.
 - **Enable scheduled report and incoming scans**: add a recurring account task
   that reads the report badge and/or incoming troops, independently of farming
-  and task-completion triggers. Set **Scheduled scan interval** in seconds
-  (minimum and maximum from 1 to 86400); the next delay is chosen randomly
-  within the inclusive range. It is off by default, with a 600-second interval.
+  and task-completion triggers. Set **Scheduled scan interval** in minutes
+  (minimum and maximum from 1 to 1440); the next delay is chosen randomly
+  within the inclusive range. It is off by default, with a 10-minute interval.
+  Intervals saved in seconds by older versions are rounded up to whole minutes.
   Settings are saved per account. The first scan is scheduled after the interval
   when the account starts or the feature and at least one notification are enabled; an already overdue scan
   waits until the account is online. Changing the interval

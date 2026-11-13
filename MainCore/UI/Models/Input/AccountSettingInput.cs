@@ -23,8 +23,8 @@ namespace MainCore.UI.Models.Input
             EnableAutoDeactivateLostReportTargets = settings.GetValueOrDefault(AccountSettingEnums.EnableAutoDeactivateLostReportTargets) == 1;
             EnableScheduledMonitoring = settings.GetValueOrDefault(AccountSettingEnums.EnableScheduledMonitoring) == 1;
             ScheduledMonitoringInterval.Set(
-                settings.GetValueOrDefault(AccountSettingEnums.ScheduledMonitoringIntervalMin, 600),
-                settings.GetValueOrDefault(AccountSettingEnums.ScheduledMonitoringIntervalMax, 600));
+                settings.GetValueOrDefault(AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes, 10),
+                settings.GetValueOrDefault(AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes, 10));
 
             FarmInterval.Set(settings.GetValueOrDefault(AccountSettingEnums.FarmIntervalMin), settings.GetValueOrDefault(AccountSettingEnums.FarmIntervalMax));
             UseStartAllButton = settings.GetValueOrDefault(AccountSettingEnums.UseStartAllButton) == 1;
@@ -74,8 +74,8 @@ namespace MainCore.UI.Models.Input
                 { AccountSettingEnums.EnableBotStopNotifications, EnableBotStopNotifications ? 1 : 0 },
                 { AccountSettingEnums.EnableAutoDeactivateLostReportTargets, EnableAutoDeactivateLostReportTargets ? 1 : 0 },
                 { AccountSettingEnums.EnableScheduledMonitoring, EnableScheduledMonitoring ? 1 : 0 },
-                { AccountSettingEnums.ScheduledMonitoringIntervalMin, monitoringMin },
-                { AccountSettingEnums.ScheduledMonitoringIntervalMax, monitoringMax },
+                { AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes, monitoringMin },
+                { AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes, monitoringMax },
             };
             return settings;
         }

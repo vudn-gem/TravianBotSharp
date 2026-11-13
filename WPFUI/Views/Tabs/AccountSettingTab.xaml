@@ -108,8 +108,8 @@
                         <CheckBox x:Name="EnableIncomingTroopsNotifications" Content="Notify on incoming attack/raid (Telegram)" />
                         <CheckBox x:Name="EnableBotStopNotifications" Content="Notify when bot stops due to an error (Telegram)" />
                         <CheckBox x:Name="EnableScheduledMonitoring" Content="Enable scheduled report and incoming scans" />
-                        <uc:RangeInputUc x:Name="ScheduledMonitoringInterval" Text="Scheduled scan interval" Unit="seconds" />
-                        <TextBlock Margin="0,5" TextWrapping="Wrap" Text="Scheduled scans run independently of farming when at least one Telegram notification switch is enabled. The bot switches village overview pages before scanning. The interval must be 1 to 86400 seconds." />
+                        <uc:RangeInputUc x:Name="ScheduledMonitoringInterval" Text="Scheduled scan interval" Unit="minutes" />
+                        <TextBlock Margin="0,5" TextWrapping="Wrap" Text="Scheduled scans run independently of farming when at least one Telegram notification switch is enabled. The bot switches village overview pages before scanning. The interval must be 1 to 1440 minutes." />
                     </StackPanel>
                 </Border>
                 <Border Style="{DynamicResource Box}">

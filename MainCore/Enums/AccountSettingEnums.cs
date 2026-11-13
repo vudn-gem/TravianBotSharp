@@ -37,5 +37,7 @@
         EnableScheduledMonitoring,
         ScheduledMonitoringIntervalMin,
         ScheduledMonitoringIntervalMax,
+        ScheduledMonitoringIntervalMinMinutes,
+        ScheduledMonitoringIntervalMaxMinutes,
     }
 }

@@ -182,6 +182,7 @@ namespace MainCore.UI.ViewModels.Tabs
                 var importedSettings = JsonSerializer.Deserialize<Dictionary<AccountSettingEnums, int>>(jsonString);
                 if (importedSettings is null) return settings;
 
+                ScheduledMonitoringSettings.ConvertLegacyIntervals(importedSettings);
                 foreach (var (setting, value) in importedSettings)
                 {
                     if (setting == AccountSettingEnums.Tribe) continue;

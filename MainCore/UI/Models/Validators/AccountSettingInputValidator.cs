@@ -29,9 +29,9 @@ namespace MainCore.UI.Models.Validators
                 .WithMessage("Minimum farm interval ({PropertyValue}) should be positive number");
 
             RuleFor(x => x.ScheduledMonitoringInterval.Min)
-                .InclusiveBetween(1, 86400);
+                .InclusiveBetween(1, 1440);
             RuleFor(x => x.ScheduledMonitoringInterval.Max)
-                .InclusiveBetween(1, 86400)
+                .InclusiveBetween(1, 1440)
                 .GreaterThanOrEqualTo(x => x.ScheduledMonitoringInterval.Min);
         }
     }

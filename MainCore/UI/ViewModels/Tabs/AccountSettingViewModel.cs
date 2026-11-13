@@ -91,6 +91,7 @@ namespace MainCore.UI.ViewModels.Tabs
                 await _dialogService.SendMessage("Warning", "Invalid file.");
                 return;
             }
+            ScheduledMonitoringSettings.ConvertLegacyIntervals(settings);
             await Signal.Start(() => AccountSettingInput.Set(settings), RxSchedulers.MainThreadScheduler);
 
             var result = await _accountsettingInputValidator.ValidateAsync(AccountSettingInput);
@@ -195,8 +196,8 @@ namespace MainCore.UI.ViewModels.Tabs
                     context.BooleanByName(AccountId, setting) != (value == 1));
 
         private bool MonitoringSettingsChanged(AppDbContext context, Dictionary<AccountSettingEnums, int> settings) =>
-            new[] { AccountSettingEnums.EnableScheduledMonitoring, AccountSettingEnums.ScheduledMonitoringIntervalMin,
-                    AccountSettingEnums.ScheduledMonitoringIntervalMax, AccountSettingEnums.EnableReportNotifications,
+            new[] { AccountSettingEnums.EnableScheduledMonitoring, AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes,
+                    AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes, AccountSettingEnums.EnableReportNotifications,
                     AccountSettingEnums.EnableIncomingTroopsNotifications }
                 .Any(setting => settings.TryGetValue(setting, out var value) && context.ByName(AccountId, setting) != value);
 

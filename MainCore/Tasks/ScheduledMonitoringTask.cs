@@ -24,11 +24,11 @@ namespace MainCore.Tasks
 
         public static DateTime NextRun(AppDbContext context, AccountId accountId)
         {
-            var min = context.ByName(accountId, AccountSettingEnums.ScheduledMonitoringIntervalMin);
-            var max = context.ByName(accountId, AccountSettingEnums.ScheduledMonitoringIntervalMax);
-            if (min < 1 || max > 86400 || min > max)
-                throw new InvalidOperationException("Scheduled scan interval must be between 1 and 86400 seconds, with minimum not exceeding maximum.");
-            return DateTime.Now.AddSeconds(Random.Shared.Next(min, max + 1));
+            var min = context.ByName(accountId, AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes);
+            var max = context.ByName(accountId, AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes);
+            if (min < 1 || max > 1440 || min > max)
+                throw new InvalidOperationException("Scheduled scan interval must be between 1 and 1440 minutes, with minimum not exceeding maximum.");
+            return DateTime.Now.AddMinutes(Random.Shared.Next(min, max + 1));
         }
 
         private async ValueTask<Result> HandleAsync(Task task, CancellationToken cancellationToken)
