@@ -93,6 +93,54 @@ namespace MainCore.Test
         }
 
         [Fact]
+        public async Task CancelsWhenHeroCellIsAbsent()
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, missingHeroCell: true);
+            outcome.Result.HasError<Skip>().ShouldBeTrue(outcome.Details);
+            outcome.Simulates.ShouldBe(0);
+            outcome.Confirms.ShouldBe(0);
+            await outcome.Context.DisposeAsync();
+        }
+
+        [Theory]
+        [InlineData("missing", true, false)]
+        [InlineData("home", true, true)]
+        [InlineData("zero", true, false)]
+        [InlineData("disabled", true, false)]
+        [InlineData("missing-table", false, false)]
+        [InlineData("partial", false, false)]
+        [InlineData("orphan-input", false, false)]
+        [InlineData("orphan-icon", false, false)]
+        [InlineData("duplicate", false, false)]
+        [InlineData("duplicate-table", false, false)]
+        public async Task IdentifiesHeroAvailabilityFromRallyPoint(string state, bool success, bool home)
+        {
+            await using var context = await CreateContextAsync();
+            var page = await context.NewPageAsync();
+            var troops = string.Concat(Enumerable.Range(1, state == "partial" ? 9 : 10)
+                .Select(i => $"<td><img class='unit u{60 + i}'><input name='troop[t{i}]'></td>"));
+            const string hero = "<td><img class='unit uhero'><input name='troop[t11]'><a>1</a></td>";
+            troops += state switch
+            {
+                "home" => hero,
+                "zero" => "<td><img class='unit uhero'><input name='troop[t11]' disabled><span class='none'>0</span></td>",
+                "disabled" => "<td><img class='unit uhero'><input name='troop[t11]' disabled><a>1</a></td>",
+                "orphan-input" => "<td><input name='troop[t11]'></td>",
+                "duplicate" => hero + hero,
+                _ => ""
+            };
+            var caption = state == "orphan-icon" ? "<caption><img class='unit uhero'></caption>" : "";
+            var table = $"<table id='troops'>{caption}<tbody><tr>{troops}</tr></tbody></table>";
+            await page.SetContentAsync(
+                $"<div id='build'><div class='a2b'><form action='/build.php?tt=2'>{(state == "missing-table" ? "" : table)}{(state == "duplicate-table" ? table : "")}</form></div></div>");
+
+            var result = await HeroOasisParser.IsHeroHome(page);
+
+            result.IsSuccess.ShouldBe(success);
+            if (success) result.Value.ShouldBe(home);
+        }
+
+        [Fact]
         public async Task SwitchesVillageAndSkipsRejectedTargetBeforeSendingNext()
         {
             var outcome = await Run(90, 61, 50, 40, 0, 0, switchVillage: true, skipFirst: true);
@@ -192,7 +240,7 @@ namespace MainCore.Test
             bool hero = true, int availableMarauders = 10, bool reducedConfirmation = false, bool overview = true,
             bool switchVillage = false, bool skipFirst = false, bool heroOnly = false, bool blankZeros = false,
             string? actionOverride = null, bool overrideHero = false, int[]? missingActionTroops = null,
-            bool duplicateActionInput = false, bool missingConfirmationInput = false)
+            bool duplicateActionInput = false, bool missingConfirmationInput = false, bool missingHeroCell = false)
         {
             var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -270,7 +318,7 @@ namespace MainCore.Test
                     body = $"""
                         <div id="build"><div class="a2b"><form action="/build.php?gid=16&amp;tt=2">
                         <table id="troops"><tbody><tr>
-                        {string.Concat(Enumerable.Range(1, 11).Select(i => $"""
+                        {string.Concat(Enumerable.Range(1, missingHeroCell ? 10 : 11).Select(i => $"""
                             <td><img class="unit u{(i == 11 ? "hero" : (60 + i).ToString())}">
                             <input name="troop[t{i}]" value="" {(heroOnly && i is 4 or 6 ? "disabled" : "")}>
                             {(heroOnly && i is 4 or 6 ? "<span class='none'>0</span>" :

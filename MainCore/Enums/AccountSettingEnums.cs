@@ -33,5 +33,6 @@
         AllowRaidTigerOasis,
         AllowRaidElephantOasis,
         OasisRaidSafetyFactor,
+        EnableBotStopNotifications,
     }
 }

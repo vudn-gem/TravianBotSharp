@@ -193,7 +193,8 @@ namespace MainCore.UI.ViewModels.Tabs
         private async Task<bool> ValidateReportSettings(Dictionary<AccountSettingEnums, int> settings)
         {
             if (settings.GetValueOrDefault(AccountSettingEnums.EnableReportNotifications) != 1 &&
-                settings.GetValueOrDefault(AccountSettingEnums.EnableIncomingTroopsNotifications) != 1) return true;
+                settings.GetValueOrDefault(AccountSettingEnums.EnableIncomingTroopsNotifications) != 1 &&
+                settings.GetValueOrDefault(AccountSettingEnums.EnableBotStopNotifications) != 1) return true;
             try
             {
                 if (_telegramSettingsStore.Load().IsValid) return true;
@@ -203,7 +204,7 @@ namespace MainCore.UI.ViewModels.Tabs
                 await _dialogService.SendMessage("Error", "Unable to read Telegram settings. Save them again before enabling notifications.");
                 return false;
             }
-            await _dialogService.SendMessage("Error", "Save the global Telegram settings before enabling report notifications.");
+            await _dialogService.SendMessage("Error", "Save the global Telegram settings before enabling notifications.");
             return false;
         }
 

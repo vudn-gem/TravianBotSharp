@@ -9,8 +9,25 @@ namespace MainCore.Parsers
     {
         public static async Task<Result<bool>> IsHeroHome(IPage page)
         {
-            var cells = page.Locator("#build .a2b form[action*='tt=2'] #troops td:has(img.unit.uhero)");
-            if (await cells.CountAsync() != 1)
+            var tables = page.Locator("#build .a2b form[action*='tt=2'] table#troops");
+            if (await tables.CountAsync() != 1)
+                return Result.Fail("Hero availability troop table is missing or ambiguous.");
+            var cells = tables.Locator("td:has(img.unit.uhero)");
+            var cellCount = await cells.CountAsync();
+            if (cellCount == 0)
+            {
+                if (await tables.Locator("img.unit.uhero, input[name='troop[t11]']").CountAsync() != 0)
+                    return Result.Fail("Hero availability cell is missing or ambiguous.");
+                for (var i = 1; i <= 10; i++)
+                {
+                    var troop = tables.Locator($"td:has(img.unit) input[name='troop[t{i}]']");
+                    if (await troop.CountAsync() != 1 ||
+                        await tables.Locator($"input[name='troop[t{i}]']").CountAsync() != 1)
+                        return Result.Fail("Hero availability troop table is incomplete or ambiguous.");
+                }
+                return Result.Ok(false);
+            }
+            if (cellCount != 1 || await tables.Locator("input[name='troop[t11]']").CountAsync() != 1)
                 return Result.Fail("Hero availability cell is missing or ambiguous.");
             var input = cells.Locator("input[name='troop[t11]']");
             var available = cells.Locator("a, span.none");

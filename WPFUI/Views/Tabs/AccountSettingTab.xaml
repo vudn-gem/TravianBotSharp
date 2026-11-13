@@ -106,13 +106,14 @@
                         <CheckBox x:Name="EnableReportNotifications" Content="Notify on report badge increase (Telegram)" />
                         <CheckBox x:Name="EnableAutoDeactivateLostReportTargets" Content="Deactivate farm targets from unread lost offensive reports" />
                         <CheckBox x:Name="EnableIncomingTroopsNotifications" Content="Notify on incoming attack/raid (Telegram)" />
+                        <CheckBox x:Name="EnableBotStopNotifications" Content="Notify when bot stops due to an error (Telegram)" />
                     </StackPanel>
                 </Border>
                 <Border Style="{DynamicResource Box}">
                     <StackPanel>
                         <TextBlock FontWeight="Bold" Text="Telegram notifications (shared by all accounts)" />
                         <TextBlock Margin="0,5" TextWrapping="Wrap"
-                                   Text="Message /start to your bot first. Save Telegram settings before enabling reports. Leave the token blank to keep the saved token." />
+                                   Text="Message /start to your bot first. Save Telegram settings before enabling notifications. Leave the token blank to keep the saved token." />
                         <PasswordBox x:Name="TelegramBotToken" Margin="0,5"
                                      materialDesign:HintAssist.Hint="Bot token" />
                         <TextBox x:Name="TelegramChatId" Margin="0,5"

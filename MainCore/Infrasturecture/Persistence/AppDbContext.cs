@@ -168,6 +168,7 @@ namespace MainCore.Infrasturecture.Persistence
             {AccountSettingEnums.EnableAutoSetHeroPoint, 0 },
             {AccountSettingEnums.EnableReportNotifications, 0 },
             {AccountSettingEnums.EnableIncomingTroopsNotifications, 0 },
+            {AccountSettingEnums.EnableBotStopNotifications, 0 },
             {AccountSettingEnums.EnableAutoDeactivateLostReportTargets, 0 },
             {AccountSettingEnums.AllowRaidRatOasis, 0 },
             {AccountSettingEnums.AllowRaidSpiderOasis, 0 },

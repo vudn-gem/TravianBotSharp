@@ -21,16 +21,20 @@ namespace MainCore.Services
         private readonly RxQueue _rxQueue;
         private readonly CustomServiceScopeFactory _serviceScopeFactory;
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
+        private readonly BotStopNotifier _botStopNotifier;
+        private readonly ILogger _logger;
 
         private static readonly ResiliencePropertyKey<ContextData> contextDataKey = new(nameof(ContextData));
         private readonly ResiliencePipeline<Result> _pipeline;
 
-        public TimerManager(TaskManager taskManager, CustomServiceScopeFactory serviceScopeFactory, RxQueue rxQueue, IDbContextFactory<AppDbContext> contextFactory)
+        public TimerManager(TaskManager taskManager, CustomServiceScopeFactory serviceScopeFactory, RxQueue rxQueue, IDbContextFactory<AppDbContext> contextFactory, BotStopNotifier botStopNotifier, ILogger logger)
         {
             _taskManager = taskManager;
             _serviceScopeFactory = serviceScopeFactory;
             _rxQueue = rxQueue;
             _contextFactory = contextFactory;
+            _botStopNotifier = botStopNotifier;
+            _logger = logger;
 
             static async ValueTask OnRetry(OnRetryArguments<Result> args)
             {
@@ -74,6 +78,10 @@ namespace MainCore.Services
                 {
                     if (args.Outcome.Exception is OperationCanceledException ||
                         args.Context.CancellationToken.IsCancellationRequested)
+                        return ValueTask.FromResult(false);
+
+                    if (args.Context.Properties.TryGetValue(contextDataKey, out var heroData) &&
+                        heroData.Task is HeroClearFarmOasisTask.Task)
                         return ValueTask.FromResult(false);
 
                     if (args.Context.Properties.TryGetValue(contextDataKey, out var data) &&
@@ -196,6 +204,13 @@ namespace MainCore.Services
                 !wasCanceled &&
                 (poliResult.Exception is not null || poliResult.Result is { IsFailed: true });
 
+            var cancelFailedHeroOasis = task is HeroClearFarmOasisTask.Task &&
+                poliResult.Exception is not OperationCanceledException &&
+                !wasCanceled &&
+                (poliResult.Exception is not null ||
+                 poliResult.Result is { IsFailed: true } heroFailure &&
+                 !heroFailure.HasError<Skip>() && !heroFailure.HasError<Cancel>());
+
             if (manuallyCanceledConquest)
             {
                 logger.Information("Conquest task canceled by user: {TaskName}", task.Description);
@@ -215,6 +230,19 @@ namespace MainCore.Services
                 _taskManager.Remove(accountId, task);
                 _rxQueue.Enqueue(new TasksModified(accountId));
             }
+            else if (cancelFailedHeroOasis)
+            {
+                if (poliResult.Exception is not null)
+                    logger.Error(poliResult.Exception, "Hero clear oasis task failed: {Message}", poliResult.Exception.Message);
+                if (poliResult.Result is { } failedResult)
+                    logger.Warning("Hero clear oasis task failed: {Errors}",
+                        string.Join(Environment.NewLine, failedResult.Reasons.Select(reason => reason.Message)));
+                if (task is HeroClearFarmOasisTask.Task { ConfirmationAttempted: true })
+                    logger.Warning("Hero raid confirmation was attempted. Check the game for the raid outcome before starting another task.");
+                logger.Warning("Canceling {TaskName}; continuing with the next task", task.Description);
+                _taskManager.Remove(accountId, task);
+                _rxQueue.Enqueue(new TasksModified(accountId));
+            }
             else if (poliResult.Exception is not null)
             {
                 var ex = poliResult.Exception;
@@ -225,30 +253,39 @@ namespace MainCore.Services
                 }
                 else
                 {
+                    _taskManager.SetStatus(accountId, StatusEnums.Paused);
+                    if (!wasCanceled)
+                        _botStopNotifier.Notify(accountId, task.Description, "Unexpected task error");
                     var filename = await browser.Screenshot();
                     logger.Information("Screenshot saved as {FileName}", filename);
                     logger.Warning("There is something wrong. Bot is pausing. Last exception is");
                     logger.Error(ex, "{Message}", ex.Message);
                 }
 
-                _taskManager.SetStatus(accountId, StatusEnums.Paused);
+                if (ex is OperationCanceledException)
+                    _taskManager.SetStatus(accountId, StatusEnums.Paused);
             }
 
-            if (!manuallyCanceledConquest && !cancelFailedConquest && poliResult.Result is not null)
+            if (!manuallyCanceledConquest && !cancelFailedConquest && !cancelFailedHeroOasis && poliResult.Result is not null)
             {
                 var result = poliResult.Result;
                 if (result.IsFailed)
                 {
                     if (result.HasError<Stop>() || result.HasError<Retry>())
                     {
+                        _taskManager.SetStatus(accountId, StatusEnums.Paused);
+                        if (!wasCanceled)
+                            _botStopNotifier.Notify(accountId, task.Description, "Task failed");
                         var filename = await browser.Screenshot();
                         logger.Information(messageTemplate: "Screenshot saved as {FileName}", filename);
-                        _taskManager.SetStatus(accountId, StatusEnums.Paused);
                     }
                     else if (result.HasError<Skip>())
                     {
                         if (task.ExecuteAt == cacheExecuteTime)
                         {
+                            if (task is HeroClearFarmOasisTask.Task)
+                                logger.Warning("Hero clear oasis task canceled: {Errors}",
+                                    string.Join(Environment.NewLine, result.Reasons.Select(reason => reason.Message)));
                             _taskManager.Remove(accountId, task);
                         }
                         else
@@ -316,6 +353,28 @@ namespace MainCore.Services
                     catch (OperationCanceledException) when (_isShutdown || cancellationTokenSource.Token.IsCancellationRequested)
                     {
                         break;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(ex, "Scheduler failed for account {AccountId}", accountId.Value);
+                        var queue = _taskManager.GetTaskQueue(accountId);
+                        string taskName;
+                        bool notify;
+                        lock (queue)
+                        {
+                            var current = queue.Tasks.FirstOrDefault(x => x.Stage == StageEnums.Executing);
+                            taskName = current?.Description ?? "(scheduler)";
+                            if (current is not null) current.Stage = StageEnums.Waiting;
+                            queue.IsExecuting = false;
+                            var wasCanceled = queue.CancellationTokenSource?.IsCancellationRequested == true;
+                            queue.CancellationTokenSource?.Dispose();
+                            queue.CancellationTokenSource = null;
+                            notify = queue.Status == StatusEnums.Online && !wasCanceled;
+                            if (queue.Status == StatusEnums.Online)
+                                _taskManager.SetStatus(accountId, StatusEnums.Paused);
+                        }
+                        _rxQueue.Enqueue(new TasksModified(accountId));
+                        if (notify) _botStopNotifier.Notify(accountId, taskName, "Unexpected scheduler error");
                     }
                 }
 

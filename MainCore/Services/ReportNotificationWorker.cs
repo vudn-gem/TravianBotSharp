@@ -26,7 +26,7 @@ namespace MainCore.Services
                 }
                 catch (Exception ex) when (ex is DbException or DbUpdateException or IOException or UnauthorizedAccessException)
                 {
-                    logger.Error("Report notification storage is unavailable ({ErrorType}); retrying later", ex.GetType().Name);
+                    logger.Error("Notification storage is unavailable ({ErrorType}); retrying later", ex.GetType().Name);
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
@@ -48,14 +48,14 @@ namespace MainCore.Services
             if (result.Success)
             {
                 outbox.Complete(notification.Id);
-                logger.Information("Telegram report notification {NotificationId} delivered for account {AccountId}",
+                logger.Information("Telegram notification {NotificationId} delivered for account {AccountId}",
                     notification.Id, notification.AccountId);
             }
             else
             {
                 outbox.RecordFailure(notification, result.Retryable, result.RetryAfter);
                 logger.Warning(
-                    "Telegram report notification {NotificationId} for account {AccountId}: {Reason}; attempt {Attempt}; failed: {Failed}",
+                    "Telegram notification {NotificationId} for account {AccountId}: {Reason}; attempt {Attempt}; failed: {Failed}",
                     notification.Id, notification.AccountId, result.Error, notification.Attempts, notification.Failed);
             }
         }

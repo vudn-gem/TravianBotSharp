@@ -48,6 +48,13 @@
 
 ## Telegram notifications
 
+**Notify when bot stops due to an error (Telegram)** is a per-account switch,
+off by default. It queues an alert when a task failure or unexpected scheduler
+error pauses the account. Manual pause, logout, and tasks canceled without
+pausing the account do not send an alert. The message includes the account,
+server host, task name, error category and detection time; consult the TBS logs
+for details. A later error after resuming generates a new alert.
+
 **Notify on incoming attack/raid (Telegram)** is a separate per-account switch.
 It checks `.listEntry.village.attack` after a task succeeds when logged in,
 with at least 60 seconds between scan attempts per account. Each scan schedules
@@ -99,10 +106,10 @@ as report alerts.
    after messaging the bot). Treat the bot token as a password.
 3. In account settings, enter the token and chat ID in **Telegram notifications**.
    Use **Send test message**, then **Save Telegram settings**.
-4. Enable **Notify on report badge increase (Telegram)** and save the account
-   settings, then configure and start farming. Telegram credentials are shared
-   by all accounts; the enable switch is per account. Leave the token blank
-   when keeping the saved token.
+4. Enable the desired Telegram notification switches and save the account
+   settings. Report notifications also require configuring and starting farming.
+   Telegram credentials are shared by all accounts; each enable switch is per
+   account. Leave the token blank when keeping the saved token.
 
 Each start, restart, or pause/resume begins a new monitoring session. The first
 valid scan establishes a baseline without sending anything. Every subsequent
