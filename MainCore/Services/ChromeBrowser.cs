@@ -42,6 +42,7 @@ namespace MainCore.Services
             {
                 Channel = "chrome",
                 Headless = setting.IsHeadless,
+                UserAgent = string.IsNullOrWhiteSpace(setting.UserAgent) ? null : setting.UserAgent,
                 Proxy = string.IsNullOrEmpty(setting.ProxyHost) ? null : new()
                 {
                     Server = $"{setting.ProxyHost}:{setting.ProxyPort}",
