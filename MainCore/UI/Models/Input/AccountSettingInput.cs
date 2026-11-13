@@ -21,6 +21,10 @@ namespace MainCore.UI.Models.Input
             EnableIncomingTroopsNotifications = settings.GetValueOrDefault(AccountSettingEnums.EnableIncomingTroopsNotifications) == 1;
             EnableBotStopNotifications = settings.GetValueOrDefault(AccountSettingEnums.EnableBotStopNotifications) == 1;
             EnableAutoDeactivateLostReportTargets = settings.GetValueOrDefault(AccountSettingEnums.EnableAutoDeactivateLostReportTargets) == 1;
+            EnableScheduledMonitoring = settings.GetValueOrDefault(AccountSettingEnums.EnableScheduledMonitoring) == 1;
+            ScheduledMonitoringInterval.Set(
+                settings.GetValueOrDefault(AccountSettingEnums.ScheduledMonitoringIntervalMin, 600),
+                settings.GetValueOrDefault(AccountSettingEnums.ScheduledMonitoringIntervalMax, 600));
 
             FarmInterval.Set(settings.GetValueOrDefault(AccountSettingEnums.FarmIntervalMin), settings.GetValueOrDefault(AccountSettingEnums.FarmIntervalMax));
             UseStartAllButton = settings.GetValueOrDefault(AccountSettingEnums.UseStartAllButton) == 1;
@@ -40,6 +44,7 @@ namespace MainCore.UI.Models.Input
             var enableAutoSetHeroPoint = EnableAutoSetHeroPoint ? 1 : 0;
 
             var (farmIntervalMin, farmIntervalMax) = FarmInterval.Get();
+            var (monitoringMin, monitoringMax) = ScheduledMonitoringInterval.Get();
             var useStartAllButton = UseStartAllButton ? 1 : 0;
 
             var settings = new Dictionary<AccountSettingEnums, int>()
@@ -68,6 +73,9 @@ namespace MainCore.UI.Models.Input
                 { AccountSettingEnums.EnableIncomingTroopsNotifications, EnableIncomingTroopsNotifications ? 1 : 0 },
                 { AccountSettingEnums.EnableBotStopNotifications, EnableBotStopNotifications ? 1 : 0 },
                 { AccountSettingEnums.EnableAutoDeactivateLostReportTargets, EnableAutoDeactivateLostReportTargets ? 1 : 0 },
+                { AccountSettingEnums.EnableScheduledMonitoring, EnableScheduledMonitoring ? 1 : 0 },
+                { AccountSettingEnums.ScheduledMonitoringIntervalMin, monitoringMin },
+                { AccountSettingEnums.ScheduledMonitoringIntervalMax, monitoringMax },
             };
             return settings;
         }
@@ -79,6 +87,7 @@ namespace MainCore.UI.Models.Input
         public RangeInputViewModel WorkTime { get; } = new();
         public RangeInputViewModel SleepTime { get; } = new();
         public RangeInputViewModel FarmInterval { get; } = new();
+        public RangeInputViewModel ScheduledMonitoringInterval { get; } = new();
 
         [Reactive]
         private bool _enableAutoLoadVillage;
@@ -110,5 +119,7 @@ namespace MainCore.UI.Models.Input
         [Reactive]
         private bool _enableAutoDeactivateLostReportTargets;
 
+        [Reactive]
+        private bool _enableScheduledMonitoring;
     }
 }

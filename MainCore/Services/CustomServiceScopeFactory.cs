@@ -73,6 +73,9 @@ namespace MainCore.Services
                 case CheckIncomingTroopsTask.Task incomingTask:
                     return await scope.GetHandler<CheckIncomingTroopsTask.Task>().HandleAsync(incomingTask, cancellationToken);
 
+                case ScheduledMonitoringTask.Task monitoringTask:
+                    return await scope.GetHandler<ScheduledMonitoringTask.Task>().HandleAsync(monitoringTask, cancellationToken);
+
                 case ClaimVillageQuestTask.Task claimQuestTask:
                     var claimQuestTaskHandler = scope.GetHandler<ClaimVillageQuestTask.Task>();
                     return await claimQuestTaskHandler.HandleAsync(claimQuestTask, cancellationToken);

@@ -34,5 +34,8 @@
         AllowRaidElephantOasis,
         OasisRaidSafetyFactor,
         EnableBotStopNotifications,
+        EnableScheduledMonitoring,
+        ScheduledMonitoringIntervalMin,
+        ScheduledMonitoringIntervalMax,
     }
 }

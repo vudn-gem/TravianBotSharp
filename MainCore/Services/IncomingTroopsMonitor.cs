@@ -18,12 +18,12 @@ namespace MainCore.Services
             lock (_sync) _sessions.Remove(accountId);
         }
 
-        public Guid? TryBeginScan(AccountId accountId)
+        public Guid? TryBeginScan(AccountId accountId, bool scheduled = false)
         {
             lock (_sync)
             {
                 var now = timeProvider.GetTimestamp();
-                if (_lastScans.TryGetValue(accountId, out var last) &&
+                if (!scheduled && _lastScans.TryGetValue(accountId, out var last) &&
                     timeProvider.GetElapsedTime(last, now) < TimeSpan.FromMinutes(1)) return null;
                 _lastScans[accountId] = now;
                 if (!_sessions.TryGetValue(accountId, out var session))

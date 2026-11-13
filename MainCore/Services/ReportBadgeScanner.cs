@@ -14,21 +14,22 @@ namespace MainCore.Services
     {
         public void Reset(AccountId accountId) => monitor.Reset(accountId);
 
-        public async Task<bool> Scan(AccountId accountId, CancellationToken cancellationToken)
+        public async Task<bool> Scan(AccountId accountId, CancellationToken cancellationToken, bool scheduled = false)
         {
             var requiresFarmPageReopen = false;
             cancellationToken.ThrowIfCancellationRequested();
-            var session = monitor.GetSession(accountId);
             try
             {
                 using var context = contextFactory.CreateDbContext();
                 var notify = context.BooleanByName(accountId, AccountSettingEnums.EnableReportNotifications);
                 var deactivate = context.BooleanByName(accountId, AccountSettingEnums.EnableAutoDeactivateLostReportTargets);
+                if (scheduled && !notify) return requiresFarmPageReopen;
                 if (!notify && !deactivate)
                 {
                     monitor.Reset(accountId);
                     return requiresFarmPageReopen;
                 }
+                var session = monitor.GetSession(accountId);
                 var result = await ReportParser.GetUnreadCount(browser.CurrentPage);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (result.IsSuccess)

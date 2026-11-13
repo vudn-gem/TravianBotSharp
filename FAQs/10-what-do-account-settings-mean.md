@@ -16,11 +16,33 @@
 - **Enable auto start adventure**: auto send hero to adventures.
 - **Enable auto claim daily quest**: auto claim daily quest rewards.
 - **Enable auto set hero point**: auto assign hero points.
+- **Enable scheduled report and incoming scans**: add a recurring account task
+  that reads the report badge and/or incoming troops, independently of farming
+  and task-completion triggers. Set **Scheduled scan interval** in seconds
+  (minimum and maximum from 1 to 86400); the next delay is chosen randomly
+  within the inclusive range. It is off by default, with a 600-second interval.
+  Settings are saved per account. The first scan is scheduled after the interval
+  when the account starts or the feature and at least one notification are enabled; an already overdue scan
+  waits until the account is online. Changing the interval
+  reschedules a waiting task; disabling removes it.
+  Scans share the account queue and browser, so a running task, sleep, or pause
+  can delay them. They do not run while the account is offline.
+  Each scheduled scan runs only if its corresponding Telegram notification
+  switch is enabled. If both switches are off, no scheduled task is queued.
+  Before scanning, it clicks the resource overview if currently on dorf2;
+  otherwise it clicks the village overview (dorf2), and waits for navigation.
+  If navigation fails, it logs a warning and scans the current page instead;
+  its data may be stale.
+  The lost-report switch can still trigger processing during a scheduled report
+  scan when report notifications are enabled. Its farming-triggered scans remain
+  independent of the report notification switch. Existing farming and
+  task-completion scans remain active and can cause additional checks.
 - **Notify on report badge increase (Telegram)**: check the report badge immediately
   after opening the farm-list page but before sending farms in each **Start farm list** task, with either Start all or individual
-  active lists. Checks use the existing random farming interval, without a
-  separate report timer. No farming, no active lists (unless using Start all),
-  or failure to open the farm page means no scan. A later farm-page navigation or Start-button failure
+  active lists. These checks use the existing random farming interval.
+  No farming, no active lists (unless using Start all),
+  or failure to open the farm page means no farming-triggered scan; the independent
+  scheduled scan can still run when enabled. A later farm-page navigation or Start-button failure
   does not undo the scan. This only reads the current page; it
   does not refresh or open reports unless target deactivation below is enabled.
 - **Deactivate farm targets from unread lost offensive reports**: a separate
@@ -62,6 +84,9 @@ a **Check incoming attack/raid** task for 10 minutes after that attempt.
 Ordinary tasks can trigger a scan earlier and postpone the fallback. The fallback
 runs even when there is no other due task, in the same account queue; there is
 never more than one fallback task per account.
+The independent scheduled scan, when enabled, also reads incoming troops at its
+configured interval and is not subject to the 60-second task-triggered throttle.
+It runs only while the incoming-notification switch is enabled.
 
 The 10-minute interval is a target, not a hard deadline: a long task or sleep can
 delay it. Paused/offline accounts do not execute the fallback. After resume, an

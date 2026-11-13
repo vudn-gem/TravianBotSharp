@@ -107,6 +107,9 @@
                         <CheckBox x:Name="EnableAutoDeactivateLostReportTargets" Content="Deactivate farm targets from unread lost offensive reports" />
                         <CheckBox x:Name="EnableIncomingTroopsNotifications" Content="Notify on incoming attack/raid (Telegram)" />
                         <CheckBox x:Name="EnableBotStopNotifications" Content="Notify when bot stops due to an error (Telegram)" />
+                        <CheckBox x:Name="EnableScheduledMonitoring" Content="Enable scheduled report and incoming scans" />
+                        <uc:RangeInputUc x:Name="ScheduledMonitoringInterval" Text="Scheduled scan interval" Unit="seconds" />
+                        <TextBlock Margin="0,5" TextWrapping="Wrap" Text="Scheduled scans run independently of farming when at least one Telegram notification switch is enabled. The bot switches village overview pages before scanning. The interval must be 1 to 86400 seconds." />
                     </StackPanel>
                 </Border>
                 <Border Style="{DynamicResource Box}">
@@ -121,9 +124,9 @@
                         <Button x:Name="SaveTelegramButton" Margin="0,5" Content="Save Telegram settings" />
                         <Button x:Name="TestTelegramButton" Margin="0,5" Content="Send test message" />
                         <TextBlock Margin="0,5" TextWrapping="Wrap"
-                                   Text="Checks after each successful Start farm list, using its random farming interval. No farming means no report checks. Start/restart/resume establishes a new baseline without sending a message. Reports read between scans may be missed." />
+                                   Text="Report checks run before Start farm list and also on the scheduled scan when enabled. Start/restart/resume establishes a new baseline without sending a message. Reports read between scans may be missed." />
                         <TextBlock Margin="0,5" TextWrapping="Wrap"
-                                   Text="Incoming attack/raid: checks after successful tasks, at least 60 seconds apart per account. A separate queue task checks after 10 minutes if needed; long tasks, sleep or pause can delay it. Reads English tooltip counts; alerts on first detection or count increases." />
+                                   Text="Incoming checks after successful tasks are at least 60 seconds apart; scheduled scans also run at their configured interval. Long tasks, sleep or pause can delay checks. Reads English tooltip counts; alerts on first detection or count increases." />
                     </StackPanel>
                 </Border>
                 <Border Style="{DynamicResource Box}">

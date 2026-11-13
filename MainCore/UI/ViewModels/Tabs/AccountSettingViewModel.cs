@@ -68,8 +68,10 @@ namespace MainCore.UI.ViewModels.Tabs
             var settings = AccountSettingInput.Get();
             if (!await ValidateReportSettings(settings)) return;
             var reportFeaturesChanged = ReportFeaturesChanged(context, settings);
+            var monitoringChanged = MonitoringSettingsChanged(context, settings);
             context.SaveAccountSetting(AccountId, settings);
             context.TriggerTask(_taskManager, AccountId, settings, _reportMonitor, _incomingTroopsMonitor, reportFeaturesChanged);
+            if (monitoringChanged) _taskManager.UpdateScheduledMonitoring(AccountId, context, reschedule: true);
             await _dialogService.SendMessage("Information", "Settings saved.");
         }
 
@@ -101,8 +103,10 @@ namespace MainCore.UI.ViewModels.Tabs
             settings.Remove(AccountSettingEnums.Tribe);
             if (!await ValidateReportSettings(settings)) return;
             var reportFeaturesChanged = ReportFeaturesChanged(context, settings);
+            var monitoringChanged = MonitoringSettingsChanged(context, settings);
             context.SaveAccountSetting(AccountId, settings);
             context.TriggerTask(_taskManager, AccountId, settings, _reportMonitor, _incomingTroopsMonitor, reportFeaturesChanged);
+            if (monitoringChanged) _taskManager.UpdateScheduledMonitoring(AccountId, context, reschedule: true);
             await _dialogService.SendMessage("Information", "Settings imported.");
         }
 
@@ -189,6 +193,12 @@ namespace MainCore.UI.ViewModels.Tabs
             new[] { AccountSettingEnums.EnableReportNotifications, AccountSettingEnums.EnableAutoDeactivateLostReportTargets }
                 .Any(setting => settings.TryGetValue(setting, out var value) &&
                     context.BooleanByName(AccountId, setting) != (value == 1));
+
+        private bool MonitoringSettingsChanged(AppDbContext context, Dictionary<AccountSettingEnums, int> settings) =>
+            new[] { AccountSettingEnums.EnableScheduledMonitoring, AccountSettingEnums.ScheduledMonitoringIntervalMin,
+                    AccountSettingEnums.ScheduledMonitoringIntervalMax, AccountSettingEnums.EnableReportNotifications,
+                    AccountSettingEnums.EnableIncomingTroopsNotifications }
+                .Any(setting => settings.TryGetValue(setting, out var value) && context.ByName(AccountId, setting) != value);
 
         private async Task<bool> ValidateReportSettings(Dictionary<AccountSettingEnums, int> settings)
         {

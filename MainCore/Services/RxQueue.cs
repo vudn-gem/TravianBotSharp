@@ -41,6 +41,7 @@ namespace MainCore.Services
             var taskManager = Locator.Current.GetService<TaskManager>()!;
 
             taskManager.Add(new LoginTask.Task(accountId), first: true);
+            taskManager.UpdateScheduledMonitoring(accountId, context);
 
             var incomingTask = new CheckIncomingTroopsTask.Task(accountId);
             if (incomingTask.CanStart(context))

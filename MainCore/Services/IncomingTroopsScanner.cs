@@ -11,20 +11,21 @@ namespace MainCore.Services
         DataService dataService, IDbContextFactory<AppDbContext> contextFactory,
         TaskManager taskManager)
     {
-        public async Task Scan(AccountId accountId, CancellationToken cancellationToken)
+        public async Task Scan(AccountId accountId, CancellationToken cancellationToken, bool scheduled = false)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 using var context = contextFactory.CreateDbContext();
-                if (!context.BooleanByName(accountId, AccountSettingEnums.EnableIncomingTroopsNotifications))
+                var notify = context.BooleanByName(accountId, AccountSettingEnums.EnableIncomingTroopsNotifications);
+                if (!notify)
                 {
                     monitor.Reset(accountId);
                     taskManager.Remove<CheckIncomingTroopsTask.Task>(accountId);
                     return;
                 }
                 taskManager.ScheduleIncomingScan(accountId, monitor.GetFallbackExecuteAt(accountId));
-                var session = monitor.TryBeginScan(accountId);
+                var session = monitor.TryBeginScan(accountId, scheduled);
                 if (!session.HasValue) return;
                 taskManager.ScheduleIncomingScan(accountId, monitor.GetFallbackExecuteAt(accountId));
                 var result = await IncomingTroopsParser.Read(browser.CurrentPage);

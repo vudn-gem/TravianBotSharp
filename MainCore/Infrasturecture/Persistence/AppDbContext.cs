@@ -170,6 +170,9 @@ namespace MainCore.Infrasturecture.Persistence
             {AccountSettingEnums.EnableIncomingTroopsNotifications, 0 },
             {AccountSettingEnums.EnableBotStopNotifications, 0 },
             {AccountSettingEnums.EnableAutoDeactivateLostReportTargets, 0 },
+            {AccountSettingEnums.EnableScheduledMonitoring, 0 },
+            {AccountSettingEnums.ScheduledMonitoringIntervalMin, 600 },
+            {AccountSettingEnums.ScheduledMonitoringIntervalMax, 600 },
             {AccountSettingEnums.AllowRaidRatOasis, 0 },
             {AccountSettingEnums.AllowRaidSpiderOasis, 0 },
             {AccountSettingEnums.AllowRaidSnakeOasis, 0 },
@@ -183,40 +186,18 @@ namespace MainCore.Infrasturecture.Persistence
             {AccountSettingEnums.OasisRaidSafetyFactor, 2 },
         }.ToImmutableDictionary();
 
-        private List<AccountSettingEnums> GetMissingAccountSettings()
-        {
-            var defaultSettings = AccountDefaultSettings.Keys
-                .AsEnumerable();
-            var dbSettings = AccountsSetting
-                .Select(x => x.Setting)
-                .Distinct()
-                .AsEnumerable();
-            return defaultSettings.Except(dbSettings).ToList();
-        }
-
         public void FillAccountSettings()
         {
-            var missingSettings = GetMissingAccountSettings();
-            if (missingSettings.Count == 0) return;
-
-            var missingSettingsDict = missingSettings
-                .Select(x => new
-                {
-                    Setting = x,
-                    Value = AccountDefaultSettings[x],
-                })
-                .ToDictionary(x => x.Setting, x => x.Value);
-
-            var ids = Accounts
-                .Select(x => x.Id)
-                .AsEnumerable();
-
+            var existing = AccountsSetting.AsNoTracking()
+                .Select(x => new { x.AccountId, x.Setting }).AsEnumerable()
+                .Select(x => (x.AccountId, x.Setting)).ToHashSet();
+            var ids = Accounts.Select(x => x.Id).ToList();
             var settings = new List<AccountSetting>();
-
             foreach (var id in ids)
             {
-                foreach (var (setting, value) in missingSettingsDict)
+                foreach (var (setting, value) in AccountDefaultSettings)
                 {
+                    if (existing.Contains((id, setting))) continue;
                     settings.Add(new AccountSetting
                     {
                         AccountId = id,
@@ -226,8 +207,11 @@ namespace MainCore.Infrasturecture.Persistence
                 }
             }
 
-            AddRange(settings);
-            SaveChanges();
+            if (settings.Count > 0)
+            {
+                AddRange(settings);
+                SaveChanges();
+            }
         }
 
         #endregion account setting

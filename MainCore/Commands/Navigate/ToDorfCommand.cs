@@ -34,9 +34,13 @@
 
         private static int GetCurrentDorf(string url)
         {
-            if (url.Contains("dorf1")) return 1;
-            if (url.Contains("dorf2")) return 2;
-            return 0;
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return 0;
+            return uri.AbsolutePath switch
+            {
+                "/dorf1.php" => 1,
+                "/dorf2.php" => 2,
+                _ => 0,
+            };
         }
     }
 }

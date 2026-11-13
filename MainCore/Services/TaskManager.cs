@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 
+using MainCore.Infrasturecture.Extensions;
 using MainCore.Services.Scheduling;
 using MainCore.Tasks.Base;
 
@@ -267,6 +268,30 @@ namespace MainCore.Services
         public void ScheduleIncomingScan(AccountId accountId, DateTime executeAt)
         {
             AddOrUpdate(new CheckIncomingTroopsTask.Task(accountId) { ExecuteAt = executeAt });
+        }
+
+        public void UpdateScheduledMonitoring(AccountId accountId, AppDbContext context, bool reschedule = false)
+        {
+            var enabled = new ScheduledMonitoringTask.Task(accountId).CanStart(context);
+            var executeAt = enabled ? ScheduledMonitoringTask.NextRun(context, accountId) : default;
+            var queue = GetTaskQueue(accountId);
+            lock (queue)
+            {
+                var existing = queue.Tasks.OfType<ScheduledMonitoringTask.Task>().FirstOrDefault();
+                if (!enabled)
+                {
+                    if (existing is not null) queue.Tasks.Remove(existing);
+                }
+                else if (existing is null)
+                {
+                    queue.Tasks.Add(new ScheduledMonitoringTask.Task(accountId) { ExecuteAt = executeAt });
+                }
+                else if (reschedule && existing.Stage != StageEnums.Executing)
+                {
+                    existing.ExecuteAt = executeAt;
+                }
+            }
+            rxQueue.Enqueue(new TasksModified(accountId));
         }
 
         public List<BaseTask> GetTaskList(AccountId accountId)
