@@ -18,6 +18,15 @@
 - If Start does nothing, check if at least one list is active (when Start all option is off).
 - Use safe delay ranges to reduce repeated fast actions.
 
+When returning during Clear oasis or Hero clear oasis, TBS clicks the Farm List
+tab if the current page is the Rally Point; otherwise it uses the Farm List
+shortcut in the village sidebar. Check target troops and lost report processing
+use the sidebar shortcut to return. If the tab is missing or ambiguous, TBS
+tries the shortcut. If the selected control is missing, ambiguous, cannot be
+clicked, or opens the wrong page or village, TBS logs a warning in the Debug log
+and falls back to the Farm List URL. The target's village is checked before
+scanning or sending.
+
 ## checking oasis target troops
 
 Select a farm list on the left, then click **Check target troops**.

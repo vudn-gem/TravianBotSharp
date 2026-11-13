@@ -45,7 +45,7 @@ namespace MainCore.Services
             finally
             {
                 // Restore browser context even when a report fails; later tasks share this page.
-                var restored = await browser.Navigate(originalUrl);
+                var restored = await RestoreOriginalPage(originalUrl);
                 if (restored.IsFailed) Warn(restored);
                 var village = VillagePanelParser.GetVillageNode(page, originalVillage);
                 if (originalVillage != VillageId.Empty && await village.CountAsync() == 1 &&
@@ -58,11 +58,20 @@ namespace MainCore.Services
                         var active = await browser.Wait(page.Locator(
                             $"#sidebarBoxVillageList .listEntry.village.active[data-did='{originalVillage}']"));
                         if (active.IsFailed) Warn(active);
-                        restored = await browser.Navigate(originalUrl);
+                        restored = await RestoreOriginalPage(originalUrl, originalVillage);
                         if (restored.IsFailed) Warn(restored);
                     }
                 }
             }
+        }
+
+        private Task<Result> RestoreOriginalPage(string url, VillageId? owner = null)
+        {
+            var uri = new Uri(url);
+            return uri.AbsolutePath == "/build.php" && HeroOasisParser.Query(uri, "gid") == "16" &&
+                HeroOasisParser.Query(uri, "tt") == "99"
+                ? FarmListNavigation.Open(browser, url, owner)
+                : browser.Navigate(url);
         }
 
         private async Task<Result> ProcessReport(string url, CancellationToken cancellationToken)

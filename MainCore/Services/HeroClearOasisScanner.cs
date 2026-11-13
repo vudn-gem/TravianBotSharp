@@ -40,7 +40,7 @@ namespace MainCore.Services
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                opened = await browser.Navigate(farmUrl.Uri.AbsoluteUri);
+                opened = await FarmListNavigation.Open(browser, farmUrl.Uri.AbsoluteUri, owner.Value, preferRallyPointTab: true);
                 if (opened.IsFailed) return opened;
                 if (await VillagePanelParser.GetCurrentVillageId(page) != owner.Value)
                     return Stop.Error.WithError("Hero clear oasis village changed.");

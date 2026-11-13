@@ -44,7 +44,7 @@ namespace MainCore.Services
                 switched = await browser.Wait(page.Locator(
                     $"#sidebarBoxVillageList .listEntry.village.active[data-did='{owner.Value}']"));
                 if (switched.IsFailed) return Result.Fail(switched.Errors);
-                var reopened = await browser.Navigate(farmUrl);
+                var reopened = await FarmListNavigation.Open(browser, farmUrl, owner.Value, preferRallyPointTab: true);
                 if (reopened.IsFailed) return Result.Fail(reopened.Errors);
             }
 
@@ -114,7 +114,7 @@ namespace MainCore.Services
                 }
                 finally
                 {
-                    restored = await browser.Navigate(farmUrl);
+                    restored = await FarmListNavigation.Open(browser, farmUrl, owner.Value, preferRallyPointTab: true);
                     if (restored.IsFailed)
                         browser.Logger.Warning("Unable to restore farm list after clear target {SlotId}: {Reason}",
                             target.SlotId, restored.Errors[0].Message);
@@ -154,7 +154,7 @@ namespace MainCore.Services
             browser.Logger.Information(
                 "Troop draft saved for clear oasis list {FarmListId}: Steppe Riders {Steppe}, Marksmen {Marksmen}, Marauders {Marauders}",
                 farmId.Value, parsed.Value.AvailableSteppeRiders, parsed.Value.AvailableMarksmen, parsed.Value.AvailableMarauders);
-            var restored = await browser.Navigate(farmUrl);
+            var restored = await FarmListNavigation.Open(browser, farmUrl, owner, preferRallyPointTab: true);
             if (restored.IsFailed) return Result.Fail(restored.Errors);
             var prepared = await FarmListPreparation.Prepare(browser, farmId, owner);
             if (prepared.IsFailed) return Result.Fail(prepared.Errors);

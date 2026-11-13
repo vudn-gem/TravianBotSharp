@@ -23,7 +23,7 @@ namespace MainCore.Services
                 switched = await browser.Wait(page.Locator(
                     $"#sidebarBoxVillageList .listEntry.village.active[data-did='{owner.Value}']"));
                 if (switched.IsFailed) return switched;
-                var reopened = await browser.Navigate(farmUrl);
+                var reopened = await FarmListNavigation.Open(browser, farmUrl, owner.Value);
                 if (reopened.IsFailed) return reopened;
             }
             var prepared = await FarmListPreparation.Prepare(browser, farmId, owner.Value);
@@ -51,7 +51,7 @@ namespace MainCore.Services
                 }
                 finally
                 {
-                    restored = await browser.Navigate(farmUrl);
+                    restored = await FarmListNavigation.Open(browser, farmUrl, owner.Value);
                     if (restored.IsFailed)
                         browser.Logger.Warning("Unable to restore farm list after target {SlotId}: {Reason}",
                             target.SlotId, restored.Errors[0].Message);
