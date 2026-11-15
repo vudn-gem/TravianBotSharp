@@ -1,4 +1,6 @@
 using MainCore.Commands.Navigate;
+using MainCore.Enums;
+using MainCore.Infrasturecture.Extensions;
 using MainCore.Tasks.Base;
 
 namespace MainCore.Tasks
@@ -26,17 +28,36 @@ namespace MainCore.Tasks
             using var context = contextFactory.CreateDbContext();
             var settings = OasisRaidSettings.Read(context, task.AccountId, task.FarmId);
             if (settings.IsFailed) return Stop.Error.WithErrors(settings.Errors);
-            var scan = await scanner.Scan(task.FarmId, settings.Value, task.ResumeTargetIndex, cancellationToken);
+            var maxTargetsPerPhase = Math.Max(1, context.ByName(task.AccountId,
+                AccountSettingEnums.ClearTargetsPerPhaseMin, AccountSettingEnums.ClearTargetsPerPhaseMax));
+            var scan = await scanner.Scan(
+                task.FarmId,
+                settings.Value,
+                task.ResumeTargetIndex,
+                maxTargetsPerPhase,
+                cancellationToken);
             if (scan.IsFailed) return Result.Fail(scan.Errors);
 
             task.ResumeTargetIndex = scan.Value.NextTargetIndex;
             if (scan.Value.RetryAt is DateTime retryAt)
             {
                 if (retryAt <= DateTime.Now)
-                    retryAt = DateTime.Now.AddSeconds(5);
+                {
+                    var taskBuffer = Math.Max(200, context.ByName(task.AccountId,
+                        AccountSettingEnums.TaskDelayMin, AccountSettingEnums.TaskDelayMax));
+                    retryAt = DateTime.Now.AddMilliseconds(taskBuffer);
+                }
                 task.ExecuteAt = retryAt;
                 return Skip.Error.WithError(
                     $"Insufficient troops. Resume from target index {task.ResumeTargetIndex} at {retryAt:yyyy-MM-dd HH:mm:ss}");
+            }
+            if (scan.Value.PhaseLimited)
+            {
+                var phaseDelay = Math.Max(1, context.ByName(task.AccountId,
+                    AccountSettingEnums.FarmIntervalMin, AccountSettingEnums.FarmIntervalMax));
+                task.ExecuteAt = DateTime.Now.AddSeconds(phaseDelay);
+                return Skip.Error.WithError(
+                    $"Clear oasis phase limit reached. Resume from target index {task.ResumeTargetIndex} at {task.ExecuteAt:yyyy-MM-dd HH:mm:ss}");
             }
 
             task.ResumeTargetIndex = 0;

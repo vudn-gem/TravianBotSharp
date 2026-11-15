@@ -58,6 +58,7 @@ namespace WPFUI.Views.Tabs
                 this.Bind(ViewModel, vm => vm.FarmLists.SelectedItem, v => v.FarmlistGrid.SelectedItem).DisposeWith(d);
 
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.UseStartAllButton, v => v.UseStartAllCheckbox.IsChecked).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.AccountSettingInput.TargetPerPhase, v => v.TargetPerPhase.ViewModel).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HasOasisSettings, v => v.OasisSettingsGroup.IsEnabled).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.FarmOasisSettingInput.AllowRat, v => v.AllowRatOasisCheckBox.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.FarmOasisSettingInput.AllowSpider, v => v.AllowSpiderOasisCheckBox.IsChecked).DisposeWith(d);

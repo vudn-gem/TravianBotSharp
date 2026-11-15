@@ -190,8 +190,9 @@ namespace MainCore.Services
                     """);
                 task.ProcessedSlots.Add(target.SlotId);
                 task.HeroReturnAt = confirmation.Value;
-                task.ExecuteAt = confirmation.Value.AddSeconds(5);
+                task.ExecuteAt = confirmation.Value.AddMilliseconds(task.TaskBufferMilliseconds <= 0 ? 1000 : task.TaskBufferMilliseconds);
                 task.ConfirmationAttempted = false;
+                task.SentRaidThisRun = true;
                 browser.Logger.Information(
                     "Hero raid sent to slot {SlotId}; next target scheduled at {ExecuteAt}",
                     target.SlotId, task.ExecuteAt);
@@ -212,7 +213,7 @@ namespace MainCore.Services
         {
             if (task.RetryAttemptedSlots.Add(target.SlotId))
             {
-                task.ExecuteAt = DateTime.Now.AddSeconds(task.RetryDelaySeconds);
+                task.ExecuteAt = DateTime.Now.AddMilliseconds(task.RetryDelayMilliseconds <= 0 ? 1000 : task.RetryDelayMilliseconds);
                 return Skip.Error.WithError(
                     $"{reason} Slot {target.SlotId} scheduled once at {task.ExecuteAt:yyyy-MM-dd HH:mm:ss}.");
             }
@@ -225,7 +226,7 @@ namespace MainCore.Services
                 return Stop.Error.WithError("Hero status timer is missing.");
             var returnAt = DateTime.Now.AddSeconds(Math.Max(0, status.SecondsUntilReady.Value));
             task.HeroReturnAt = returnAt;
-            task.ExecuteAt = returnAt.AddSeconds(5);
+            task.ExecuteAt = returnAt.AddMilliseconds(task.TaskBufferMilliseconds <= 0 ? 1000 : task.TaskBufferMilliseconds);
             return Skip.Error.WithError($"{reason} Next run at {task.ExecuteAt:yyyy-MM-dd HH:mm:ss}.");
         }
 

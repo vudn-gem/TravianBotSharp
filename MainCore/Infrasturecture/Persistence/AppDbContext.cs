@@ -178,6 +178,8 @@ namespace MainCore.Infrasturecture.Persistence
             {AccountSettingEnums.EnableScheduledMonitoring, 0 },
             {AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes, 10 },
             {AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes, 10 },
+            {AccountSettingEnums.ClearTargetsPerPhaseMin, 999999 },
+            {AccountSettingEnums.ClearTargetsPerPhaseMax, 999999 },
             {AccountSettingEnums.AllowRaidRatOasis, 0 },
             {AccountSettingEnums.AllowRaidSpiderOasis, 0 },
             {AccountSettingEnums.AllowRaidSnakeOasis, 0 },

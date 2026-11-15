@@ -28,6 +28,13 @@ namespace MainCore.UI.Models.Validators
                 .GreaterThanOrEqualTo(0)
                 .WithMessage("Minimum farm interval ({PropertyValue}) should be positive number");
 
+            RuleFor(x => x.TargetPerPhase.Min)
+                .LessThanOrEqualTo(x => x.TargetPerPhase.Max)
+                .WithMessage("Minimum target per phase ({PropertyValue}) should be less than maximum target per phase ({ComparisonValue})");
+            RuleFor(x => x.TargetPerPhase.Min)
+                .GreaterThanOrEqualTo(1)
+                .WithMessage("Minimum target per phase ({PropertyValue}) should be at least 1");
+
             RuleFor(x => x.ScheduledMonitoringInterval.Min)
                 .InclusiveBetween(1, 1440);
             RuleFor(x => x.ScheduledMonitoringInterval.Max)

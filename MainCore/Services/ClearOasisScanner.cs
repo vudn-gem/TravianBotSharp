@@ -7,7 +7,8 @@ namespace MainCore.Services
             int NextTargetIndex,
             DateTime? RetryAt,
             int RaidCount,
-            long RemainingSteppeRiders);
+            long RemainingSteppeRiders,
+            bool PhaseLimited);
 
         private sealed record ProcessTargetResult(bool SentRaid, bool NeedRetry, DateTime? RetryAt, bool CheckDeactivation = false);
 
@@ -22,6 +23,7 @@ namespace MainCore.Services
             FarmId farmId,
             OasisRaidSettings settings,
             int startTargetIndex,
+            int maxTargetsPerPhase,
             CancellationToken cancellationToken)
         {
             var page = browser.CurrentPage;
@@ -59,9 +61,9 @@ namespace MainCore.Services
             var targets = await FarmTargetTroopsParser.ReadTargets(page, farmId);
             if (targets.IsFailed) return Result.Fail(targets.Errors);
             if (targets.Value.Count == 0)
-                return Result.Ok(new ClearOasisScanResult(0, null, 0, draft.SteppeRidersRemaining));
+                return Result.Ok(new ClearOasisScanResult(0, null, 0, draft.SteppeRidersRemaining, false));
             if (startTargetIndex >= targets.Value.Count)
-                return Result.Ok(new ClearOasisScanResult(0, null, 0, draft.SteppeRidersRemaining));
+                return Result.Ok(new ClearOasisScanResult(0, null, 0, draft.SteppeRidersRemaining, false));
 
             var index = Math.Max(0, startTargetIndex);
             var pendingReturns = new List<(long Steppe, long Marksmen, long Marauders, DateTime ReturnAt)>();
@@ -103,7 +105,8 @@ namespace MainCore.Services
                                 i,
                                 retryAt,
                                 raids,
-                                draft.SteppeRidersRemaining));
+                                draft.SteppeRidersRemaining,
+                                false));
                         }
                     }
                 }
@@ -130,13 +133,20 @@ namespace MainCore.Services
                     else
                         browser.Logger.Warning("Clear oasis target {SlotId}: deactivation was not confirmed", target.SlotId);
                 }
+                if (maxTargetsPerPhase > 0 && raids >= maxTargetsPerPhase && i + 1 < targets.Value.Count)
+                    return Result.Ok(new ClearOasisScanResult(
+                        i + 1,
+                        null,
+                        raids,
+                        draft.SteppeRidersRemaining,
+                        true));
             }
 
             browser.Logger.Information(
                 "Clear oasis completed: list {FarmListId}, {TargetCount} targets, {RaidCount} raids, {RemainingSteppe} Steppe Riders, {RemainingMarksmen} Marksmen, {RemainingMarauders} Marauders",
                 farmId.Value, targets.Value.Count, raids,
                 draft.SteppeRidersRemaining, draft.MarksmenRemaining, draft.MaraudersRemaining);
-            return Result.Ok(new ClearOasisScanResult(0, null, raids, draft.SteppeRidersRemaining));
+            return Result.Ok(new ClearOasisScanResult(0, null, raids, draft.SteppeRidersRemaining, false));
         }
 
         private async Task<Result<RaidDraft>> ReadSteppeRiderDraft(
@@ -286,7 +296,7 @@ namespace MainCore.Services
             var marksmenDeficit = requiredMarksmen - availableMarksmenNow;
             var maraudersDeficit = requiredMarauders - availableMaraudersNow;
             if (steppeDeficit <= 0 && marksmenDeficit <= 0 && maraudersDeficit <= 0)
-                return DateTime.Now.AddSeconds(5);
+                return DateTime.Now;
 
             long steppeCumulative = 0;
             long marksmenCumulative = 0;

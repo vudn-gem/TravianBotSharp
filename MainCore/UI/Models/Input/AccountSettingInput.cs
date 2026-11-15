@@ -27,6 +27,9 @@ namespace MainCore.UI.Models.Input
                 settings.GetValueOrDefault(AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes, 10));
 
             FarmInterval.Set(settings.GetValueOrDefault(AccountSettingEnums.FarmIntervalMin), settings.GetValueOrDefault(AccountSettingEnums.FarmIntervalMax));
+            TargetPerPhase.Set(
+                settings.GetValueOrDefault(AccountSettingEnums.ClearTargetsPerPhaseMin, 999999),
+                settings.GetValueOrDefault(AccountSettingEnums.ClearTargetsPerPhaseMax, 999999));
             UseStartAllButton = settings.GetValueOrDefault(AccountSettingEnums.UseStartAllButton) == 1;
         }
 
@@ -44,6 +47,7 @@ namespace MainCore.UI.Models.Input
             var enableAutoSetHeroPoint = EnableAutoSetHeroPoint ? 1 : 0;
 
             var (farmIntervalMin, farmIntervalMax) = FarmInterval.Get();
+            var (targetPerPhaseMin, targetPerPhaseMax) = TargetPerPhase.Get();
             var (monitoringMin, monitoringMax) = ScheduledMonitoringInterval.Get();
             var useStartAllButton = UseStartAllButton ? 1 : 0;
 
@@ -57,6 +61,8 @@ namespace MainCore.UI.Models.Input
 
                 { AccountSettingEnums.FarmIntervalMin, farmIntervalMin },
                 { AccountSettingEnums.FarmIntervalMax, farmIntervalMax },
+                { AccountSettingEnums.ClearTargetsPerPhaseMin, targetPerPhaseMin },
+                { AccountSettingEnums.ClearTargetsPerPhaseMax, targetPerPhaseMax },
                 { AccountSettingEnums.UseStartAllButton, useStartAllButton },
 
                 { AccountSettingEnums.Tribe, tribe },
@@ -87,6 +93,7 @@ namespace MainCore.UI.Models.Input
         public RangeInputViewModel WorkTime { get; } = new();
         public RangeInputViewModel SleepTime { get; } = new();
         public RangeInputViewModel FarmInterval { get; } = new();
+        public RangeInputViewModel TargetPerPhase { get; } = new();
         public RangeInputViewModel ScheduledMonitoringInterval { get; } = new();
 
         [Reactive]

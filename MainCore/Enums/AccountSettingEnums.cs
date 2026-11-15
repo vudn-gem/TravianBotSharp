@@ -39,5 +39,7 @@
         ScheduledMonitoringIntervalMax,
         ScheduledMonitoringIntervalMinMinutes,
         ScheduledMonitoringIntervalMaxMinutes,
+        ClearTargetsPerPhaseMin,
+        ClearTargetsPerPhaseMax,
     }
 }

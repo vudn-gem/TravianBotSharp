@@ -19,7 +19,11 @@ namespace MainCore.Tasks
             public HashSet<string> ProcessedSlots { get; } = [];
             public HashSet<string> RetryAttemptedSlots { get; } = [];
             public DateTime? HeroReturnAt { get; set; }
-            public int RetryDelaySeconds { get; set; }
+            public int TaskBufferMilliseconds { get; set; }
+            public int RetryDelayMilliseconds { get; set; }
+            public int CurrentPhaseTargetLimit { get; set; }
+            public int CurrentPhaseSentCount { get; set; }
+            public bool SentRaidThisRun { get; set; }
             public bool ConfirmationAttempted { get; set; }
             protected override string TaskName => $"Hero clear oasis in farm list {FarmId.Value}";
             public override string Key => $"{AccountId}_{FarmId.Value}";
@@ -31,10 +35,14 @@ namespace MainCore.Tasks
         {
             if (task.ConfirmationAttempted)
                 return Stop.Error.WithError("Hero raid confirmation outcome is unknown. Check the game and remove this task before restarting it.");
-            if (task.HeroReturnAt is DateTime returnAt && returnAt.AddSeconds(5) > DateTime.Now)
+            if (task.HeroReturnAt is DateTime returnAt)
             {
-                task.ExecuteAt = returnAt.AddSeconds(5);
-                return Skip.Error.WithError("Waiting for the hero's estimated return.");
+                var readyAt = returnAt.AddMilliseconds(task.TaskBufferMilliseconds <= 0 ? 1000 : task.TaskBufferMilliseconds);
+                if (readyAt > DateTime.Now)
+                {
+                    task.ExecuteAt = task.ExecuteAt > readyAt ? task.ExecuteAt : readyAt;
+                    return Skip.Error.WithError("Waiting for the hero's estimated return.");
+                }
             }
             using var context = contextFactory.CreateDbContext();
             var settings = context.HeroOasisSettings.AsNoTracking().SingleOrDefault(x =>
@@ -43,12 +51,34 @@ namespace MainCore.Tasks
             if (settings is null) return Skip.Error.WithError("Hero oasis settings or farm list no longer exist.");
             var valid = HeroOasisSettings.Validate(settings);
             if (valid.IsFailed) return Skip.Error.WithErrors(valid.Errors);
-            task.RetryDelaySeconds = Math.Max(5, context.ByName(task.AccountId,
+            task.TaskBufferMilliseconds = Math.Max(200, context.ByName(task.AccountId,
+                AccountSettingEnums.TaskDelayMin, AccountSettingEnums.TaskDelayMax));
+            task.RetryDelayMilliseconds = Math.Max(400, context.ByName(task.AccountId,
                 AccountSettingEnums.TaskDelayMin, AccountSettingEnums.TaskDelayMax) * 2);
+            if (task.CurrentPhaseTargetLimit <= 0)
+            {
+                task.CurrentPhaseTargetLimit = Math.Max(1, context.ByName(task.AccountId,
+                    AccountSettingEnums.ClearTargetsPerPhaseMin, AccountSettingEnums.ClearTargetsPerPhaseMax));
+                task.CurrentPhaseSentCount = 0;
+            }
+            task.SentRaidThisRun = false;
 
             var opened = await toFarmListPageCommand.HandleAsync(new(task.AccountId), cancellationToken);
             if (opened.IsFailed) return opened;
-            return await scanner.Scan(task, settings, cancellationToken);
+            var scan = await scanner.Scan(task, settings, cancellationToken);
+            if (scan.IsFailed) return scan;
+            if (!task.SentRaidThisRun) return scan;
+            task.CurrentPhaseSentCount++;
+            if (task.CurrentPhaseSentCount < task.CurrentPhaseTargetLimit) return scan;
+            var phaseDelay = Math.Max(1, context.ByName(task.AccountId,
+                AccountSettingEnums.FarmIntervalMin, AccountSettingEnums.FarmIntervalMax));
+            task.ExecuteAt = DateTime.Now.AddSeconds(phaseDelay);
+            task.CurrentPhaseTargetLimit = Math.Max(1, context.ByName(task.AccountId,
+                AccountSettingEnums.ClearTargetsPerPhaseMin, AccountSettingEnums.ClearTargetsPerPhaseMax));
+            task.CurrentPhaseSentCount = 0;
+            task.HeroReturnAt = null;
+            return Skip.Error.WithError(
+                $"Hero clear oasis phase limit reached. Next phase at {task.ExecuteAt:yyyy-MM-dd HH:mm:ss}.");
         }
     }
 }
