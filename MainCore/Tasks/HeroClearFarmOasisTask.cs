@@ -1,4 +1,6 @@
 using MainCore.Commands.Navigate;
+using MainCore.Enums;
+using MainCore.Infrasturecture.Extensions;
 using MainCore.Tasks.Base;
 
 namespace MainCore.Tasks
@@ -13,8 +15,11 @@ namespace MainCore.Tasks
         {
             public FarmId FarmId { get; } = farmId;
             public VillageId? Owner { get; set; }
+            public VillageId? HeroVillage { get; set; }
             public HashSet<string> ProcessedSlots { get; } = [];
+            public HashSet<string> RetryAttemptedSlots { get; } = [];
             public DateTime? HeroReturnAt { get; set; }
+            public int RetryDelaySeconds { get; set; }
             public bool ConfirmationAttempted { get; set; }
             protected override string TaskName => $"Hero clear oasis in farm list {FarmId.Value}";
             public override string Key => $"{AccountId}_{FarmId.Value}";
@@ -38,6 +43,8 @@ namespace MainCore.Tasks
             if (settings is null) return Skip.Error.WithError("Hero oasis settings or farm list no longer exist.");
             var valid = HeroOasisSettings.Validate(settings);
             if (valid.IsFailed) return Skip.Error.WithErrors(valid.Errors);
+            task.RetryDelaySeconds = Math.Max(5, context.ByName(task.AccountId,
+                AccountSettingEnums.TaskDelayMin, AccountSettingEnums.TaskDelayMax) * 2);
 
             var opened = await toFarmListPageCommand.HandleAsync(new(task.AccountId), cancellationToken);
             if (opened.IsFailed) return opened;

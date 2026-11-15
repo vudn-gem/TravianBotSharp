@@ -35,6 +35,7 @@ namespace WPFUI.Views.Tabs
                 this.BindCommand(ViewModel, vm => vm.RemoveHeroClearOasisCommand, v => v.RemoveHeroClearOasisButton).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HasHeroOasisSettings, v => v.HeroOasisSettingsGroup.IsEnabled).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.MinAnimal, v => v.HeroMinAnimal.ViewModel).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.SafeAnimal, v => v.HeroSafeAnimal.ViewModel).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.MaxAnimal, v => v.HeroMaxAnimal.ViewModel).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.SteppeRiders, v => v.HeroSteppeRiders.ViewModel).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.Marksmen, v => v.HeroMarksmen.ViewModel).DisposeWith(d);

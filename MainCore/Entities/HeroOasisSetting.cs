@@ -9,6 +9,7 @@ namespace MainCore.Entities
         public int FarmId { get; set; }
         public int AllowedAnimals { get; set; }
         public int MinAnimal { get; set; } = 1;
+        public int SafeAnimal { get; set; }
         public int MaxAnimal { get; set; } = 100;
         public int SteppeRiders { get; set; } = 1;
         public int Marksmen { get; set; } = 1;

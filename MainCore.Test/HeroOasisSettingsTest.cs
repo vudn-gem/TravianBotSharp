@@ -32,6 +32,22 @@ namespace MainCore.Test
             HeroOasisSettings.AllowsAnimals(settings, [new(type, "Animal", count)]).ShouldBe(allowed);
         }
 
+        [Theory]
+        [InlineData(1, 3, false)]
+        [InlineData(2, 3, true)]
+        [InlineData(4, 3, false)]
+        public void AppliesSafeClearRange(int count, int safeAnimal, bool allowed)
+        {
+            var settings = new HeroOasisSetting
+            {
+                MinAnimal = 1,
+                SafeAnimal = safeAnimal,
+                MaxAnimal = 10,
+                AllowedAnimals = 1,
+            };
+            HeroOasisSettings.AllowsSafeClear(settings, [new(31, "Rat", count)]).ShouldBe(allowed);
+        }
+
         [Fact]
         public void ValidatesSettingsAndAllowsHeroOnly()
         {
@@ -41,6 +57,11 @@ namespace MainCore.Test
             settings.MaxAnimal = settings.MinAnimal - 1;
             HeroOasisSettings.Validate(settings).IsFailed.ShouldBeTrue();
             settings.MaxAnimal = 100;
+            settings.SafeAnimal = 40;
+            HeroOasisSettings.Validate(settings).IsSuccess.ShouldBeTrue();
+            settings.SafeAnimal = 1;
+            HeroOasisSettings.Validate(settings).IsFailed.ShouldBeTrue();
+            settings.SafeAnimal = 0;
             settings.MinHeroHealth = 101;
             HeroOasisSettings.Validate(settings).IsFailed.ShouldBeTrue();
             settings.MinHeroHealth = 50;

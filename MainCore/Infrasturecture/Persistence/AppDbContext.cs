@@ -75,6 +75,7 @@ namespace MainCore.Infrasturecture.Persistence
                     "FarmId" INTEGER NOT NULL PRIMARY KEY,
                     "AllowedAnimals" INTEGER NOT NULL DEFAULT 0,
                     "MinAnimal" INTEGER NOT NULL DEFAULT 1,
+                    "SafeAnimal" INTEGER NOT NULL DEFAULT 0,
                     "MaxAnimal" INTEGER NOT NULL DEFAULT 100,
                     "SteppeRiders" INTEGER NOT NULL DEFAULT 1,
                     "Marksmen" INTEGER NOT NULL DEFAULT 1,
@@ -85,6 +86,10 @@ namespace MainCore.Infrasturecture.Persistence
                     FOREIGN KEY ("FarmId") REFERENCES "FarmLists" ("Id") ON DELETE CASCADE
                 )
                 """);
+            var heroColumns = Database.SqlQueryRaw<string>(
+                """SELECT "name" AS "Value" FROM pragma_table_info('HeroOasisSettings')""").ToHashSet();
+            if (!heroColumns.Contains("SafeAnimal"))
+                Database.ExecuteSqlRaw("""ALTER TABLE "HeroOasisSettings" ADD COLUMN "SafeAnimal" INTEGER NOT NULL DEFAULT 0""");
             var heroSettingsFarms = HeroOasisSettings.Select(x => x.FarmId).ToHashSet();
             foreach (var farmId in FarmLists.Select(x => x.Id).ToList())
             {

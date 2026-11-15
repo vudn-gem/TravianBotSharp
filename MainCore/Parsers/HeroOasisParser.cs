@@ -4,6 +4,13 @@ using System.Text.RegularExpressions;
 namespace MainCore.Parsers
 {
     public sealed record HeroSimulationResult(int HealthBefore, int HealthAfter, int SubTroopLost, bool HeroSurvives);
+    public enum HeroHudState
+    {
+        Home,
+        Running,
+        Unknown,
+    }
+    public sealed record HeroHudStatus(HeroHudState State, VillageId? Village, int? SecondsUntilReady, string TooltipText);
 
     public static class HeroOasisParser
     {
@@ -35,6 +42,46 @@ namespace MainCore.Parsers
                 !TryCount(await available.InnerTextAsync(), out var count) || count > 1)
                 return Result.Fail("Hero availability cannot be read.");
             return Result.Ok(count == 1 && await input.IsEnabledAsync());
+        }
+
+        public static async Task<Result<HeroHudStatus>> ReadHudStatus(IPage page)
+        {
+            var status = page.Locator("#topBarHeroWrapper #topBarHero .heroStatus");
+            if (await status.CountAsync() != 1)
+                return Result.Fail("Hero HUD status is missing or ambiguous.");
+            var anchor = status.Locator("a[href]");
+            var icon = anchor.Locator("i");
+            if (await anchor.CountAsync() != 1 || await icon.CountAsync() != 1)
+                return Result.Fail("Hero HUD icon is missing or ambiguous.");
+            var classes = await icon.GetAttributeAsync("class") ?? "";
+            var hasHome = classes.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Contains("heroHome", StringComparer.Ordinal);
+            var hasRunning = classes.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Contains("heroRunning", StringComparer.Ordinal);
+            var state = hasHome && !hasRunning ? HeroHudState.Home :
+                hasRunning && !hasHome ? HeroHudState.Running : HeroHudState.Unknown;
+            var href = await anchor.GetAttributeAsync("href");
+            var village = ParseVillageId(href);
+            if (state != HeroHudState.Running)
+                return Result.Ok(new HeroHudStatus(state, village, null, ""));
+            var tooltip = await ReadTooltipText(page, status);
+            if (tooltip.IsFailed) return Result.Fail(tooltip.Errors);
+            var timer = await ReadTooltipTimer(status, page);
+            if (timer.IsFailed) return Result.Fail(timer.Errors);
+            return Result.Ok(new HeroHudStatus(state, village, timer.Value, tooltip.Value));
+        }
+
+        public static async Task<Result<int>> ReadHudHealth(IPage page)
+        {
+            var title = page.Locator("#topBarHeroWrapper #topBarHero svg.health path.title");
+            if (await title.CountAsync() != 1)
+                return Result.Fail("Hero health bar is missing or ambiguous.");
+            var tooltip = await ReadTooltipText(page, title);
+            if (tooltip.IsFailed) return Result.Fail(tooltip.Errors);
+            var match = Regex.Match(tooltip.Value, @"\bHealth:\s*(?<health>\d{1,3})\s*%");
+            if (!match.Success || !TryCount(match.Groups["health"].Value, out var health) || health > 100)
+                return Result.Fail("Hero health tooltip is missing or invalid.");
+            return Result.Ok(health);
         }
 
         public static async Task<Result<string>> SimulatorUrl(IPage page)
@@ -290,6 +337,50 @@ namespace MainCore.Parsers
             uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
                 .Select(x => x.Split('=', 2)).Where(x => x.Length == 2 && x[0] == name)
                 .Select(x => Uri.UnescapeDataString(x[1])).SingleOrDefault();
+
+        private static VillageId? ParseVillageId(string? href)
+        {
+            if (string.IsNullOrWhiteSpace(href)) return null;
+            if (!Uri.TryCreate(new Uri("https://example.com"), href, out var url))
+                return null;
+            if (!int.TryParse(Query(url, "newdid"), NumberStyles.None, CultureInfo.InvariantCulture, out var id) || id <= 0)
+                return null;
+            return new VillageId(id);
+        }
+
+        private static async Task<Result<string>> ReadTooltipText(IPage page, ILocator anchor)
+        {
+            await anchor.HoverAsync();
+            await page.WaitForTimeoutAsync(60);
+            var tooltipId = await anchor.GetAttributeAsync("aria-describedby");
+            if (string.IsNullOrWhiteSpace(tooltipId))
+                return Result.Fail("Hero tooltip did not open.");
+            var text = page.Locator($"#{tooltipId} .tippy-content .text");
+            if (await text.CountAsync() != 1)
+                return Result.Fail("Hero tooltip text is missing or ambiguous.");
+            return Result.Ok(Clean(await text.InnerTextAsync()));
+        }
+
+        private static async Task<Result<int>> ReadTooltipTimer(ILocator anchor, IPage page)
+        {
+            var tooltipId = await anchor.GetAttributeAsync("aria-describedby");
+            if (string.IsNullOrWhiteSpace(tooltipId))
+                return Result.Fail("Hero travel tooltip did not open.");
+            var timer = page.Locator($"#{tooltipId} .timer");
+            if (await timer.CountAsync() != 1)
+                return Result.Fail("Hero travel timer is missing or ambiguous.");
+            var raw = await timer.GetAttributeAsync("data-value") ??
+                await timer.GetAttributeAsync("value") ?? "";
+            if (int.TryParse(Clean(raw), NumberStyles.None, CultureInfo.InvariantCulture, out var seconds) && seconds >= 0)
+                return Result.Ok(seconds);
+            var duration = Clean(await timer.InnerTextAsync());
+            var match = Regex.Match(duration, @"^(?<h>\d+):(?<m>\d{2}):(?<s>\d{2})$");
+            if (!match.Success || !int.TryParse(match.Groups["h"].Value, out var h) ||
+                !int.TryParse(match.Groups["m"].Value, out var m) ||
+                !int.TryParse(match.Groups["s"].Value, out var s) || m > 59 || s > 59)
+                return Result.Fail("Hero travel timer value is invalid.");
+            return Result.Ok(checked(h * 3600 + m * 60 + s));
+        }
 
         private static string Clean(string text) =>
             Regex.Replace(text, @"[\u200e\u200f\u202a-\u202e\u2066-\u2069]", "").Trim();

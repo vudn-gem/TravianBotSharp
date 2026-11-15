@@ -6,6 +6,9 @@ namespace MainCore.Services
         {
             if (setting.MinAnimal < 0 || setting.MaxAnimal < setting.MinAnimal)
                 return Result.Fail("Animal limits must satisfy 0 <= min animal <= max animal.");
+            if (setting.SafeAnimal < 0 || (setting.SafeAnimal != 0 &&
+                (setting.SafeAnimal <= setting.MinAnimal || setting.SafeAnimal > setting.MaxAnimal)))
+                return Result.Fail("Safe animal must be zero (disabled) or satisfy min animal < safe animal <= max animal.");
             if (setting.AllowedAnimals < 0 || (setting.AllowedAnimals & ~1023) != 0)
                 return Result.Fail("Allowed animal selection is invalid.");
             if (setting.SteppeRiders is < 0 or > 999999 ||
@@ -22,6 +25,15 @@ namespace MainCore.Services
         {
             var total = animals.Sum(x => x.Count);
             return total >= setting.MinAnimal && total <= setting.MaxAnimal &&
+                animals.All(x => x.Count == 0 || (x.UnitId is >= 31 and <= 40 &&
+                    (setting.AllowedAnimals & (1 << (x.UnitId - 31))) != 0));
+        }
+
+        public static bool AllowsSafeClear(HeroOasisSetting setting, IReadOnlyList<OasisAnimalTroop> animals)
+        {
+            if (setting.SafeAnimal <= 0) return false;
+            var total = animals.Sum(x => x.Count);
+            return total > setting.MinAnimal && total < setting.SafeAnimal &&
                 animals.All(x => x.Count == 0 || (x.UnitId is >= 31 and <= 40 &&
                     (setting.AllowedAnimals & (1 << (x.UnitId - 31))) != 0));
         }

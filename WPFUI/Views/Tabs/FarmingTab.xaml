@@ -89,6 +89,7 @@
                         <StackPanel Margin="8">
                             <WrapPanel>
                                 <uc:AmountInputUc x:Name="HeroMinAnimal" Text="Min animal" Unit="animals" Margin="0,0,12,0" />
+                                <uc:AmountInputUc x:Name="HeroSafeAnimal" Text="Safe animal (< no simulate)" Unit="animals" Margin="0,0,12,0" />
                                 <uc:AmountInputUc x:Name="HeroMaxAnimal" Text="Max animal" Unit="animals" />
                             </WrapPanel>
                             <TextBlock Text="Sub troops accompanying one hero (Hun)" FontWeight="SemiBold" Margin="0,8,0,4" />

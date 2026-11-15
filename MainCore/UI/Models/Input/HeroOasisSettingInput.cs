@@ -7,6 +7,7 @@ namespace MainCore.UI.Models.Input
     {
         public FarmOasisSettingInput Animals { get; } = new();
         public AmountInputViewModel MinAnimal { get; } = new();
+        public AmountInputViewModel SafeAnimal { get; } = new();
         public AmountInputViewModel MaxAnimal { get; } = new();
         public AmountInputViewModel SteppeRiders { get; } = new();
         public AmountInputViewModel Marksmen { get; } = new();
@@ -19,6 +20,7 @@ namespace MainCore.UI.Models.Input
         {
             Animals.Set(new FarmOasisSetting { AllowedAnimals = setting.AllowedAnimals });
             MinAnimal.Set(setting.MinAnimal);
+            SafeAnimal.Set(setting.SafeAnimal);
             MaxAnimal.Set(setting.MaxAnimal);
             SteppeRiders.Set(setting.SteppeRiders);
             Marksmen.Set(setting.Marksmen);
@@ -33,6 +35,7 @@ namespace MainCore.UI.Models.Input
             FarmId = farmId,
             AllowedAnimals = Animals.Get(farmId).AllowedAnimals,
             MinAnimal = MinAnimal.Get(),
+            SafeAnimal = SafeAnimal.Get(),
             MaxAnimal = MaxAnimal.Get(),
             SteppeRiders = SteppeRiders.Get(),
             Marksmen = Marksmen.Get(),

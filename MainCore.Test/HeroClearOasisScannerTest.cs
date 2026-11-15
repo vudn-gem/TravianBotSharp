@@ -62,7 +62,7 @@ namespace MainCore.Test
             if (health < minimum)
             {
                 outcome.Simulates.ShouldBe(0);
-                outcome.Result.HasError<Skip>().ShouldBeTrue();
+                outcome.Result.HasError<Stop>().ShouldBeTrue();
             }
             else outcome.Simulates.ShouldBe(1);
             if (sends)
@@ -293,6 +293,21 @@ namespace MainCore.Test
             {
                 var uri = new Uri(route.Request.Url);
                 if (uri.AbsolutePath == "/dorf1.php") switched = true;
+                var heroHud = $"""
+                    <div id="topBarHeroWrapper">
+                        <div id="topBarHero" class="heroV2">
+                            <svg class="health"><path class="title" aria-describedby="tippy-health"></path></svg>
+                            <div class="heroStatus">
+                                <a href="/build.php?newdid=2&amp;id=39&amp;&amp;tt=2"><i class="heroHome"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                    <div data-tippy-root id="tippy-health">
+                        <div class="tippy-content">
+                            <div class="text">Health: {health}%</div>
+                        </div>
+                    </div>
+                    """;
                 var villages = $"""
                     <div id="sidebarBoxVillageList">
                     <div class="listEntry village {(switched ? "active" : "")}" data-did="2" onclick="location.href='/dorf1.php?newdid=2'"><span class="name">Home</span></div>
@@ -377,7 +392,7 @@ namespace MainCore.Test
                         <div id="map_details"><table id="troop_info"><tbody><tr><td><img class="unit u31"></td><td class="val">200</td></tr></tbody></table></div>
                         </div></template>
                         """;
-                await route.FulfillAsync(new() { ContentType = "text/html; charset=utf-8", Body = villages + body });
+                await route.FulfillAsync(new() { ContentType = "text/html; charset=utf-8", Body = heroHud + villages + body });
             });
             await page.GotoAsync("https://example.com/build.php?gid=16&tt=99");
             var browser = Substitute.For<IChromeBrowser>();
