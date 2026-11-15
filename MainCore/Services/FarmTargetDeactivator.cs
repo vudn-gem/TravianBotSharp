@@ -6,30 +6,43 @@ namespace MainCore.Services
             IChromeBrowser browser, FarmId farmId, FarmTargetSlot target, CancellationToken cancellationToken)
         {
             var page = browser.CurrentPage;
-            var edit = await FarmTargetTroopsParser.FindEditLink(page, farmId, target.SlotId);
-            if (edit.IsFailed) return Result.Fail(edit.Errors);
-            var result = await browser.Click(edit.Value);
-            if (result.IsFailed) return Result.Fail(result.Errors);
-            result = await browser.Wait(page.Locator("#farmListTargetForm"));
-            if (result.IsFailed) return Result.Fail(result.Errors);
-            var selected = await OffensiveReportParser.ReadSelectedFarmList(page);
-            if (selected.IsFailed) return Result.Fail(selected.Errors);
-            if (selected.Value != farmId.Value.ToString())
-                return Result.Fail("Edit dialog selected a different farm list.");
-            var matches = await page.Locator("#farmListTargetForm").EvaluateAsync<bool>(@"(form, href) => {
+            var row = FarmTargetTroopsParser.GetList(page, farmId)
+                .Locator($"tr.slot:has(input[data-slot-id='{target.SlotId}'])");
+            if (await row.CountAsync() != 1)
+                return Result.Fail("Target slot is missing or ambiguous.");
+            if (await row.EvaluateAsync<bool>("node => node.classList.contains('disabled')"))
+                return Result.Ok(false);
+            var matches = await row.EvaluateAsync<bool>(@"(node, href) => {
                 const url = new URL(href, location.href);
-                return form.querySelector('input[name=""x""]')?.value === url.searchParams.get('x') &&
-                    form.querySelector('input[name=""y""]')?.value === url.searchParams.get('y');
+                const target = node.querySelector('td.target a');
+                if (!target) return false;
+                const targetUrl = new URL(target.getAttribute('href'), location.href);
+                return targetUrl.searchParams.get('x') === url.searchParams.get('x') &&
+                    targetUrl.searchParams.get('y') === url.searchParams.get('y');
             }", target.Href);
-            if (!matches) return Result.Fail("Edit dialog target coordinates do not match.");
+            if (!matches) return Result.Fail("Farm target coordinates do not match.");
             cancellationToken.ThrowIfCancellationRequested();
-            var checkbox = page.Locator("#farmListTargetForm .deactivateSlot input[name='isActive']");
-            if (await checkbox.IsCheckedAsync()) return Result.Ok(false);
-            await checkbox.CheckAsync(new LocatorCheckOptions { Timeout = 3000 });
-            result = await browser.Click(page.Locator("#farmListTargetForm .actionButtons button.save[type='submit']"));
+
+            ILocator openMenu = row.Locator("td.openContextMenu > a");
+            if (await openMenu.CountAsync() != 1)
+                openMenu = row.Locator("td.openContextMenu > button, .actions .menuButton, .actions > button, .actions > a");
+            if (await openMenu.CountAsync() < 1)
+                return Result.Fail("Unable to find target context menu trigger.");
+            var result = await browser.Click(openMenu.First);
             if (result.IsFailed) return Result.Fail(result.Errors);
-            await page.Locator("#farmListTargetForm").WaitForAsync(new LocatorWaitForOptions
-                { State = WaitForSelectorState.Hidden, Timeout = 5000 });
+
+            ILocator deactivate = row.Locator("td.openContextMenu .contextMenuWrapper .contextMenu button.entry.deactivate");
+            if (await deactivate.CountAsync() != 1)
+                deactivate = page.Locator(".contextMenuWrapper .contextMenu button.entry.deactivate");
+            if (await deactivate.CountAsync() != 1)
+                deactivate = row.Locator(".menu [data-action='deactivate'], .menu button[data-action='deactivate']");
+            if (await deactivate.CountAsync() != 1)
+                return Result.Fail("Unable to find target deactivation menu action.");
+            result = await browser.Wait(deactivate);
+            if (result.IsFailed) return Result.Fail(result.Errors);
+            cancellationToken.ThrowIfCancellationRequested();
+            result = await browser.Click(deactivate);
+            if (result.IsFailed) return Result.Fail(result.Errors);
             return Result.Ok(true);
         }
 

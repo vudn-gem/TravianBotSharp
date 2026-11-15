@@ -54,7 +54,13 @@ namespace MainCore.Test
                     <table class="slots"><tbody>
                     <tr class="slot {(disabled ? "disabled" : "")}"><td><input name="selectOne" data-slot-id="1"></td>
                     <td class="target"><a href="/karte.php?x=25&amp;y=184"
-                    onclick="document.querySelector('#dialogContent').innerHTML=document.querySelector('#map1').innerHTML;return false;">First</a></td></tr>
+                    onclick="document.querySelector('#dialogContent').innerHTML=document.querySelector('#map1').innerHTML;return false;">First</a></td>
+                    <td class="actions">
+                    <button class="menuButton" onclick="document.querySelector('#slot-menu-1').hidden=false">⋯</button>
+                    <div id="slot-menu-1" class="menu" hidden>
+                    <button data-action="deactivate"
+                    onclick="fetch('/save').then(()=>{{document.querySelector('#slot-menu-1').hidden=true;{(persist ? "document.querySelector(\"input[data-slot-id='1']\")?.closest(\"tr.slot\")?.classList.add(\"disabled\");" : "")}}})">Deactivate target</button>
+                    </div></td></tr>
                     <tr class="slot"><td><input name="selectOne" data-slot-id="2"></td>
                     <td class="target"><a href="/karte.php?x=26&amp;y=184"
                     onclick="document.querySelector('#dialogContent').innerHTML=document.querySelector('#map2').innerHTML;return false;">Second</a></td></tr>
@@ -69,7 +75,6 @@ namespace MainCore.Test
                     <div class="detailImage"><div class="options"><div class="option">
                     <a href="/build.php?gid=16&amp;tt=2&amp;eventType=4">Raid</a>
                     </div></div></div>
-                    <div class="options"><a onclick="/* SLOT_DIALOG_TYPE_EDIT, listId: 6706, editSlotIds: [1] */ document.querySelector('#edit').hidden=false;document.querySelector('#dialogContent').innerHTML=''">Edit farm list</a></div>
                     </div></template>
                     <template id="map2"><div id="tileDetails" class="oasis">
                     <a data-centermap href="/karte.php?x=26&amp;y=184">Center</a>
@@ -77,13 +82,6 @@ namespace MainCore.Test
                     <div class="detailImage"><div class="options"><div class="option">
                     <a href="/build.php?gid=16&amp;tt=2&amp;eventType=4">Raid</a></div></div></div>
                     </div></template>
-                    <div id="edit" hidden><div class="contentV2"><h3>Edit target</h3><div id="farmListTargetForm">
-                    <select name="listId"><option value="6706">list</option></select>
-                    <input name="x" value="25"><input name="y" value="184">
-                    <div class="deactivateSlot"><input name="isActive" type="checkbox"></div>
-                    <div class="actionButtons"><button class="save" type="submit"
-                    onclick="fetch('/save').then(()=>document.querySelector('#farmListTargetForm').remove())">Save</button></div>
-                    </div></div></div>
                     """;
                 await route.FulfillAsync(new() { ContentType = "text/html", Body = body });
             });
@@ -111,7 +109,7 @@ namespace MainCore.Test
             });
             var allowed = allowAll ? new HashSet<int> { 31, 32 } : new HashSet<int> { 31 };
             var settings = new OasisRaidSettings(allowed, 2, OasisAttackTroop.SteppeRider, 2, 0, 0, limit);
-            var result = await new ClearOasisScanner(browser).Scan(new FarmId(6706), settings, 0, CancellationToken.None);
+            var result = await new ClearOasisScanner(browser).Scan(new FarmId(6706), settings, 0, 999999, CancellationToken.None);
             result.IsSuccess.ShouldBeTrue();
             disabled.ShouldBe(expectedDisabled);
             saves.ShouldBe(expectedSaves);
@@ -202,7 +200,7 @@ namespace MainCore.Test
                 return Result.Ok();
             });
             var settings = new OasisRaidSettings(new HashSet<int> { 31 }, 2, attackTroop, raidSteppe, raidMarksmen, raidMarauders);
-            var result = await new ClearOasisScanner(browser).Scan(new FarmId(6706), settings, 0, CancellationToken.None);
+            var result = await new ClearOasisScanner(browser).Scan(new FarmId(6706), settings, 0, 999999, CancellationToken.None);
             result.IsSuccess.ShouldBeTrue();
             result.Value.RaidCount.ShouldBe(sends ? 1 : 0);
             if (!sends)
@@ -310,7 +308,7 @@ namespace MainCore.Test
                 return Result.Ok();
             });
             var settings = new OasisRaidSettings(new HashSet<int> { 31 }, 2, attackTroop, raidSteppe, raidMarksmen, 0, 5);
-            var result = await new ClearOasisScanner(browser).Scan(new FarmId(6706), settings, 0, CancellationToken.None);
+            var result = await new ClearOasisScanner(browser).Scan(new FarmId(6706), settings, 0, 999999, CancellationToken.None);
             result.IsSuccess.ShouldBeTrue();
             result.Value.RaidCount.ShouldBe(expectedRaids);
             submitted.Count.ShouldBe(expectedRaids);

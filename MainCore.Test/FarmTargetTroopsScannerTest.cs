@@ -20,14 +20,13 @@ namespace MainCore.Test
         }
 
         [Theory]
-        [InlineData("2", false, "6706", true, 1)]
-        [InlineData("none", false, "6706", true, 0)]
-        [InlineData("?", false, "6706", true, 0)]
-        [InlineData("2", true, "6706", true, 0)]
-        [InlineData("2", false, "56", true, 0)]
-        [InlineData("2", false, "6706", false, 1)]
+        [InlineData("2", false, true, 1)]
+        [InlineData("none", false, true, 0)]
+        [InlineData("?", false, true, 0)]
+        [InlineData("2", true, true, 0)]
+        [InlineData("2", false, false, 1)]
         public async Task DisablesOnlyConfirmedTroopTargetsInSelectedList(
-            string troopCount, bool initiallyDisabled, string selectedList, bool persist, int expectedSaves)
+            string troopCount, bool initiallyDisabled, bool persist, int expectedSaves)
         {
             await using var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -58,20 +57,21 @@ namespace MainCore.Test
                     <a data-centermap href="/karte.php?x=25&amp;y=184">Center map</a>
                     <div id="map_details"><table id="troop_info"><tbody>{troops}</tbody></table>
                     <div><table id="troop_info" class="rep"><tr><td>No information</td></tr></table></div></div>
-                    <div class="options"><a onclick="/* SLOT_DIALOG_TYPE_EDIT, listId: 6706, editSlotIds: [637157] */ document.querySelector('#edit').hidden=false;document.querySelector('#dialogContent').hidden=true">Edit farm list</a></div></div></div>
-                    <div id="edit" hidden><div class="contentV2"><h3>Edit target</h3><div id="farmListTargetForm">
-                    <select name="listId"><option value="{selectedList}">list</option></select>
-                    <input name="x" value="25"><input name="y" value="184">
-                    <div class="deactivateSlot"><input name="isActive" type="checkbox"></div>
-                    <div class="actionButtons"><button class="save" type="submit" onclick="fetch('/save').then(()=>document.querySelector('#farmListTargetForm').remove())">Save</button></div>
-                    </div></div></div>
+                    </div></div>
                     """;
                 var body = $"""
                     <div id="rallyPointFarmList"><div class="farmListWrapper expanded">
                     <div class="farmListHeader"><div data-list="6706"></div></div>
                     <table class="slots"><tbody><tr class="slot {(disabled ? "disabled" : "")}">
                     <td><input name="selectOne" data-slot-id="637157"></td>
-                    <td class="target"><a href="/karte.php?x=25&amp;y=184">Oasis</a></td></tr></tbody></table></div></div>
+                    <td class="target"><a href="/karte.php?x=25&amp;y=184">Oasis</a></td>
+                    <td class="actions">
+                        <button class="menuButton" onclick="document.querySelector('#slot-menu-637157').hidden=false">⋯</button>
+                        <div id="slot-menu-637157" class="menu" hidden>
+                            <button data-action="deactivate" onclick="fetch('/save').then(()=>{{document.querySelector('#slot-menu-637157').hidden=true;{(persist ? "document.querySelector(\"input[data-slot-id='637157']\")?.closest(\"tr.slot\")?.classList.add(\"disabled\");" : "")}}})">Deactivate target</button>
+                        </div>
+                    </td>
+                    </tr></tbody></table></div></div>
                     """;
                 if (route.Request.Url.Contains("/karte.php", StringComparison.Ordinal))
                 {
