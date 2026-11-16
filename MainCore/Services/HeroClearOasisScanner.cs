@@ -30,7 +30,8 @@ namespace MainCore.Services
                 return Stop.Error.WithError("Hero village differs from farm list owner village.");
             task.Owner = owner.Value;
             var village = VillagePanelParser.GetVillageNode(page, owner.Value);
-            if (!await VillagePanelParser.IsActive(village))
+            var switchedVillage = !await VillagePanelParser.IsActive(village);
+            if (switchedVillage)
             {
                 var switched = await browser.Click(village);
                 if (switched.IsFailed) return switched;
@@ -39,20 +40,13 @@ namespace MainCore.Services
                 if (switched.IsFailed) return switched;
             }
             farmUrl.Query = $"gid=16&tt=99&newdid={owner.Value.Value}";
-            var sendUrl = FarmTargetTroopsParser.BuildRallyPointTabUrl(farmUrl.Uri.AbsoluteUri, 2);
-            var opened = await browser.Navigate(sendUrl);
-            if (opened.IsFailed) return opened;
-            var ready = await browser.Wait(page.Locator("#build .a2b form[action*='tt=2'] #troops"));
-            if (ready.IsFailed) return ready;
-            if (await VillagePanelParser.GetCurrentVillageId(page) != owner.Value)
-                return Stop.Error.WithError("Hero availability village switch was not confirmed.");
-            var home = await HeroOasisParser.IsHeroHome(page);
-            if (home.IsFailed) return Stop.Error.WithErrors(home.Errors);
-            if (!home.Value) return Skip.Error.WithError("Hero is not in the farm list village. Hero clear task canceled.");
             task.HeroReturnAt = null;
 
-            opened = await FarmListNavigation.Open(browser, farmUrl.Uri.AbsoluteUri, owner.Value, preferRallyPointTab: true);
-            if (opened.IsFailed) return opened;
+            if (switchedVillage)
+            {
+                var opened = await FarmListNavigation.Open(browser, farmUrl.Uri.AbsoluteUri, owner.Value);
+                if (opened.IsFailed) return opened;
+            }
             var prepared = await FarmListPreparation.Prepare(browser, task.FarmId, owner.Value);
             if (prepared.IsFailed) return Stop.Error.WithErrors(prepared.Errors);
 

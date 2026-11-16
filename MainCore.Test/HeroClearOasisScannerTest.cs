@@ -70,6 +70,7 @@ namespace MainCore.Test
                 outcome.Result.IsSuccess.ShouldBeTrue();
                 outcome.Context.Pages.Count.ShouldBe(1);
                 outcome.Context.Pages[0].Url.ShouldContain("gid=16");
+                outcome.MainTabOpenedSendTroops.ShouldBeFalse();
                 outcome.Task.ProcessedSlots.ShouldContain("1");
                 outcome.Task.HeroReturnAt.ShouldNotBeNull();
                 outcome.Task.ExecuteAt.ShouldBe(outcome.Task.HeroReturnAt.Value.AddSeconds(5));
@@ -235,7 +236,8 @@ namespace MainCore.Test
 
         private sealed record Outcome(
             Result Result, HeroClearFarmOasisTask.Task Task, HeroOasisSetting Settings,
-            HeroClearOasisScanner Scanner, IBrowserContext Context, int Confirms, int Simulates, string Details);
+            HeroClearOasisScanner Scanner, IBrowserContext Context, int Confirms, int Simulates,
+            string Details, bool MainTabOpenedSendTroops);
 
         private async Task<Outcome> Run(
             int health, int after, int minimum, int maxHealthLost, int lost, int maxTroopLost,
@@ -249,6 +251,7 @@ namespace MainCore.Test
             page.SetDefaultTimeout(1500);
             var confirms = 0;
             var simulates = 0;
+            var mainTabOpenedSendTroops = false;
             var settings = new HeroOasisSetting
             {
                 FarmId = 10, AllowedAnimals = 1, MinHeroHealth = minimum,
@@ -457,7 +460,10 @@ namespace MainCore.Test
             });
             browser.Navigate(Arg.Any<string>()).Returns(async call =>
             {
-                await currentPage.GotoAsync((string)call[0]);
+                var url = (string)call[0];
+                if (currentPage == page && HeroOasisParser.Query(new Uri(url), "tt") == "2")
+                    mainTabOpenedSendTroops = true;
+                await currentPage.GotoAsync(url);
                 return Result.Ok();
             });
             browser.Wait(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
@@ -478,7 +484,8 @@ namespace MainCore.Test
             }
             var details = string.Join("; ", result.Errors.Select(x => x.Message)) + " " +
                 string.Join("; ", logger.ReceivedCalls().Select(call => string.Join(" ", call.GetArguments())));
-            return new(result, task, settings, scanner, context, confirms, simulates, details);
+            return new(result, task, settings, scanner, context, confirms, simulates, details,
+                mainTabOpenedSendTroops);
         }
 
         private static string HiddenArmy(string prefix, int[] army, bool blankZeros = false) =>

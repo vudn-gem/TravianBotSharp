@@ -91,12 +91,14 @@ clicking **Hero clear oasis**.
 - **Max sub troop lost** limits the total dead sub troops; zero permits no deaths.
   Equality with any threshold is allowed. A dead hero is never sent.
 
-TBS switches to the farm list's village and checks hero availability in Send
-troops. The hero must be available there. For each target, TBS opens the oasis
-in a temporary tab, checks its animals, and simulates or prepares the raid in
-that tab. The main tab stays on the farm list. After sending, the temporary tab
-closes and the task waits until the hero returns before resuming; on resumption
-TBS navigates back to the farm list if another task changed the main tab.
+TBS checks the hero HUD and its village against the farm list owner, switching
+villages if needed; it does not open Send troops just to check hero availability.
+For each target, TBS opens the oasis in a temporary tab, checks its animals, and
+simulates or prepares the raid in that tab. The main tab stays on the farm list.
+Hero availability is checked again on the send form before dispatch. After
+sending, the temporary tab closes and the task waits until the hero returns
+before resuming; on resumption TBS navigates back to the farm list if another
+task changed the main tab.
 Each eligible oasis is simulated as a raid with the configured army. TBS checks
 real troop availability and requires the
 confirmation army, village, coordinates and raid type to match the simulation
