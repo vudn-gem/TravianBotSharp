@@ -33,9 +33,11 @@ namespace MainCore.Test
             var disabled = initiallyDisabled;
             var saves = 0;
             var mapOpens = 0;
+            var events = new List<string>();
+            var originNavigations = 0;
             var currentVillage = 1;
             var switches = 0;
-            await page.RouteAsync("https://example.com/**", async route =>
+            await context.RouteAsync("https://example.com/**", async route =>
             {
                 var url = new Uri(route.Request.Url);
                 if (url.AbsolutePath == "/switch")
@@ -53,59 +55,71 @@ namespace MainCore.Test
                 var troops = troopCount == "none" ? "<tr><td>none</td></tr>" :
                     $"<tr><td><img class='unit u31'></td><td class='val'>{troopCount}</td></tr>";
                 var map = $"""
-                    <div id="dialogContent"><div id="tileDetails" class="oasis">
+                    <div id="tileDetails" class="oasis">
                     <a data-centermap href="/karte.php?x=25&amp;y=184">Center map</a>
                     <div id="map_details"><table id="troop_info"><tbody>{troops}</tbody></table>
                     <div><table id="troop_info" class="rep"><tr><td>No information</td></tr></table></div></div>
-                    </div></div>
+                    </div>
                     """;
                 var body = $"""
                     <div id="rallyPointFarmList"><div class="farmListWrapper expanded">
                     <div class="farmListHeader"><div data-list="6706"></div></div>
                     <table class="slots"><tbody><tr class="slot {(disabled ? "disabled" : "")}">
                     <td><input name="selectOne" data-slot-id="637157"></td>
-                    <td class="target"><a href="/karte.php?x=25&amp;y=184">Oasis</a></td>
-                    <td class="actions">
-                        <button class="menuButton" onclick="document.querySelector('#slot-menu-637157').hidden=false">⋯</button>
-                        <div id="slot-menu-637157" class="menu" hidden>
-                            <button data-action="deactivate" onclick="fetch('/save').then(()=>{{document.querySelector('#slot-menu-637157').hidden=true;{(persist ? "document.querySelector(\"input[data-slot-id='637157']\")?.closest(\"tr.slot\")?.classList.add(\"disabled\");" : "")}}})">Deactivate target</button>
-                        </div>
-                    </td>
-                    </tr></tbody></table></div></div>
+                    <td class="target"><a href="/karte.php?x=25&amp;y=184"
+                    onclick="document.querySelector('#dialogContent').innerHTML=document.querySelector('#target-map').innerHTML;return false;">Oasis</a></td>
+                    <td class="actions"><button class="menuButton" onclick="document.querySelector('#slot-menu-637157').hidden=false">⋯</button>
+                    <div id="slot-menu-637157" class="menu" hidden>
+                    <button data-action="deactivate" onclick="fetch('/save').then(()=>{{document.querySelector('#slot-menu-637157').hidden=true;{(persist ? "document.querySelector(\"input[data-slot-id='637157']\")?.closest(\"tr.slot\")?.classList.add(\"disabled\");" : "")}}})">Deactivate target</button>
+                    </div></td></tr></tbody></table></div></div>
+                    <div id="dialogContent"></div><template id="target-map">{map}</template>
                     """;
-                if (route.Request.Url.Contains("/karte.php", StringComparison.Ordinal))
-                {
-                    currentVillage.ShouldBe(2);
-                    mapOpens++;
-                    body = map;
-                }
-                else
-                {
-                    body = $"""
-                        <div id="sidebarBoxVillageList">
-                        <div class="listEntry village {(currentVillage == 1 ? "active" : "")}" data-did="1"><span class="name">0</span></div>
-                        <div class="listEntry village {(currentVillage == 2 ? "active" : "")}" data-did="2" onclick="location.href='/switch'"><span class="name">7</span></div>
-                        </div>
-                        """ + body.Replace(
-                            "<div id=\"rallyPointFarmList\">",
-                            """<div id="rallyPointFarmList"><div class="villageWrapper"><div class="villageHeader collapsed"><div class="villageName">7</div><a class="expandCollapse" onclick="this.parentElement.classList.replace('collapsed', 'expanded')"><svg width="12" height="8" viewBox="0 0 12 8"><path d="M0 0L6 8L12 0Z"></path></svg></a></div>""") + "</div>";
-                }
+                body = $"""
+                    <div id="sidebarBoxVillageList">
+                    <div class="listEntry village {(currentVillage == 1 ? "active" : "")}" data-did="1"><span class="name">0</span></div>
+                    <div class="listEntry village {(currentVillage == 2 ? "active" : "")}" data-did="2" onclick="location.href='/switch'"><span class="name">7</span></div>
+                    </div>
+                    """ + body.Replace(
+                        "<div id=\"rallyPointFarmList\">",
+                        """<div id="rallyPointFarmList"><div class="villageWrapper"><div class="villageHeader collapsed"><div class="villageName">7</div><a class="expandCollapse" onclick="this.parentElement.classList.replace('collapsed', 'expanded')"><svg width="12" height="8" viewBox="0 0 12 8"><path d="M0 0L6 8L12 0Z"></path></svg></a></div>""") + "</div>";
                 await route.FulfillAsync(new() { ContentType = "text/html", Body = body });
             });
             await page.GotoAsync("https://example.com/farm");
             var browser = Substitute.For<IChromeBrowser>();
             var logger = Substitute.For<Serilog.ILogger>();
-            browser.CurrentPage.Returns(page);
+            IPage currentPage = page;
+            browser.CurrentPage.Returns(_ => currentPage);
             browser.Logger.Returns(logger);
+            browser.OpenNewTab().Returns(async _ =>
+            {
+                currentPage = await context.NewPageAsync();
+                return Result.Ok();
+            });
+            browser.CloseNewTab().Returns(async _ =>
+            {
+                events.Add("close-check-tab");
+                if (currentPage != page) await currentPage.CloseAsync();
+                currentPage = page;
+                return Result.Ok();
+            });
             browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
             {
-                await ((ILocator)call[0]).ClickAsync();
-                await page.WaitForLoadStateAsync();
+                var locator = (ILocator)call[0];
+                if (await locator.GetAttributeAsync("href") == "/karte.php?x=25&y=184")
+                {
+                    events.Add("check-target");
+                    mapOpens++;
+                }
+                if (await locator.GetAttributeAsync("data-action") == "deactivate")
+                    events.Add("deactivate");
+                await locator.ClickAsync();
+                await currentPage.WaitForLoadStateAsync();
                 return Result.Ok();
             });
             browser.Navigate(Arg.Any<string>()).Returns(async call =>
             {
-                await page.GotoAsync((string)call[0]);
+                if (currentPage == page) originNavigations++;
+                await currentPage.GotoAsync((string)call[0]);
                 return Result.Ok();
             });
             browser.Wait(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
@@ -121,9 +135,17 @@ namespace MainCore.Test
             new Uri(page.Url).AbsolutePath.ShouldBe("/farm");
             currentVillage.ShouldBe(2);
             switches.ShouldBe(1);
-            if (initiallyDisabled) mapOpens.ShouldBe(0);
+            originNavigations.ShouldBe(1);
+            mapOpens.ShouldBe(initiallyDisabled ? 0 : 1);
+            if (!initiallyDisabled)
+                events.IndexOf("check-target").ShouldBeLessThan(events.IndexOf("close-check-tab"));
             if (expectedSaves == 1 && !persist)
                 logger.Received().Warning("Farm target {SlotId}: saved deactivation was not confirmed", "637157");
+            if (expectedSaves == 1)
+            {
+                events.IndexOf("check-target").ShouldBeLessThan(events.IndexOf("close-check-tab"));
+                events.IndexOf("close-check-tab").ShouldBeLessThan(events.IndexOf("deactivate"));
+            }
         }
 
     }

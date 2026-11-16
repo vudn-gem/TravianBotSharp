@@ -91,7 +91,7 @@ namespace MainCore.Parsers
         public static async Task<Result<List<OasisAnimalTroop>>> ReadOasisAnimalTroops(IPage page, string targetHref)
         {
             var snapshot = await page.EvaluateAsync<JsonElement>(@"href => {
-                const tiles = document.querySelectorAll('#dialogContent #tileDetails.oasis');
+                const tiles = document.querySelectorAll('#tileDetails.oasis');
                 if (tiles.length !== 1) return null;
                 const tile = tiles[0], expected = new URL(href, location.href);
                 const center = tile.querySelector('a[data-centermap]');

@@ -36,10 +36,9 @@ namespace MainCore.Services
                 cancellationToken.ThrowIfCancellationRequested();
                 if (target.Disabled) continue;
                 var saved = false;
-                Result restored = Result.Ok();
                 try
                 {
-                    var result = await ProcessTarget(farmId, target, cancellationToken);
+                    var result = await ProcessTarget(farmId, target, farmUrl, owner.Value, cancellationToken);
                     if (result.IsFailed)
                         browser.Logger.Warning("Farm target {SlotId} skipped: {Reason}", target.SlotId, result.Errors[0].Message);
                     else saved = result.Value;
@@ -49,14 +48,7 @@ namespace MainCore.Services
                     browser.Logger.Warning("Farm target {SlotId} check failed ({ErrorType}); not confirmed disabled",
                         target.SlotId, ex.GetType().Name);
                 }
-                finally
-                {
-                    restored = await FarmListNavigation.Open(browser, farmUrl, owner.Value);
-                    if (restored.IsFailed)
-                        browser.Logger.Warning("Unable to restore farm list after target {SlotId}: {Reason}",
-                            target.SlotId, restored.Errors[0].Message);
-                }
-                if (restored.IsFailed) return restored;
+
                 prepared = await FarmListPreparation.Prepare(browser, farmId, owner.Value);
                 if (prepared.IsFailed) return prepared;
                 if (saved)
@@ -74,34 +66,79 @@ namespace MainCore.Services
             return Result.Ok();
         }
 
-        private async Task<Result<bool>> ProcessTarget(FarmId farmId, FarmTargetSlot target,
+        private async Task<Result<bool>> ProcessTarget(
+            FarmId farmId,
+            FarmTargetSlot target,
+            string farmUrl,
+            VillageId owner,
             CancellationToken cancellationToken)
         {
-            var page = browser.CurrentPage;
-            var current = new Uri(page.Url);
+            var farmPage = browser.CurrentPage;
+            var current = new Uri(farmPage.Url);
             if (!Uri.TryCreate(current, target.Href, out var targetUrl) ||
                 targetUrl.Authority != current.Authority || targetUrl.Scheme != current.Scheme ||
                 targetUrl.AbsolutePath != "/karte.php" ||
                 !System.Text.RegularExpressions.Regex.IsMatch(targetUrl.Query, @"(?:^\?|&)x=-?\d+(?:&|$)") ||
                 !System.Text.RegularExpressions.Regex.IsMatch(targetUrl.Query, @"(?:^\?|&)y=-?\d+(?:&|$)"))
                 return Result.Fail("Invalid target map link.");
-            var row = FarmTargetTroopsParser.GetList(page, farmId)
+            var row = FarmTargetTroopsParser.GetList(farmPage, farmId)
                 .Locator($"tr.slot:has(input[data-slot-id='{target.SlotId}'])");
             if (await row.CountAsync() != 1) return Result.Fail("Target slot is missing or ambiguous.");
             if (await row.EvaluateAsync<bool>("node => node.classList.contains('disabled')")) return Result.Ok(false);
             var link = row.Locator("td.target a");
             if (await link.GetAttributeAsync("href") != target.Href)
                 return Result.Fail("Target coordinates changed during scan.");
-            var result = await browser.Click(link);
-            if (result.IsFailed) return Result.Fail(result.Errors);
-            result = await browser.Wait(page.Locator("#dialogContent #tileDetails"));
-            if (result.IsFailed) return Result.Fail(result.Errors);
-            var troops = await FarmTargetTroopsParser.HasTroops(page, target.Href);
+
+            var opened = await browser.OpenNewTab();
+            if (opened.IsFailed) return Result.Fail(opened.Errors);
+            Result<bool> troops = Result.Fail("Oasis troops were not checked.");
+            Result closed = Result.Ok();
+            try
+            {
+                troops = await InspectTarget(farmId, target, farmUrl, owner, cancellationToken);
+            }
+            finally
+            {
+                closed = await browser.CloseNewTab();
+            }
+            if (closed.IsFailed) return Result.Fail(closed.Errors);
             if (troops.IsFailed) return Result.Fail(troops.Errors);
+
             browser.Logger.Information("Farm target {SlotId} ({TargetName}): has troops {HasTroops}",
                 target.SlotId, target.Name, troops.Value);
             if (!troops.Value) return Result.Ok(false);
-            return await FarmTargetDeactivator.Deactivate(browser, farmId, target, cancellationToken);
+            return await FarmTargetDeactivator.DeactivateFromFarmList(browser, farmId, target, cancellationToken);
+        }
+
+        private async Task<Result<bool>> InspectTarget(
+            FarmId farmId,
+            FarmTargetSlot target,
+            string farmUrl,
+            VillageId owner,
+            CancellationToken cancellationToken)
+        {
+            var opened = await browser.Navigate(farmUrl);
+            if (opened.IsFailed) return Result.Fail(opened.Errors);
+            var page = browser.CurrentPage;
+            var prepared = await FarmListPreparation.Prepare(browser, farmId, owner);
+            if (prepared.IsFailed) return Result.Fail(prepared.Errors);
+            var row = FarmTargetTroopsParser.GetList(page, farmId)
+                .Locator($"tr.slot:has(input[data-slot-id='{target.SlotId}'])");
+            if (await row.CountAsync() != 1)
+                return Result.Fail("Target slot is missing or ambiguous in check tab.");
+            if (await row.EvaluateAsync<bool>("node => node.classList.contains('disabled')"))
+                return Result.Ok(false);
+            var link = row.Locator("td.target a");
+            if (await link.GetAttributeAsync("href") != target.Href)
+                return Result.Fail("Target coordinates changed in check tab.");
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await browser.Click(link);
+            if (result.IsFailed) return Result.Fail(result.Errors);
+            result = await browser.Wait(page.Locator("#dialogContent #tileDetails.oasis"));
+            if (result.IsFailed) return Result.Fail(result.Errors);
+            var troops = await FarmTargetTroopsParser.HasTroops(page, target.Href);
+            if (troops.IsFailed) return Result.Fail(troops.Errors);
+            return troops;
         }
     }
 }

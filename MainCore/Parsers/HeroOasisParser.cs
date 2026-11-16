@@ -86,7 +86,7 @@ namespace MainCore.Parsers
 
         public static async Task<Result<string>> SimulatorUrl(IPage page)
         {
-            var tile = page.Locator("#dialogContent #tileDetails.oasis");
+            var tile = page.Locator("#tileDetails.oasis");
             var link = tile.Locator("#map_details > table#troop_info:not(.rep) a[href*='screen=combatSimulator']");
             var raid = tile.Locator("a[href*='tt=2'][href*='targetMapId=']");
             if (await link.CountAsync() != 1 || await raid.CountAsync() != 1)

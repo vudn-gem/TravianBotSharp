@@ -48,15 +48,22 @@ list, identified by its list ID, including lists inside a `dropContainer`.
 They leave village-group expansion controls and other farm lists unchanged.
 They wait for the rendered target count to match the list's target counter
 before scanning; a collapsed or partially loaded list is not treated as empty.
-For oasis targets, it reads the actual **Troops** table, not report history
-or the farm row's configured raiding troops. A `none` row or all-zero counts
-leaves the target unchanged. Any positive troop/animal count causes TBS to
-open the existing **Edit farm list** link for that exact list and slot,
-check **Deactivate target**, and save. TBS reloads the farm page and confirms
-the same slot is disabled before logging success.
+For Check oasis, TBS opens each target in a temporary browser tab and reads
+the actual **Troops** table, not report history or the farm row's configured
+raiding troops. It closes the check tab before continuing in the original farm
+list tab. A `none` row or all-zero counts leaves the target unchanged. Any
+positive troop/animal count causes TBS to open that target's context menu in
+the original farm list tab and select **Deactivate target**. TBS rescans the
+farm-list element in the current page and confirms the same slot is disabled
+without reloading the farm page.
+
+Clear oasis also opens each target in a temporary tab to inspect animals and
+send the raid, then closes it before continuing on the farm list tab. Targets
+that exceed the animal limit or contain disallowed animals are deactivated from
+the main farm list after the temporary tab closes.
 
 Already disabled targets stay disabled, even if empty. Non-oasis targets,
-unknown/invalid troop counts, missing dialogs/edit links, and mismatched
+unknown/invalid troop counts, missing dialogs/context menus, and mismatched
 list/coordinates are skipped with warnings; no new targets are added.
 The English game UI is required. Check the account's **Debug** tab for
 per-target results and the final summary. This button does not send raids
@@ -85,8 +92,13 @@ clicking **Hero clear oasis**.
   Equality with any threshold is allowed. A dead hero is never sent.
 
 TBS switches to the farm list's village and checks hero availability in Send
-troops. The hero must be available there. Each eligible oasis is simulated as a
-raid with the configured army. TBS checks real troop availability and requires the
+troops. The hero must be available there. For each target, TBS opens the oasis
+in a temporary tab, checks its animals, and simulates or prepares the raid in
+that tab. The main tab stays on the farm list. After sending, the temporary tab
+closes and the task waits until the hero returns before resuming; on resumption
+TBS navigates back to the farm list if another task changed the main tab.
+Each eligible oasis is simulated as a raid with the configured army. TBS checks
+real troop availability and requires the
 confirmation army, village, coordinates and raid type to match the simulation
 exactly. Missing or reduced troops are never silently accepted.
 

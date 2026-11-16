@@ -26,7 +26,7 @@ namespace MainCore.Test
             var saves = 0;
             var raids = 0;
             var logger = Substitute.For<Serilog.ILogger>();
-            await page.RouteAsync("https://example.com/**", async route =>
+            await context.RouteAsync("https://example.com/**", async route =>
             {
                 var url = new Uri(route.Request.Url);
                 if (url.AbsolutePath == "/save")
@@ -55,12 +55,10 @@ namespace MainCore.Test
                     <tr class="slot {(disabled ? "disabled" : "")}"><td><input name="selectOne" data-slot-id="1"></td>
                     <td class="target"><a href="/karte.php?x=25&amp;y=184"
                     onclick="document.querySelector('#dialogContent').innerHTML=document.querySelector('#map1').innerHTML;return false;">First</a></td>
-                    <td class="actions">
-                    <button class="menuButton" onclick="document.querySelector('#slot-menu-1').hidden=false">⋯</button>
-                    <div id="slot-menu-1" class="menu" hidden>
-                    <button data-action="deactivate"
-                    onclick="fetch('/save').then(()=>{{document.querySelector('#slot-menu-1').hidden=true;{(persist ? "document.querySelector(\"input[data-slot-id='1']\")?.closest(\"tr.slot\")?.classList.add(\"disabled\");" : "")}}})">Deactivate target</button>
-                    </div></td></tr>
+                    <td class="actions"><button class="menuButton" onclick="document.querySelector('#slot-menu-1').hidden=false">⋯</button>
+                    <div id="slot-menu-1" class="menu" hidden><button data-action="deactivate"
+                    onclick="{(persist ? "document.querySelector(\"input[data-slot-id='1']\")?.closest(\"tr.slot\")?.classList.add(\"disabled\");" : "")}fetch('/save').then(()=>document.querySelector('#slot-menu-1').hidden=true)">Deactivate target</button></div></td>
+                    </tr>
                     <tr class="slot"><td><input name="selectOne" data-slot-id="2"></td>
                     <td class="target"><a href="/karte.php?x=26&amp;y=184"
                     onclick="document.querySelector('#dialogContent').innerHTML=document.querySelector('#map2').innerHTML;return false;">Second</a></td></tr>
@@ -83,28 +81,30 @@ namespace MainCore.Test
                     <a href="/build.php?gid=16&amp;tt=2&amp;eventType=4">Raid</a></div></div></div>
                     </div></template>
                     """;
+                if (url.AbsolutePath == "/karte.php")
+                    body = url.Query.Contains("x=25", StringComparison.Ordinal) ? """
+                        <div id="tileDetails" class="oasis"><a data-centermap href="/karte.php?x=25&amp;y=184">Center</a>
+                        <div id="map_details"><table id="troop_info"><tbody>
+                        <tr><td><img class="unit u31"></td><td class="val">2</td></tr>
+                        <tr><td><img class="unit u32"></td><td class="val">3</td></tr>
+                        </tbody></table></div><div class="detailImage"><div class="options"><div class="option">
+                        <a href="/build.php?gid=16&amp;tt=2&amp;eventType=4">Raid</a></div></div></div></div>
+                        """ : """
+                        <div id="tileDetails" class="oasis"><a data-centermap href="/karte.php?x=26&amp;y=184">Center</a>
+                        <div id="map_details"><table id="troop_info"><tbody><tr><td>none</td></tr></tbody></table></div></div>
+                        """;
                 await route.FulfillAsync(new() { ContentType = "text/html", Body = body });
             });
             await page.GotoAsync("https://example.com/build.php?gid=16&tt=4");
             var browser = Substitute.For<IChromeBrowser>();
-            browser.CurrentPage.Returns(page);
+            var currentPage = ConfigureTabLifecycle(context, browser, page);
             browser.Logger.Returns(logger);
             browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
             {
                 var locator = (ILocator)call[0];
                 if (await locator.GetAttributeAsync("id") == "ok") raids++;
                 await locator.ClickAsync();
-                await page.WaitForLoadStateAsync();
-                return Result.Ok();
-            });
-            browser.Navigate(Arg.Any<string>()).Returns(async call =>
-            {
-                await page.GotoAsync((string)call[0]);
-                return Result.Ok();
-            });
-            browser.Wait(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
-            {
-                await ((ILocator)call[0]).WaitForAsync();
+                await currentPage().WaitForLoadStateAsync();
                 return Result.Ok();
             });
             var allowed = allowAll ? new HashSet<int> { 31, 32 } : new HashSet<int> { 31 };
@@ -115,6 +115,8 @@ namespace MainCore.Test
             saves.ShouldBe(expectedSaves);
             raids.ShouldBe(expectedRaids);
             result.Value.RaidCount.ShouldBe(expectedRaids);
+            context.Pages.Count.ShouldBe(1);
+            page.Url.ShouldContain("gid=16");
             if (expectedSaves == 1 && !persist)
                 logger.Received().Warning("Clear oasis target {SlotId}: deactivation was not confirmed", "1");
             if (expectedDisabled)
@@ -137,7 +139,7 @@ namespace MainCore.Test
             await using var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
             var submitted = new List<(string? Steppe, string? Marksmen, string? Marauders)>();
-            await page.RouteAsync("https://example.com/**", async route =>
+            await context.RouteAsync("https://example.com/**", async route =>
             {
                 var url = new Uri(route.Request.Url);
                 var body = url.Query.Contains("tt=2", StringComparison.Ordinal) ? $"""
@@ -169,11 +171,19 @@ namespace MainCore.Test
                     <a href="/build.php?gid=16&amp;tt=2&amp;eventType=4">Raid</a>
                     </div></div></div></div></div>
                     """;
+                if (url.AbsolutePath == "/karte.php")
+                    body = $"""
+                        <div id="tileDetails" class="oasis"><a data-centermap href="/karte.php?x=25&amp;y=184">Center</a>
+                        <div id="map_details"><table id="troop_info"><tbody>
+                        {(hasAnimals ? "<tr><td><img class='unit u31'></td><td class='val'>3</td></tr>" : "<tr><td>none</td></tr>")}
+                        </tbody></table></div><div class="detailImage"><div class="options"><div class="option">
+                        <a href="/build.php?gid=16&amp;tt=2&amp;eventType=4">Raid</a></div></div></div></div>
+                        """;
                 await route.FulfillAsync(new() { ContentType = "text/html", Body = body });
             });
             await page.GotoAsync("https://example.com/build.php?gid=16&tt=4");
             var browser = Substitute.For<IChromeBrowser>();
-            browser.CurrentPage.Returns(page);
+            var currentPage = ConfigureTabLifecycle(context, browser, page);
             browser.Logger.Returns(Substitute.For<Serilog.ILogger>());
             browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
             {
@@ -181,22 +191,12 @@ namespace MainCore.Test
                 if (await locator.GetAttributeAsync("id") == "ok")
                 {
                     submitted.Add((
-                        await page.Locator("input[name='troop[t4]']").InputValueAsync(),
-                        await page.Locator("input[name='troop[t5]']").InputValueAsync(),
-                        await page.Locator("input[name='troop[t6]']").InputValueAsync()));
+                        await currentPage().Locator("input[name='troop[t4]']").InputValueAsync(),
+                        await currentPage().Locator("input[name='troop[t5]']").InputValueAsync(),
+                        await currentPage().Locator("input[name='troop[t6]']").InputValueAsync()));
                 }
                 await locator.ClickAsync();
-                await page.WaitForLoadStateAsync();
-                return Result.Ok();
-            });
-            browser.Navigate(Arg.Any<string>()).Returns(async call =>
-            {
-                await page.GotoAsync((string)call[0]);
-                return Result.Ok();
-            });
-            browser.Wait(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
-            {
-                await ((ILocator)call[0]).WaitForAsync();
+                await currentPage().WaitForLoadStateAsync();
                 return Result.Ok();
             });
             var settings = new OasisRaidSettings(new HashSet<int> { 31 }, 2, attackTroop, raidSteppe, raidMarksmen, raidMarauders);
@@ -229,7 +229,7 @@ namespace MainCore.Test
             var submitted = new List<(int Steppe, int Marksmen)>();
             var visitedTargets = new List<string>();
             var returnAt = DateTimeOffset.UtcNow.AddMinutes(2).ToUnixTimeSeconds();
-            await page.RouteAsync("https://example.com/**", async route =>
+            await context.RouteAsync("https://example.com/**", async route =>
             {
                 var url = new Uri(route.Request.Url);
                 var body = url.Query.Contains("tt=2", StringComparison.Ordinal) ? $"""
@@ -273,38 +273,39 @@ namespace MainCore.Test
                     <div class="detailImage"><div class="options"><div class="option">
                     <a href="/build.php?gid=16&amp;tt=2&amp;eventType=4">Raid</a></div></div></div></div></template>
                     """;
+                if (url.AbsolutePath == "/karte.php")
+                {
+                    var isFirst = url.Query.Contains("x=25", StringComparison.Ordinal);
+                    var count = isFirst ? firstAnimals : secondAnimals;
+                    var x = isFirst ? 25 : 26;
+                    body = $"""
+                        <div id="tileDetails" class="oasis"><a data-centermap href="/karte.php?x={x}&amp;y=184">Center</a>
+                        <div id="map_details"><table id="troop_info"><tbody>
+                        {(count > 0 ? $"<tr><td><img class='unit u31'></td><td class='val'>{count}</td></tr>" : "<tr><td>none</td></tr>")}
+                        </tbody></table></div><div class="detailImage"><div class="options"><div class="option">
+                        <a href="/build.php?gid=16&amp;tt=2&amp;eventType=4">Raid</a></div></div></div></div>
+                        """;
+                    visitedTargets.Add($"/karte.php?x={x}&y=184");
+                }
                 await route.FulfillAsync(new() { ContentType = "text/html", Body = body });
             });
             await page.GotoAsync("https://example.com/build.php?gid=16&tt=4");
             var browser = Substitute.For<IChromeBrowser>();
-            browser.CurrentPage.Returns(page);
+            var currentPage = ConfigureTabLifecycle(context, browser, page);
             browser.Logger.Returns(Substitute.For<Serilog.ILogger>());
             browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
             {
                 var locator = (ILocator)call[0];
-                var href = await locator.GetAttributeAsync("href");
-                if (href?.StartsWith("/karte.php?", StringComparison.Ordinal) == true)
-                    visitedTargets.Add(href);
                 if (await locator.GetAttributeAsync("id") == "ok")
                 {
-                    var sentSteppe = int.Parse(await page.Locator("input[name='troop[t4]']").InputValueAsync());
-                    var sentMarksmen = int.Parse(await page.Locator("input[name='troop[t5]']").InputValueAsync());
+                    var sentSteppe = int.Parse(await currentPage().Locator("input[name='troop[t4]']").InputValueAsync());
+                    var sentMarksmen = int.Parse(await currentPage().Locator("input[name='troop[t5]']").InputValueAsync());
                     submitted.Add((sentSteppe, sentMarksmen));
                     steppe -= sentSteppe;
                     marksmen -= sentMarksmen;
                 }
                 await locator.ClickAsync();
-                await page.WaitForLoadStateAsync();
-                return Result.Ok();
-            });
-            browser.Navigate(Arg.Any<string>()).Returns(async call =>
-            {
-                await page.GotoAsync((string)call[0]);
-                return Result.Ok();
-            });
-            browser.Wait(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
-            {
-                await ((ILocator)call[0]).WaitForAsync();
+                await currentPage().WaitForLoadStateAsync();
                 return Result.Ok();
             });
             var settings = new OasisRaidSettings(new HashSet<int> { 31 }, 2, attackTroop, raidSteppe, raidMarksmen, 0, 5);
@@ -324,6 +325,35 @@ namespace MainCore.Test
                 if (expectedRaids > 0)
                     result.Value.RetryAt.Value.ShouldBe(DateTimeOffset.FromUnixTimeSeconds(returnAt).LocalDateTime.AddMinutes(1));
             }
+        }
+
+        private static Func<IPage> ConfigureTabLifecycle(
+            IBrowserContext context, IChromeBrowser browser, IPage mainPage)
+        {
+            IPage currentPage = mainPage;
+            browser.CurrentPage.Returns(_ => currentPage);
+            browser.OpenNewTab().Returns(async _ =>
+            {
+                currentPage = await context.NewPageAsync();
+                return Result.Ok();
+            });
+            browser.CloseNewTab().Returns(async _ =>
+            {
+                if (currentPage != mainPage) await currentPage.CloseAsync();
+                currentPage = mainPage;
+                return Result.Ok();
+            });
+            browser.Navigate(Arg.Any<string>()).Returns(async call =>
+            {
+                await currentPage.GotoAsync((string)call[0]);
+                return Result.Ok();
+            });
+            browser.Wait(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
+            {
+                await ((ILocator)call[0]).WaitForAsync();
+                return Result.Ok();
+            });
+            return () => currentPage;
         }
     }
 }

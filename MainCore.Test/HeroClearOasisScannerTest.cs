@@ -68,6 +68,8 @@ namespace MainCore.Test
             if (sends)
             {
                 outcome.Result.IsSuccess.ShouldBeTrue();
+                outcome.Context.Pages.Count.ShouldBe(1);
+                outcome.Context.Pages[0].Url.ShouldContain("gid=16");
                 outcome.Task.ProcessedSlots.ShouldContain("1");
                 outcome.Task.HeroReturnAt.ShouldNotBeNull();
                 outcome.Task.ExecuteAt.ShouldBe(outcome.Task.HeroReturnAt.Value.AddSeconds(5));
@@ -289,7 +291,7 @@ namespace MainCore.Test
                 confirmationInputs = confirmationInputs.Replace("<input type='hidden' name='troops[0][t1]' value='0'>", "");
             var returnUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds();
             var switched = !switchVillage;
-            await page.RouteAsync("https://example.com/**", async route =>
+            await context.RouteAsync("https://example.com/**", async route =>
             {
                 var uri = new Uri(route.Request.Url);
                 if (uri.AbsolutePath == "/dorf1.php") switched = true;
@@ -368,6 +370,22 @@ namespace MainCore.Test
                         {sendAction}<input name="eventType" value="4"><input name="x" value="-125"><input name="y" value="-6">
                         <button id="sendTroops">Send troops</button></form></div></template></div>
                         """;
+                else if (uri.AbsolutePath == "/karte.php")
+                    body = uri.Query.Contains("x=-126", StringComparison.Ordinal) ? """
+                        <div id="tileDetails" class="oasis">
+                        <a data-centermap href="/karte.php?x=-126&amp;y=-6">Center</a>
+                        <div id="map_details"><table id="troop_info"><tbody>
+                        <tr><td><img class="unit u31"></td><td class="val">200</td></tr>
+                        </tbody></table></div></div>
+                        """ : """
+                        <div id="tileDetails" class="oasis">
+                        <a data-centermap href="/karte.php?x=-125&amp;y=-6">Center</a>
+                        <a href="/build.php?tt=2&amp;targetMapId=82682">Raid</a>
+                        <div id="map_details"><table id="troop_info"><tbody>
+                        <tr><td><img class="unit u31"></td><td class="val">8</td></tr>
+                        <tr><td><a href="/build.php?tt=3&amp;screen=combatSimulator&amp;kid=82682">simulate raid</a></td></tr>
+                        </tbody></table></div></div>
+                        """;
                 else
                     body = $"""
                         <div id="rallyPointFarmList"><div class="villageWrapper"><div class="villageHeader"><div class="villageName">Home</div></div>
@@ -396,7 +414,19 @@ namespace MainCore.Test
             });
             await page.GotoAsync("https://example.com/build.php?gid=16&tt=99");
             var browser = Substitute.For<IChromeBrowser>();
-            browser.CurrentPage.Returns(page);
+            IPage currentPage = page;
+            browser.CurrentPage.Returns(_ => currentPage);
+            browser.OpenNewTab().Returns(async _ =>
+            {
+                currentPage = await context.NewPageAsync();
+                return Result.Ok();
+            });
+            browser.CloseNewTab().Returns(async _ =>
+            {
+                if (currentPage != page) await currentPage.CloseAsync();
+                currentPage = page;
+                return Result.Ok();
+            });
             var logger = Substitute.For<Serilog.ILogger>();
             browser.Logger.Returns(logger);
             browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
@@ -406,7 +436,7 @@ namespace MainCore.Test
                 if (id == "simulate")
                 {
                     simulates++;
-                    var attacker = page.Locator("#combatSimulatorForm .role.attacker");
+                    var attacker = currentPage.Locator("#combatSimulatorForm .role.attacker");
                     (await attacker.Locator("input[name='hero']").IsCheckedAsync()).ShouldBeTrue();
                     (await attacker.Locator("input[name='movement'][value='raid']").IsCheckedAsync()).ShouldBeTrue();
                     (await attacker.Locator(".troopLevels input[name='unit4']").InputValueAsync()).ShouldBe("20");
@@ -417,17 +447,17 @@ namespace MainCore.Test
                 if (id == "ok")
                 {
                     for (var i = 1; i <= 11; i++)
-                        (await page.Locator($"#troops input[name='troop[t{i}]']").InputValueAsync())
+                        (await currentPage.Locator($"#troops input[name='troop[t{i}]']").InputValueAsync())
                             .ShouldBe(army[i - 1] == 0 ? "" : army[i - 1].ToString());
                 }
                 if (id == "confirmSendTroops") confirms++;
                 await locator.ClickAsync();
-                await page.WaitForLoadStateAsync();
+                await currentPage.WaitForLoadStateAsync();
                 return Result.Ok();
             });
             browser.Navigate(Arg.Any<string>()).Returns(async call =>
             {
-                await page.GotoAsync((string)call[0]);
+                await currentPage.GotoAsync((string)call[0]);
                 return Result.Ok();
             });
             browser.Wait(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>

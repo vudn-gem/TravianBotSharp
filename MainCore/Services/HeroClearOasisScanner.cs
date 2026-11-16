@@ -51,15 +51,16 @@ namespace MainCore.Services
             if (!home.Value) return Skip.Error.WithError("Hero is not in the farm list village. Hero clear task canceled.");
             task.HeroReturnAt = null;
 
+            opened = await FarmListNavigation.Open(browser, farmUrl.Uri.AbsoluteUri, owner.Value, preferRallyPointTab: true);
+            if (opened.IsFailed) return opened;
+            var prepared = await FarmListPreparation.Prepare(browser, task.FarmId, owner.Value);
+            if (prepared.IsFailed) return Stop.Error.WithErrors(prepared.Errors);
+
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                opened = await FarmListNavigation.Open(browser, farmUrl.Uri.AbsoluteUri, owner.Value, preferRallyPointTab: true);
-                if (opened.IsFailed) return opened;
                 if (await VillagePanelParser.GetCurrentVillageId(page) != owner.Value)
                     return Stop.Error.WithError("Hero clear oasis village changed.");
-                var prepared = await FarmListPreparation.Prepare(browser, task.FarmId, owner.Value);
-                if (prepared.IsFailed) return Stop.Error.WithErrors(prepared.Errors);
                 var list = FarmTargetTroopsParser.GetList(page, task.FarmId);
                 var targets = await FarmTargetTroopsParser.ReadTargets(page, task.FarmId);
                 if (targets.IsFailed) return Stop.Error.WithErrors(targets.Errors);
@@ -79,131 +80,148 @@ namespace MainCore.Services
                 var targetLink = list.Locator($"tr.slot:has(input[data-slot-id='{target.SlotId}']) td.target a");
                 if (await targetLink.CountAsync() != 1 || await targetLink.GetAttributeAsync("href") != target.Href)
                     return Stop.Error.WithError("Hero oasis target changed while opening it.");
-                opened = await browser.Click(targetLink);
-                if (opened.IsFailed) return opened;
-                ready = await browser.Wait(page.Locator("#dialogContent #tileDetails.oasis"));
-                if (ready.IsFailed) return ready;
-                var animals = await FarmTargetTroopsParser.ReadOasisAnimalTroops(page, target.Href);
-                if (animals.IsFailed) return Stop.Error.WithErrors(animals.Errors);
-                if (!HeroOasisSettings.AllowsAnimals(settings, animals.Value))
-                {
-                    SkipTarget(task, target, "Animal count or allowed animals do not match.");
-                    continue;
-                }
-                if (HeroOasisSettings.AllowsSafeClear(settings, animals.Value))
-                {
-                    opened = await OpenRaidUnoccupiedOasisFromDialog(target.Href);
-                    if (opened.IsFailed) return Stop.Error.WithErrors(opened.Errors);
-                }
-                else
-                {
-                    var simulator = await HeroOasisParser.SimulatorUrl(page);
-                    if (simulator.IsFailed) return Stop.Error.WithErrors(simulator.Errors);
-                    opened = await browser.Navigate(simulator.Value);
-                    if (opened.IsFailed) return opened;
-                    ready = await browser.Wait(page.Locator("#combatSimulatorForm .role.attacker select[name='village']"));
-                    if (ready.IsFailed) return ready;
-                    var attacker = page.Locator("#combatSimulatorForm .role.attacker");
-                    await attacker.Locator("select[name='village']").SelectOptionAsync(owner.Value.Value.ToString(CultureInfo.InvariantCulture));
-                    opened = await browser.Click(attacker.Locator(".villageSelection a.reload"));
-                    if (opened.IsFailed) return opened;
-                    await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-                    var filled = await HeroOasisParser.FillSimulator(page, settings);
-                    if (filled.IsFailed) return Skip.Error.WithErrors(filled.Errors);
-                    var health = await HeroOasisParser.ReadHealth(page);
-                    if (health.IsFailed) return Stop.Error.WithErrors(health.Errors);
-                    if (health.Value < settings.MinHeroHealth)
-                        return Stop.Error.WithError($"Hero health {health.Value} is below minimum {settings.MinHeroHealth}. Hero clear task canceled.");
-                    var defenders = await HeroOasisParser.ValidateDefenders(page, animals.Value);
-                    if (defenders.IsFailed)
-                    {
-                        SkipTarget(task, target, defenders.Errors[0].Message);
-                        continue;
-                    }
+                var continueScanning = false;
+                var result = await FarmTargetOasisTab.Run(browser, target.Href, oasisPage =>
+                    ProcessTargetInOasisTab(task, settings, target, owner.Value, oasisPage,
+                        cancellationToken, () => continueScanning = true));
+                if (result.IsFailed) return result;
+                if (continueScanning) continue;
+                return result;
+            }
+        }
 
-                    await page.EvaluateAsync("""
-                        () => {
-                            const results = document.querySelector('#combatSimulator .results');
-                            if (!results) throw new Error('Simulator results container missing');
-                            window.heroOasisResultReady = false;
-                            window.heroOasisObserver?.disconnect();
-                            window.heroOasisObserver = new MutationObserver(() => {
-                                window.heroOasisResultReady = true;
-                            });
-                            window.heroOasisObserver.observe(results, {childList:true, subtree:true, characterData:true});
-                        }
-                        """);
-                    cancellationToken.ThrowIfCancellationRequested();
-                    opened = await browser.Click(page.Locator("#combatSimulator #simulate"));
-                    if (opened.IsFailed) return opened;
-                    await page.WaitForFunctionAsync("() => window.heroOasisResultReady && !!document.querySelector('#combatSimulator .results .result.attack')");
-                    await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-                    await page.EvaluateAsync("() => window.heroOasisObserver?.disconnect()");
-                    var simulation = await HeroOasisParser.ReadSimulation(page, settings, health.Value, owner.Value, target.Href);
-                    if (simulation.IsFailed)
-                    {
-                        SkipTarget(task, target, simulation.Errors[0].Message);
-                        continue;
-                    }
-                    if (!HeroOasisSettings.AllowsResult(settings, simulation.Value))
-                    {
-                        SkipTarget(task, target,
-                            $"Simulation rejected: hero health {simulation.Value.HealthBefore} -> {simulation.Value.HealthAfter}, sub troop lost {simulation.Value.SubTroopLost}.");
-                        continue;
-                    }
-
-                    opened = await browser.Click(page.Locator("#combatSimulator .resultActionWrapper #sendTroops"));
-                    if (opened.IsFailed) return opened;
-                    ready = await browser.Wait(page.Locator("#build .a2b form[action*='tt=2'] #troops"));
-                    if (ready.IsFailed) return ready;
-                }
-                var availableHero = await HeroOasisParser.IsHeroHome(page);
-                if (availableHero.IsFailed) return Stop.Error.WithErrors(availableHero.Errors);
-                if (!availableHero.Value)
-                    return await HandleHeroUnavailable(task, target, "Hero is no longer in the village.");
-                var send = await HeroOasisParser.PrepareSend(page, settings, owner.Value, target.Href);
-                if (send.IsFailed)
-                {
-                    if (IsHeroUnavailable(send.Errors))
-                        return await HandleHeroUnavailable(task, target, send.Errors[0].Message);
-                    return Stop.Error.WithErrors(send.Errors);
-                }
-                if (!send.Value)
-                    return RetryTargetOrStop(task, target, "Insufficient sub troops.");
-                cancellationToken.ThrowIfCancellationRequested();
-                opened = await browser.Click(page.Locator("#build .a2b form[action*='tt=2'] button#ok"));
-                if (opened.IsFailed) return opened;
-                ready = await browser.Wait(page.Locator("#troopSendForm #confirmSendTroops"));
-                if (ready.IsFailed) return ready;
-                var confirmation = await HeroOasisParser.ReadConfirmation(page, settings, owner.Value, target.Href);
-                if (confirmation.IsFailed) return Stop.Error.WithErrors(confirmation.Errors);
-                if (confirmation.Value <= DateTime.Now)
-                    return Stop.Error.WithError("Hero return time is not in the future. Raid not confirmed.");
-                cancellationToken.ThrowIfCancellationRequested();
-                task.ConfirmationAttempted = true;
-                // Keep this guard set on timeout/cancellation so scheduler retries cannot send twice.
-                opened = await browser.Click(page.Locator("#troopSendForm #confirmSendTroops"));
-                if (opened.IsFailed) return Stop.Error.WithErrors(opened.Errors);
-                await page.WaitForFunctionAsync("""
-                    () => new URL(location.href).searchParams.get('tt') === '1' &&
-                        !!document.querySelector('.subNavi a.tabItem.active[href*="tt=1"]')
-                    """);
-                task.ProcessedSlots.Add(target.SlotId);
-                task.HeroReturnAt = confirmation.Value;
-                task.ExecuteAt = confirmation.Value.AddMilliseconds(task.TaskBufferMilliseconds <= 0 ? 1000 : task.TaskBufferMilliseconds);
-                task.ConfirmationAttempted = false;
-                task.SentRaidThisRun = true;
-                browser.Logger.Information(
-                    "Hero raid sent to slot {SlotId}; next target scheduled at {ExecuteAt}",
-                    target.SlotId, task.ExecuteAt);
+        private async Task<Result> ProcessTargetInOasisTab(
+            HeroClearFarmOasisTask.Task task,
+            HeroOasisSetting settings,
+            FarmTargetSlot target,
+            VillageId owner,
+            IPage page,
+            CancellationToken cancellationToken,
+            Action continueScanning)
+        {
+            var animals = await FarmTargetTroopsParser.ReadOasisAnimalTroops(page, target.Href);
+            if (animals.IsFailed) return Stop.Error.WithErrors(animals.Errors);
+            if (!HeroOasisSettings.AllowsAnimals(settings, animals.Value))
+            {
+                SkipTarget(task, target, "Animal count or allowed animals do not match.");
+                continueScanning();
                 return Result.Ok();
             }
+            if (HeroOasisSettings.AllowsSafeClear(settings, animals.Value))
+            {
+                var opened = await OpenRaidUnoccupiedOasisFromDialog(target.Href);
+                if (opened.IsFailed) return Stop.Error.WithErrors(opened.Errors);
+            }
+            else
+            {
+                var simulator = await HeroOasisParser.SimulatorUrl(page);
+                if (simulator.IsFailed) return Stop.Error.WithErrors(simulator.Errors);
+                var opened = await browser.Navigate(simulator.Value);
+                if (opened.IsFailed) return opened;
+                var ready = await browser.Wait(page.Locator("#combatSimulatorForm .role.attacker select[name='village']"));
+                if (ready.IsFailed) return ready;
+                var attacker = page.Locator("#combatSimulatorForm .role.attacker");
+                await attacker.Locator("select[name='village']").SelectOptionAsync(owner.Value.ToString(CultureInfo.InvariantCulture));
+                opened = await browser.Click(attacker.Locator(".villageSelection a.reload"));
+                if (opened.IsFailed) return opened;
+                await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+                var filled = await HeroOasisParser.FillSimulator(page, settings);
+                if (filled.IsFailed) return Skip.Error.WithErrors(filled.Errors);
+                var health = await HeroOasisParser.ReadHealth(page);
+                if (health.IsFailed) return Stop.Error.WithErrors(health.Errors);
+                if (health.Value < settings.MinHeroHealth)
+                    return Stop.Error.WithError($"Hero health {health.Value} is below minimum {settings.MinHeroHealth}. Hero clear task canceled.");
+                var defenders = await HeroOasisParser.ValidateDefenders(page, animals.Value);
+                if (defenders.IsFailed)
+                {
+                    SkipTarget(task, target, defenders.Errors[0].Message);
+                    continueScanning();
+                    return Result.Ok();
+                }
+
+                await page.EvaluateAsync("""
+                    () => {
+                        const results = document.querySelector('#combatSimulator .results');
+                        if (!results) throw new Error('Simulator results container missing');
+                        window.heroOasisResultReady = false;
+                        window.heroOasisObserver?.disconnect();
+                        window.heroOasisObserver = new MutationObserver(() => {
+                            window.heroOasisResultReady = true;
+                        });
+                        window.heroOasisObserver.observe(results, {childList:true, subtree:true, characterData:true});
+                    }
+                    """);
+                cancellationToken.ThrowIfCancellationRequested();
+                opened = await browser.Click(page.Locator("#combatSimulator #simulate"));
+                if (opened.IsFailed) return opened;
+                await page.WaitForFunctionAsync("() => window.heroOasisResultReady && !!document.querySelector('#combatSimulator .results .result.attack')");
+                await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+                await page.EvaluateAsync("() => window.heroOasisObserver?.disconnect()");
+                var simulation = await HeroOasisParser.ReadSimulation(page, settings, health.Value, owner, target.Href);
+                if (simulation.IsFailed)
+                {
+                    SkipTarget(task, target, simulation.Errors[0].Message);
+                    continueScanning();
+                    return Result.Ok();
+                }
+                if (!HeroOasisSettings.AllowsResult(settings, simulation.Value))
+                {
+                    SkipTarget(task, target,
+                        $"Simulation rejected: hero health {simulation.Value.HealthBefore} -> {simulation.Value.HealthAfter}, sub troop lost {simulation.Value.SubTroopLost}.");
+                    continueScanning();
+                    return Result.Ok();
+                }
+
+                opened = await browser.Click(page.Locator("#combatSimulator .resultActionWrapper #sendTroops"));
+                if (opened.IsFailed) return opened;
+                ready = await browser.Wait(page.Locator("#build .a2b form[action*='tt=2'] #troops"));
+                if (ready.IsFailed) return ready;
+            }
+            var availableHero = await HeroOasisParser.IsHeroHome(page);
+            if (availableHero.IsFailed) return Stop.Error.WithErrors(availableHero.Errors);
+            if (!availableHero.Value)
+                return await HandleHeroUnavailable(task, target, "Hero is no longer in the village.");
+            var send = await HeroOasisParser.PrepareSend(page, settings, owner, target.Href);
+            if (send.IsFailed)
+            {
+                if (IsHeroUnavailable(send.Errors))
+                    return await HandleHeroUnavailable(task, target, send.Errors[0].Message);
+                return Stop.Error.WithErrors(send.Errors);
+            }
+            if (!send.Value)
+                return RetryTargetOrStop(task, target, "Insufficient sub troops.");
+            cancellationToken.ThrowIfCancellationRequested();
+            var sent = await browser.Click(page.Locator("#build .a2b form[action*='tt=2'] button#ok"));
+            if (sent.IsFailed) return sent;
+            var confirmationReady = await browser.Wait(page.Locator("#troopSendForm #confirmSendTroops"));
+            if (confirmationReady.IsFailed) return confirmationReady;
+            var confirmation = await HeroOasisParser.ReadConfirmation(page, settings, owner, target.Href);
+            if (confirmation.IsFailed) return Stop.Error.WithErrors(confirmation.Errors);
+            if (confirmation.Value <= DateTime.Now)
+                return Stop.Error.WithError("Hero return time is not in the future. Raid not confirmed.");
+            cancellationToken.ThrowIfCancellationRequested();
+            task.ConfirmationAttempted = true;
+            var confirmed = await browser.Click(page.Locator("#troopSendForm #confirmSendTroops"));
+            if (confirmed.IsFailed) return Stop.Error.WithErrors(confirmed.Errors);
+            await page.WaitForFunctionAsync("""
+                () => new URL(location.href).searchParams.get('tt') === '1' &&
+                    !!document.querySelector('.subNavi a.tabItem.active[href*="tt=1"]')
+                """);
+            task.ProcessedSlots.Add(target.SlotId);
+            task.HeroReturnAt = confirmation.Value;
+            task.ExecuteAt = confirmation.Value.AddMilliseconds(task.TaskBufferMilliseconds <= 0 ? 1000 : task.TaskBufferMilliseconds);
+            task.ConfirmationAttempted = false;
+            task.SentRaidThisRun = true;
+            browser.Logger.Information(
+                "Hero raid sent to slot {SlotId}; next target scheduled at {ExecuteAt}",
+                target.SlotId, task.ExecuteAt);
+            return Result.Ok();
         }
 
         private void SkipTarget(HeroClearFarmOasisTask.Task task, FarmTargetSlot target, string reason)
         {
             task.ProcessedSlots.Add(target.SlotId);
-                browser.Logger.Information("Hero oasis target {SlotId} skipped: {Reason}", target.SlotId, reason);
+            browser.Logger.Information("Hero oasis target {SlotId} skipped: {Reason}", target.SlotId, reason);
         }
 
         private static bool IsHeroUnavailable(IReadOnlyList<IError> errors) =>
@@ -245,7 +263,7 @@ namespace MainCore.Services
         {
             var page = browser.CurrentPage;
             var opened = await page.EvaluateAsync<bool>(@"href => {
-                const tile = document.querySelector('#dialogContent #tileDetails.oasis');
+                const tile = document.querySelector('#tileDetails.oasis');
                 if (!tile) return false;
                 const center = tile.querySelector('a[data-centermap]');
                 if (!center) return false;

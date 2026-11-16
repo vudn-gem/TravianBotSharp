@@ -2,7 +2,7 @@ namespace MainCore.Services
 {
     public static class FarmTargetDeactivator
     {
-        public static async Task<Result<bool>> Deactivate(
+        public static async Task<Result<bool>> DeactivateFromFarmList(
             IChromeBrowser browser, FarmId farmId, FarmTargetSlot target, CancellationToken cancellationToken)
         {
             var page = browser.CurrentPage;
@@ -26,9 +26,9 @@ namespace MainCore.Services
             ILocator openMenu = row.Locator("td.openContextMenu > a");
             if (await openMenu.CountAsync() != 1)
                 openMenu = row.Locator("td.openContextMenu > button, .actions .menuButton, .actions > button, .actions > a");
-            if (await openMenu.CountAsync() < 1)
-                return Result.Fail("Unable to find target context menu trigger.");
-            var result = await browser.Click(openMenu.First);
+            if (await openMenu.CountAsync() != 1)
+                return Result.Fail("Target context menu trigger is missing or ambiguous.");
+            var result = await browser.Click(openMenu);
             if (result.IsFailed) return Result.Fail(result.Errors);
 
             ILocator deactivate = row.Locator("td.openContextMenu .contextMenuWrapper .contextMenu button.entry.deactivate");

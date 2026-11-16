@@ -74,7 +74,6 @@ namespace MainCore.Services
                 cancellationToken.ThrowIfCancellationRequested();
                 var target = targets.Value[i];
                 if (target.Disabled) continue;
-                Result restored = Result.Ok();
                 var checkDeactivation = false;
                 try
                 {
@@ -115,15 +114,6 @@ namespace MainCore.Services
                     browser.Logger.Warning(ex, "Clear oasis target {SlotId} failed ({ErrorType})",
                         target.SlotId, ex.GetType().Name);
                 }
-                finally
-                {
-                    restored = await FarmListNavigation.Open(browser, farmUrl, owner.Value, preferRallyPointTab: true);
-                    if (restored.IsFailed)
-                        browser.Logger.Warning("Unable to restore farm list after clear target {SlotId}: {Reason}",
-                            target.SlotId, restored.Errors[0].Message);
-                }
-
-                if (restored.IsFailed) return Result.Fail(restored.Errors);
                 prepared = await FarmListPreparation.Prepare(browser, farmId, owner.Value);
                 if (prepared.IsFailed) return Result.Fail(prepared.Errors);
                 if (checkDeactivation)
@@ -184,37 +174,39 @@ namespace MainCore.Services
             List<(long Steppe, long Marksmen, long Marauders, DateTime ReturnAt)> pendingReturns,
             CancellationToken cancellationToken)
         {
-            var page = browser.CurrentPage;
-            var current = new Uri(page.Url);
-            if (!Uri.TryCreate(current, target.Href, out var targetUrl) ||
-                targetUrl.Authority != current.Authority || targetUrl.Scheme != current.Scheme ||
-                targetUrl.AbsolutePath != "/karte.php" ||
-                !System.Text.RegularExpressions.Regex.IsMatch(targetUrl.Query, @"(?:^\?|&)x=-?\d+(?:&|$)") ||
-                !System.Text.RegularExpressions.Regex.IsMatch(targetUrl.Query, @"(?:^\?|&)y=-?\d+(?:&|$)"))
-                return Result.Fail("Invalid target map link.");
-
-            var targetRow = FarmTargetTroopsParser.GetList(page, farmId)
+            var farmPage = browser.CurrentPage;
+            var targetRow = FarmTargetTroopsParser.GetList(farmPage, farmId)
                 .Locator($"tr.slot:has(input[data-slot-id='{target.SlotId}'])");
             if (await targetRow.CountAsync() != 1) return Result.Fail("Target slot is missing or ambiguous.");
             if (await targetRow.EvaluateAsync<bool>("node => node.classList.contains('disabled')"))
                 return Result.Ok(new ProcessTargetResult(false, false, null));
-
-            var link = targetRow.Locator("td.target a");
-            if (await link.GetAttributeAsync("href") != target.Href)
+            if (await targetRow.Locator("td.target a").GetAttributeAsync("href") != target.Href)
                 return Result.Fail("Target coordinates changed during scan.");
 
-            var result = await browser.Click(link);
+            var result = await FarmTargetOasisTab.Run(browser, target.Href, page =>
+                ProcessTargetInOasisTab(page, target, settings, draft, pendingReturns, cancellationToken));
             if (result.IsFailed) return Result.Fail(result.Errors);
-            result = await browser.Wait(page.Locator("#dialogContent #tileDetails"));
-            if (result.IsFailed) return Result.Fail(result.Errors);
+            if (!result.Value.CheckDeactivation) return result;
 
+            var deactivated = await FarmTargetDeactivator.DeactivateFromFarmList(
+                browser, farmId, target, cancellationToken);
+            if (deactivated.IsFailed) return Result.Fail(deactivated.Errors);
+            return result;
+        }
+
+        private async Task<Result<ProcessTargetResult>> ProcessTargetInOasisTab(
+            IPage page,
+            FarmTargetSlot target,
+            OasisRaidSettings settings,
+            RaidDraft draft,
+            List<(long Steppe, long Marksmen, long Marauders, DateTime ReturnAt)> pendingReturns,
+            CancellationToken cancellationToken)
+        {
             var troops = await FarmTargetTroopsParser.ReadOasisAnimalTroops(page, target.Href);
             if (troops.IsFailed) return Result.Fail(troops.Errors);
             var animalCount = troops.Value.Sum(x => x.Count);
             if (settings.LimitAnimal > 0 && animalCount > settings.LimitAnimal)
             {
-                var deactivated = await FarmTargetDeactivator.Deactivate(browser, farmId, target, cancellationToken);
-                if (deactivated.IsFailed) return Result.Fail(deactivated.Errors);
                 browser.Logger.Information(
                     "Clear oasis target {SlotId}: {AnimalCount} animals exceed limit {AnimalLimit}; checking deactivation",
                     target.SlotId, animalCount, settings.LimitAnimal);
@@ -224,8 +216,6 @@ namespace MainCore.Services
                 .Select(x => x.Name).Distinct().OrderBy(x => x).ToList();
             if (blocked.Count > 0)
             {
-                var deactivated = await FarmTargetDeactivator.Deactivate(browser, farmId, target, cancellationToken);
-                if (deactivated.IsFailed) return Result.Fail(deactivated.Errors);
                 browser.Logger.Information(
                     "Clear oasis target {SlotId}: blocked animals [{Blocked}]; checking deactivation",
                     target.SlotId, string.Join(", ", blocked));
@@ -323,7 +313,7 @@ namespace MainCore.Services
         {
             var page = browser.CurrentPage;
             var opened = await page.EvaluateAsync<bool>(@"href => {
-                const tile = document.querySelector('#dialogContent #tileDetails.oasis');
+                const tile = document.querySelector('#tileDetails.oasis');
                 if (!tile) return false;
                 const center = tile.querySelector('a[data-centermap]');
                 if (!center) return false;
