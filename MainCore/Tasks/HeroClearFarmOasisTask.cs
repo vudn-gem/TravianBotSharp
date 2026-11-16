@@ -35,6 +35,7 @@ namespace MainCore.Tasks
         {
             if (task.ConfirmationAttempted)
                 return Stop.Error.WithError("Hero raid confirmation outcome is unknown. Check the game and remove this task before restarting it.");
+            var resumingAfterHeroReturn = task.HeroReturnAt is DateTime;
             if (task.HeroReturnAt is DateTime returnAt)
             {
                 var readyAt = returnAt.AddMilliseconds(task.TaskBufferMilliseconds <= 0 ? 1000 : task.TaskBufferMilliseconds);
@@ -63,7 +64,8 @@ namespace MainCore.Tasks
             }
             task.SentRaidThisRun = false;
 
-            var opened = await toFarmListPageCommand.HandleAsync(new(task.AccountId), cancellationToken);
+            var opened = await toFarmListPageCommand.HandleAsync(
+                new(task.AccountId, ForceOpen: resumingAfterHeroReturn), cancellationToken);
             if (opened.IsFailed) return opened;
             var scan = await scanner.Scan(task, settings, cancellationToken);
             if (scan.IsFailed) return scan;

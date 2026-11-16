@@ -27,6 +27,14 @@ clicked, or opens the wrong page or village, TBS logs a warning in the Debug log
 and falls back to the Farm List URL. The target's village is checked before
 scanning or sending.
 
+Starting the regular farm list does not require the current village to own each
+farm list. TBS first uses the Farm List shortcut in the current village. If that
+shortcut is unavailable because the village has no Rally Point, TBS switches to
+the first village in the village list and tries the shortcut again. Check oasis,
+Clear oasis and Hero clear oasis resolve the selected list's owner village and
+switch to it when necessary; they keep the current Farm List page when it
+remains open for that owner, reopening it only if the page changed.
+
 ## checking oasis target troops
 
 Select a farm list on the left, then click **Check target troops**.
@@ -96,9 +104,9 @@ villages if needed; it does not open Send troops just to check hero availability
 For each target, TBS opens the oasis in a temporary tab, checks its animals, and
 simulates or prepares the raid in that tab. The main tab stays on the farm list.
 Hero availability is checked again on the send form before dispatch. After
-sending, the temporary tab closes and the task waits until the hero returns
-before resuming; on resumption TBS navigates back to the farm list if another
-task changed the main tab.
+sending, the temporary tab closes and the task waits until the hero returns and
+the task delay buffer elapses. On resumption TBS reopens the Farm List to refresh
+the hero state before continuing, even if the main tab was already on that page.
 Each eligible oasis is simulated as a raid with the configured army. TBS checks
 real troop availability and requires the
 confirmation army, village, coordinates and raid type to match the simulation

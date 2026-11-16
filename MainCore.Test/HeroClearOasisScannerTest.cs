@@ -151,6 +151,20 @@ namespace MainCore.Test
             outcome.Simulates.ShouldBe(1);
             outcome.Task.ProcessedSlots.ShouldContain("0");
             outcome.Task.ProcessedSlots.ShouldContain("1");
+            outcome.MainTabFarmListNavigations.ShouldBe(0);
+            await outcome.Context.DisposeAsync();
+        }
+
+        [Fact]
+        public async Task SwitchesToFarmOwnerBeforeRejectingHeroInAnotherVillage()
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0,
+                switchVillage: true, heroVillage: 3);
+
+            outcome.Result.HasError<Stop>().ShouldBeTrue();
+            outcome.Details.ShouldContain("Hero village differs from farm list owner village");
+            (await outcome.Context.Pages[0].Locator(
+                "#sidebarBoxVillageList .listEntry.village.active").GetAttributeAsync("data-did")).ShouldBe("2");
             await outcome.Context.DisposeAsync();
         }
 
@@ -237,14 +251,15 @@ namespace MainCore.Test
         private sealed record Outcome(
             Result Result, HeroClearFarmOasisTask.Task Task, HeroOasisSetting Settings,
             HeroClearOasisScanner Scanner, IBrowserContext Context, int Confirms, int Simulates,
-            string Details, bool MainTabOpenedSendTroops);
+            string Details, bool MainTabOpenedSendTroops, int MainTabFarmListNavigations);
 
         private async Task<Outcome> Run(
             int health, int after, int minimum, int maxHealthLost, int lost, int maxTroopLost,
             bool hero = true, int availableMarauders = 10, bool reducedConfirmation = false, bool overview = true,
             bool switchVillage = false, bool skipFirst = false, bool heroOnly = false, bool blankZeros = false,
             string? actionOverride = null, bool overrideHero = false, int[]? missingActionTroops = null,
-            bool duplicateActionInput = false, bool missingConfirmationInput = false, bool missingHeroCell = false)
+            bool duplicateActionInput = false, bool missingConfirmationInput = false, bool missingHeroCell = false,
+            int heroVillage = 2)
         {
             var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -252,6 +267,7 @@ namespace MainCore.Test
             var confirms = 0;
             var simulates = 0;
             var mainTabOpenedSendTroops = false;
+            var mainTabFarmListNavigations = 0;
             var settings = new HeroOasisSetting
             {
                 FarmId = 10, AllowedAnimals = 1, MinHeroHealth = minimum,
@@ -303,7 +319,7 @@ namespace MainCore.Test
                         <div id="topBarHero" class="heroV2">
                             <svg class="health"><path class="title" aria-describedby="tippy-health"></path></svg>
                             <div class="heroStatus">
-                                <a href="/build.php?newdid=2&amp;id=39&amp;&amp;tt=2"><i class="heroHome"></i></a>
+                                <a href="/build.php?newdid={heroVillage}&amp;id=39&amp;&amp;tt=2"><i class="heroHome"></i></a>
                             </div>
                         </div>
                     </div>
@@ -463,6 +479,8 @@ namespace MainCore.Test
                 var url = (string)call[0];
                 if (currentPage == page && HeroOasisParser.Query(new Uri(url), "tt") == "2")
                     mainTabOpenedSendTroops = true;
+                if (currentPage == page && HeroOasisParser.Query(new Uri(url), "tt") == "99")
+                    mainTabFarmListNavigations++;
                 await currentPage.GotoAsync(url);
                 return Result.Ok();
             });
@@ -485,7 +503,7 @@ namespace MainCore.Test
             var details = string.Join("; ", result.Errors.Select(x => x.Message)) + " " +
                 string.Join("; ", logger.ReceivedCalls().Select(call => string.Join(" ", call.GetArguments())));
             return new(result, task, settings, scanner, context, confirms, simulates, details,
-                mainTabOpenedSendTroops);
+                mainTabOpenedSendTroops, mainTabFarmListNavigations);
         }
 
         private static string HiddenArmy(string prefix, int[] army, bool blankZeros = false) =>

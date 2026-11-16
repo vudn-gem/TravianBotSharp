@@ -46,6 +46,9 @@ namespace MainCore.Services
                 switched = await browser.Wait(page.Locator(
                     $"#sidebarBoxVillageList .listEntry.village.active[data-did='{owner.Value}']"));
                 if (switched.IsFailed) return Result.Fail(switched.Errors);
+            }
+            if (!await FarmListNavigation.IsOpenForFarmList(page, farmId, owner.Value))
+            {
                 var reopened = await FarmListNavigation.Open(browser, farmUrl, owner.Value, preferRallyPointTab: true);
                 if (reopened.IsFailed) return Result.Fail(reopened.Errors);
             }

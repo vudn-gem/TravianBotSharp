@@ -26,8 +26,6 @@ namespace MainCore.Services
             if (owner.IsFailed) return Stop.Error.WithErrors(owner.Errors);
             if (task.Owner is VillageId previous && previous != owner.Value)
                 return Skip.Error.WithError("Farm list owner village changed. Hero clear task canceled.");
-            if (task.HeroVillage != owner.Value)
-                return Stop.Error.WithError("Hero village differs from farm list owner village.");
             task.Owner = owner.Value;
             var village = VillagePanelParser.GetVillageNode(page, owner.Value);
             var switchedVillage = !await VillagePanelParser.IsActive(village);
@@ -42,11 +40,13 @@ namespace MainCore.Services
             farmUrl.Query = $"gid=16&tt=99&newdid={owner.Value.Value}";
             task.HeroReturnAt = null;
 
-            if (switchedVillage)
+            if (!await FarmListNavigation.IsOpenForFarmList(page, task.FarmId, owner.Value))
             {
                 var opened = await FarmListNavigation.Open(browser, farmUrl.Uri.AbsoluteUri, owner.Value);
                 if (opened.IsFailed) return opened;
             }
+            if (task.HeroVillage != owner.Value)
+                return Stop.Error.WithError("Hero village differs from farm list owner village.");
             var prepared = await FarmListPreparation.Prepare(browser, task.FarmId, owner.Value);
             if (prepared.IsFailed) return Stop.Error.WithErrors(prepared.Errors);
 

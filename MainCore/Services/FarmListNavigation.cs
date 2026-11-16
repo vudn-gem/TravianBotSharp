@@ -2,6 +2,28 @@ namespace MainCore.Services
 {
     public static class FarmListNavigation
     {
+        public static async Task<bool> IsShortcutAvailable(IPage page)
+        {
+            var shortcut = page.Locator(
+                "#sidebarBoxVillageList .quickLinks a[data-load-tooltip='quickLink']:has(svg.RallyPointFarmList)");
+            return await shortcut.CountAsync() == 1 &&
+                await shortcut.EvaluateAsync<bool>(@"node =>
+                    !node.hasAttribute('disabled') &&
+                    node.getAttribute('aria-disabled') !== 'true' &&
+                    !node.classList.contains('disabled') &&
+                    !node.closest('.disabled')");
+        }
+
+        public static async Task<bool> IsOpenForFarmList(IPage page, FarmId farmId, VillageId owner)
+        {
+            if (await page.Locator("#rallyPointFarmList").CountAsync() != 1)
+                return false;
+            if (!await HasExpectedVillage(page, owner))
+                return false;
+            var listOwner = await FarmTargetTroopsParser.ReadOwnerVillage(page, farmId);
+            return listOwner.IsSuccess && listOwner.Value == owner;
+        }
+
         public static async Task<Result> Open(
             IChromeBrowser browser, string fallbackUrl, VillageId? owner = null, bool preferRallyPointTab = false)
         {

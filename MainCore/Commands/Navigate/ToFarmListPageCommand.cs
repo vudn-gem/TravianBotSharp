@@ -1,37 +1,44 @@
-﻿using MainCore.Commands.Update;
-
-namespace MainCore.Commands.Navigate
+﻿namespace MainCore.Commands.Navigate
 {
     [Handler]
-    public sealed partial class ToFarmListPageCommand(
-        IDbContextFactory<AppDbContext> contextFactory,
-        IChromeBrowser browser,
-        SwitchVillageCommand.Handler switchVillageCommand,
-        ToDorfCommand.Handler toDorfCommand,
-        UpdateBuildingCommand.Handler updateBuildingCommand)
+    public sealed partial class ToFarmListPageCommand(IChromeBrowser browser)
     {
-        public sealed record Command(AccountId AccountId) : IAccountCommand;
+        public sealed record Command(AccountId AccountId, bool ForceOpen = false) : IAccountCommand;
 
         private async ValueTask<Result> HandleAsync(
             Command command,
             CancellationToken cancellationToken)
         {
-            if (await IsOnFarmListPage())
+            if (!command.ForceOpen && await IsOnFarmListPage())
                 return Result.Ok();
 
             cancellationToken.ThrowIfCancellationRequested();
-            var villageId = GetHasRallypointVillage(command.AccountId);
+            var page = browser.CurrentPage;
+            var villageId = await VillagePanelParser.GetCurrentVillageId(page);
             if (villageId == VillageId.Empty)
-                return Skip.Error.WithError("No rallypoint found. Recheck & load village has rallypoint in Village>Build tab");
-            var switched = await switchVillageCommand.HandleAsync(new(villageId), cancellationToken);
-            if (switched.IsFailed) return switched;
-            switched = await browser.Wait(browser.CurrentPage.Locator(
-                $"#sidebarBoxVillageList .listEntry.village.active[data-did='{villageId.Value}']"));
-            if (switched.IsFailed) return switched;
-            var toDorf = await toDorfCommand.HandleAsync(new(2), cancellationToken);
-            if (toDorf.IsFailed) return toDorf;
-            var updated = await updateBuildingCommand.HandleAsync(new(villageId), cancellationToken);
-            if (updated.IsFailed) return Result.Fail(updated.Errors);
+                return Result.Fail("Unable to determine the active village before opening Farm List.");
+
+            if (!await FarmListNavigation.IsShortcutAvailable(page))
+            {
+                var villages = page.Locator("#sidebarBoxVillageList .listEntry.village");
+                if (await villages.CountAsync() == 0)
+                    return Skip.Error.WithError("Farm List shortcut is unavailable and no village is listed.");
+                var firstVillage = villages.First;
+                var firstVillageIdText = await firstVillage.GetAttributeAsync("data-did");
+                if (!int.TryParse(firstVillageIdText, out var firstVillageId) || firstVillageId <= 0)
+                    return Result.Fail("Unable to determine the first village for Farm List shortcut fallback.");
+
+                villageId = new VillageId(firstVillageId);
+                if (await VillagePanelParser.GetCurrentVillageId(page) != villageId)
+                {
+                    var switched = await browser.Click(firstVillage);
+                    if (switched.IsFailed) return switched;
+                    switched = await browser.Wait(page.Locator(
+                        $"#sidebarBoxVillageList .listEntry.village.active[data-did='{villageId.Value}']"));
+                    if (switched.IsFailed) return switched;
+                }
+            }
+
             var fallback = new UriBuilder(browser.CurrentPage.Url)
             {
                 Path = "/build.php",
@@ -42,7 +49,6 @@ namespace MainCore.Commands.Navigate
 
             result = await browser.Wait(FarmListParser.GetStartAllButton(browser.CurrentPage));
             if (result.IsFailed) return result;
-
             return Result.Ok();
         }
 
@@ -55,15 +61,5 @@ namespace MainCore.Commands.Navigate
             return await startButtons.CountAsync() > 0;
         }
 
-        private VillageId GetHasRallypointVillage(AccountId accountId)
-        {
-            using var context = contextFactory.CreateDbContext();
-            return context.Villages
-                .Where(x => x.AccountId == accountId.Value)
-                .Where(x => x.Buildings.Any(x => x.Type == BuildingEnums.RallyPoint && x.Level > 0))
-                .OrderByDescending(x => x.IsActive)
-                .Select(x => new VillageId(x.Id))
-                .FirstOrDefault();
-        }
     }
 }

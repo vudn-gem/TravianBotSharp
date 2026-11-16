@@ -1,4 +1,5 @@
 using FluentResults;
+using MainCore.Commands.Navigate;
 using MainCore.Entities;
 using MainCore.Parsers;
 using MainCore.Services;
@@ -9,6 +10,108 @@ namespace MainCore.Test
 {
     public sealed class FarmListNavigationTest(PlaywrightFixture fixture) : ParserTestBase(fixture)
     {
+        [Fact]
+        public async Task SwitchesToFirstVillageWhenCurrentVillageHasNoShortcut()
+        {
+            await using var context = await CreateContextAsync();
+            var page = await context.NewPageAsync();
+            page.SetDefaultTimeout(1500);
+            var activeVillage = 3;
+            await page.RouteAsync("https://example.com/**", async route =>
+            {
+                var uri = new Uri(route.Request.Url);
+                if (HeroOasisParser.Query(uri, "newdid") == "2")
+                    activeVillage = 2;
+                var shortcut = activeVillage == 2 ? """
+                    <a data-load-tooltip="quickLink" data-kind="shortcut" href="/build.php?gid=16&amp;tt=99">
+                    <svg class="RallyPointFarmList" width="20" height="20"></svg></a>
+                    """ : "";
+                await route.FulfillAsync(new()
+                {
+                    ContentType = "text/html",
+                    Body = $"""
+                        <div id="sidebarBoxVillageList">
+                        <div class="listEntry village {(activeVillage == 2 ? "active" : "")}" data-did="2"
+                        onclick="location.href='/dorf2.php?newdid=2'">First village</div>
+                        <div class="listEntry village {(activeVillage == 3 ? "active" : "")}" data-did="3">Current village</div>
+                        <div class="quickLinks">{shortcut}</div></div>
+                        {(uri.AbsolutePath == "/build.php" ? "<div id='rallyPointFarmList'><button class='startAllFarmLists'></button></div>" : "")}
+                        """
+                });
+            });
+            await page.GotoAsync("https://example.com/dorf1.php?newdid=3");
+            var browser = Substitute.For<IChromeBrowser>();
+            browser.CurrentPage.Returns(page);
+            browser.Logger.Returns(Substitute.For<Serilog.ILogger>());
+            var clicks = new List<string?>();
+            browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
+            {
+                var locator = call.Arg<ILocator>();
+                clicks.Add(await locator.GetAttributeAsync("data-kind") ??
+                    await locator.GetAttributeAsync("data-did"));
+                await locator.ClickAsync();
+                return Result.Ok();
+            });
+            browser.Wait(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
+            {
+                await call.Arg<ILocator>().WaitForAsync();
+                return Result.Ok();
+            });
+            var handler = new ToFarmListPageCommand.HandleBehavior(new ToFarmListPageCommand(browser));
+
+            var result = await handler.HandleAsync(
+                new ToFarmListPageCommand.Command(new AccountId(1)), CancellationToken.None);
+
+            result.IsSuccess.ShouldBeTrue();
+            clicks.ShouldBe(new string?[] { "2", "shortcut" });
+            activeVillage.ShouldBe(2);
+            page.Url.ShouldContain("tt=99");
+        }
+
+        [Fact]
+        public async Task ForceOpenRefreshesFarmListWhenAlreadyOnItsPage()
+        {
+            await using var context = await CreateContextAsync();
+            var page = await context.NewPageAsync();
+            await page.RouteAsync("https://example.com/**", route =>
+                route.FulfillAsync(new()
+                {
+                    ContentType = "text/html",
+                    Body = """
+                        <div id="sidebarBoxVillageList">
+                        <div class="listEntry village active" data-did="2"></div>
+                        <div class="quickLinks"><a data-load-tooltip="quickLink"
+                        href="/build.php?gid=16&amp;tt=99&amp;newdid=2">
+                        <svg class="RallyPointFarmList"></svg></a></div>
+                        </div>
+                        <div id="rallyPointFarmList"><button class="startAllFarmLists"></button></div>
+                        """
+                }));
+            await page.GotoAsync("https://example.com/build.php?gid=16&tt=99&newdid=2");
+            var browser = Substitute.For<IChromeBrowser>();
+            browser.CurrentPage.Returns(page);
+            browser.Logger.Returns(Substitute.For<Serilog.ILogger>());
+            var clicks = 0;
+            browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
+            {
+                clicks++;
+                await call.Arg<ILocator>().ClickAsync();
+                return Result.Ok();
+            });
+            browser.Wait(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
+            {
+                await call.Arg<ILocator>().WaitForAsync();
+                return Result.Ok();
+            });
+            var handler = new ToFarmListPageCommand.HandleBehavior(new ToFarmListPageCommand(browser));
+
+            var result = await handler.HandleAsync(
+                new ToFarmListPageCommand.Command(new AccountId(1), ForceOpen: true), CancellationToken.None);
+
+            result.IsSuccess.ShouldBeTrue();
+            clicks.ShouldBe(1);
+        }
+
         [Theory]
         [InlineData("shortcut", false)]
         [InlineData("missing", true)]

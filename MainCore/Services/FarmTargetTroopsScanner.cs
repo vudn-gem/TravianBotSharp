@@ -23,6 +23,9 @@ namespace MainCore.Services
                 switched = await browser.Wait(page.Locator(
                     $"#sidebarBoxVillageList .listEntry.village.active[data-did='{owner.Value}']"));
                 if (switched.IsFailed) return switched;
+            }
+            if (!await FarmListNavigation.IsOpenForFarmList(page, farmId, owner.Value))
+            {
                 var reopened = await FarmListNavigation.Open(browser, farmUrl, owner.Value);
                 if (reopened.IsFailed) return reopened;
             }
