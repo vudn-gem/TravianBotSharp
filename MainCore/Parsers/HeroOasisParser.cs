@@ -350,15 +350,51 @@ namespace MainCore.Parsers
 
         private static async Task<Result<string>> ReadTooltipText(IPage page, ILocator anchor)
         {
-            await anchor.HoverAsync();
-            await page.WaitForTimeoutAsync(60);
-            var tooltipId = await anchor.GetAttributeAsync("aria-describedby");
+            await TriggerTooltip(anchor);
+            await page.WaitForTimeoutAsync(80);
+            var tooltipId = await TooltipId(anchor);
+            if (string.IsNullOrWhiteSpace(tooltipId))
+            {
+                if (!await TryHover(anchor, force: false) && !await TryHover(anchor, force: true))
+                    return Result.Fail("Hero tooltip could not be opened.");
+                await page.WaitForTimeoutAsync(80);
+                tooltipId = await TooltipId(anchor);
+            }
             if (string.IsNullOrWhiteSpace(tooltipId))
                 return Result.Fail("Hero tooltip did not open.");
             var text = page.Locator($"#{tooltipId} .tippy-content .text");
             if (await text.CountAsync() != 1)
                 return Result.Fail("Hero tooltip text is missing or ambiguous.");
             return Result.Ok(Clean(await text.InnerTextAsync()));
+        }
+
+        private static async Task<string?> TooltipId(ILocator anchor) =>
+            await anchor.EvaluateAsync<string?>(
+                "el => el.getAttribute('aria-describedby') ?? el.parentElement?.getAttribute('aria-describedby')");
+
+        private static Task TriggerTooltip(ILocator anchor) =>
+            anchor.EvaluateAsync("""
+                el => {
+                    const options = { bubbles: true, cancelable: true, composed: true };
+                    el.dispatchEvent(new MouseEvent('pointerenter', options));
+                    el.dispatchEvent(new MouseEvent('pointerover', options));
+                    el.dispatchEvent(new MouseEvent('mouseenter', options));
+                    el.dispatchEvent(new MouseEvent('mouseover', options));
+                    el.dispatchEvent(new MouseEvent('mousemove', options));
+                }
+                """);
+
+        private static async Task<bool> TryHover(ILocator anchor, bool force)
+        {
+            try
+            {
+                await anchor.HoverAsync(new() { Force = force, Timeout = 1500 });
+                return true;
+            }
+            catch (TimeoutException)
+            {
+                return false;
+            }
         }
 
         private static async Task<Result<int>> ReadTooltipTimer(ILocator anchor, IPage page)
