@@ -80,13 +80,6 @@ namespace MainCore.Services
             CancellationToken cancellationToken)
         {
             var farmPage = browser.CurrentPage;
-            var current = new Uri(farmPage.Url);
-            if (!Uri.TryCreate(current, target.Href, out var targetUrl) ||
-                targetUrl.Authority != current.Authority || targetUrl.Scheme != current.Scheme ||
-                targetUrl.AbsolutePath != "/karte.php" ||
-                !System.Text.RegularExpressions.Regex.IsMatch(targetUrl.Query, @"(?:^\?|&)x=-?\d+(?:&|$)") ||
-                !System.Text.RegularExpressions.Regex.IsMatch(targetUrl.Query, @"(?:^\?|&)y=-?\d+(?:&|$)"))
-                return Result.Fail("Invalid target map link.");
             var row = FarmTargetTroopsParser.GetList(farmPage, farmId)
                 .Locator($"tr.slot:has(input[data-slot-id='{target.SlotId}'])");
             if (await row.CountAsync() != 1) return Result.Fail("Target slot is missing or ambiguous.");
@@ -96,21 +89,8 @@ namespace MainCore.Services
             if (await link.GetAttributeAsync("href") != target.Href)
                 return Result.Fail("Target coordinates changed during scan.");
 
-            var opened = await browser.OpenNewTab();
-            if (opened.IsFailed) return Result.Fail(opened.Errors);
-            Result<(bool HasTroops, bool Safe)> troops =
-                Result.Fail("Oasis troops were not checked.");
-            Result closed = Result.Ok();
-            try
-            {
-                troops = await InspectTarget(
-                    targetUrl.AbsoluteUri, target.Href, allowedAnimals, safeAnimal, cancellationToken);
-            }
-            finally
-            {
-                closed = await browser.CloseNewTab();
-            }
-            if (closed.IsFailed) return Result.Fail(closed.Errors);
+            var troops = await FarmTargetOasisTab.Run(browser, target.Href, link, page =>
+                InspectTarget(page, target.Href, allowedAnimals, safeAnimal, cancellationToken));
             if (troops.IsFailed) return Result.Fail(troops.Errors);
 
             browser.Logger.Information("Farm target {SlotId} ({TargetName}): has troops {HasTroops}, safe {Safe}",
@@ -125,15 +105,10 @@ namespace MainCore.Services
         }
 
         private async Task<Result<(bool HasTroops, bool Safe)>> InspectTarget(
-            string targetUrl, string targetHref, IReadOnlySet<int> allowedAnimals,
+            IPage page, string targetHref, IReadOnlySet<int> allowedAnimals,
             int safeAnimal, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var opened = await browser.Navigate(targetUrl);
-            if (opened.IsFailed) return Result.Fail<(bool, bool)>(opened.Errors);
-            var page = browser.CurrentPage;
-            opened = await browser.Wait(page.Locator("#tileDetails.oasis"));
-            if (opened.IsFailed) return Result.Fail<(bool, bool)>(opened.Errors);
             var troops = await FarmTargetTroopsParser.ReadOasisAnimalTroops(page, targetHref);
             if (troops.IsFailed) return Result.Fail<(bool, bool)>(troops.Errors);
             var present = troops.Value.Where(x => x.Count > 0).ToList();

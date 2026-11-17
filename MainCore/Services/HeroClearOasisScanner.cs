@@ -78,7 +78,7 @@ namespace MainCore.Services
                 if (await targetLink.CountAsync() != 1 || await targetLink.GetAttributeAsync("href") != target.Href)
                     return Stop.Error.WithError("Hero oasis target changed while opening it.");
                 var continueScanning = false;
-                var result = await FarmTargetOasisTab.Run(browser, target.Href, oasisPage =>
+                var result = await FarmTargetOasisTab.Run(browser, target.Href, targetLink, oasisPage =>
                     ProcessTargetInOasisTab(task, settings, troopSettings, target, owner.Value, oasisPage,
                         cancellationToken, () => continueScanning = true));
                 if (result.IsFailed) return result;

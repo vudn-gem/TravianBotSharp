@@ -143,12 +143,25 @@ namespace MainCore.Services
             }
         }
 
-        public async Task<Result> Click(ILocator locator, [CallerArgumentExpression(nameof(locator))] string? expression = null)
+        public Task<Result> Click(ILocator locator, [CallerArgumentExpression(nameof(locator))] string? expression = null)
+            => Click(locator, false, expression);
+
+        public async Task<Result> Click(ILocator locator, bool openInNewTab, [CallerArgumentExpression(nameof(locator))] string? expression = null)
         {
             if (!IsInitialized) return Stop.DriverNotReady;
             try
             {
-                await locator.ClickAsync();
+                if (openInNewTab)
+                {
+                    var page = await CurrentPage.Context.RunAndWaitForPageAsync(
+                        () => locator.ClickAsync(new() { Button = MouseButton.Middle }));
+                    _newTabs.Add(page);
+                    await page.BringToFrontAsync();
+                }
+                else
+                {
+                    await locator.ClickAsync();
+                }
                 await DelayClick();
                 return Result.Ok();
             }
@@ -250,6 +263,8 @@ namespace MainCore.Services
             var page = _newTabs[^1];
             _newTabs.RemoveAt(_newTabs.Count - 1);
             await page.CloseAsync();
+            await CurrentPage.BringToFrontAsync();
+            await DelayClick();
             return Result.Ok();
         }
     }

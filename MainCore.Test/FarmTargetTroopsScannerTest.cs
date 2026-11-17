@@ -117,10 +117,20 @@ namespace MainCore.Test
             IPage currentPage = page;
             browser.CurrentPage.Returns(_ => currentPage);
             browser.Logger.Returns(logger);
-            browser.OpenNewTab().Returns(async _ =>
+            browser.Click(Arg.Any<ILocator>(), true, Arg.Any<string>()).Returns(async call =>
             {
+                var href = await ((ILocator)call[0]).GetAttributeAsync("href");
                 currentPage = await context.NewPageAsync();
+                await currentPage.GotoAsync(new Uri(new Uri(page.Url), href!).AbsoluteUri);
+                targetNavigations++;
+                events.Add("check-target");
+                events.Add("click-buffer");
                 return Result.Ok();
+            });
+            browser.DelayClick().Returns(_ =>
+            {
+                events.Add("buffer");
+                return Task.CompletedTask;
             });
             browser.CloseNewTab().Returns(async _ =>
             {
@@ -174,7 +184,12 @@ namespace MainCore.Test
             targetNavigations.ShouldBe(synchronize || initiallyDisabled == activate ? 1 : 0);
             newTabFarmNavigations.ShouldBe(0);
             if (initiallyDisabled == activate)
+            {
                 events.IndexOf("check-target").ShouldBeLessThan(events.IndexOf("close-check-tab"));
+                events.Where(x => x is "check-target" or "click-buffer" or "buffer" or "close-check-tab")
+                    .ShouldBe(new[] { "check-target", "click-buffer", "buffer", "buffer", "close-check-tab" });
+                (await page.Locator("#dialogContent").InnerHTMLAsync()).ShouldBeEmpty();
+            }
             var actionName = activate ? "activate" : "deactivate";
             if (expectedSaves == 1 && !persist)
                 logger.Received().Warning("Farm target {SlotId}: saved status change was not confirmed", "637157");

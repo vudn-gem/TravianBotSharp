@@ -665,9 +665,11 @@ namespace MainCore.Test
                 await input.FillAsync((string)call[1]);
                 return Result.Ok();
             });
-            browser.OpenNewTab().Returns(async _ =>
+            browser.Click(Arg.Any<ILocator>(), true, Arg.Any<string>()).Returns(async call =>
             {
+                var href = await ((ILocator)call[0]).GetAttributeAsync("href");
                 currentPage = await context.NewPageAsync();
+                await currentPage.GotoAsync(new Uri(new Uri(page.Url), href!).AbsoluteUri);
                 return Result.Ok();
             });
             browser.CloseNewTab().Returns(async _ =>

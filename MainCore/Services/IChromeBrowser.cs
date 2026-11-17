@@ -13,6 +13,10 @@ namespace MainCore.Services
 
         Task<Result> Click(ILocator locator, [CallerArgumentExpression(nameof(locator))] string? expression = null);
 
+        Task<Result> Click(ILocator locator, bool openInNewTab, [CallerArgumentExpression(nameof(locator))] string? expression = null);
+
+        Task DelayClick();
+
         Task<Result> ExecuteJsScript(string javascript);
 
         Task<Result> Input(ILocator locator, string content, [CallerArgumentExpression(nameof(locator))] string? expression = null);

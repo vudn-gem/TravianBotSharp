@@ -186,7 +186,7 @@ namespace MainCore.Services
             if (await targetRow.Locator("td.target a").GetAttributeAsync("href") != target.Href)
                 return Result.Fail("Target coordinates changed during scan.");
 
-            var result = await FarmTargetOasisTab.Run(browser, target.Href, page =>
+            var result = await FarmTargetOasisTab.Run(browser, target.Href, targetRow.Locator("td.target a"), page =>
                 ProcessTargetInOasisTab(page, target, settings, draft, pendingReturns, cancellationToken));
             if (result.IsFailed) return Result.Fail(result.Errors);
             if (!result.Value.CheckDeactivation) return result;
