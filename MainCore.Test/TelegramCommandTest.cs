@@ -66,6 +66,10 @@ namespace MainCore.Test
             foreach (var command in new[] { "/accounts", "/status", "/farm-lists", "/hero-farm", "/pause",
                 "/resume", "/start-farm", "/stop-farm" })
                 help.ShouldContain(command);
+            foreach (var command in new[] { "/active <account-id> <farm-list-id>", "/deactive <account-id> <farm-list-id>",
+                "/active-oasis <account-id> <farm-list-id>", "/deactive-oasis <account-id> <farm-list-id>",
+                "/check-oasis <account-id> <farm-list-id>" })
+                help.ShouldContain(command);
             (await Execute("/tbs_command")).ShouldBe(help);
             (await Execute("/accounts")).ShouldContain("1: one - Offline");
             (await Execute("/farm-lists 1")).ShouldContain("10: home - Active");
@@ -83,6 +87,20 @@ namespace MainCore.Test
         [InlineData("/status 999", "Account not found")]
         [InlineData("/hero-farm 1 20", "does not belong")]
         [InlineData("/restart 1", "Unknown command")]
+        [InlineData("/active", "Usage:")]
+        [InlineData("/deactive 1 10 extra", "Usage:")]
+        [InlineData("/active 10", "Usage:")]
+        [InlineData("/deactive 10", "Usage:")]
+        [InlineData("/active-oasis 10", "Usage:")]
+        [InlineData("/deactive-oasis 10", "Usage:")]
+        [InlineData("/active-oasis 1 -10", "positive integers")]
+        [InlineData("/deactive-oasis 1 2147483648", "positive integers")]
+        [InlineData("/active nope 10", "positive integers")]
+        [InlineData("/deactive 1 999", "Farm list not found")]
+        [InlineData("/active-oasis 1 999", "Farm list not found")]
+        [InlineData("/active 999 10", "Account not found")]
+        [InlineData("/check-oasis 1", "Usage:")]
+        [InlineData("/check-oasis 1 nope", "positive integers")]
         public async Task RejectsInvalidCommandsWithoutQueueing(string command, string expected)
         {
             (await Execute(command)).ShouldContain(expected);
@@ -103,6 +121,92 @@ namespace MainCore.Test
             context.SaveChanges();
             (await Execute("/hero-farm 1 10")).ShouldContain("Invalid saved hero settings");
             _manager.GetTaskList(new(1)).ShouldBeEmpty();
+        }
+
+        [Fact]
+        public async Task ActiveAndDeactiveSetStateIdempotentlyWithoutStartingFarming()
+        {
+            using var context = new AppDbContext(_options);
+            foreach (var command in new[] { "/deactive 1 10", "/deactive 1 10" })
+            {
+                (await Execute(command)).ShouldContain("Inactive (account 1)");
+                context.FarmLists.AsNoTracking().Single(x => x.Id == 10).IsActive.ShouldBeFalse();
+                context.FarmLists.AsNoTracking().Single(x => x.Id == 20).IsActive.ShouldBeTrue();
+            }
+            foreach (var command in new[] { "/active 1 10", "/active 1 10" })
+            {
+                (await Execute(command)).ShouldContain("Active (account 1)");
+                context.FarmLists.AsNoTracking().Single(x => x.Id == 10).IsActive.ShouldBeTrue();
+            }
+            (await Execute("/deactive 2 20")).ShouldContain("account 2");
+            context.FarmLists.AsNoTracking().Single(x => x.Id == 20).IsActive.ShouldBeFalse();
+            context.FarmLists.AsNoTracking().Single(x => x.Id == 10).IsActive.ShouldBeTrue();
+            _manager.GetTaskList(new(1)).ShouldBeEmpty();
+            _manager.GetTaskList(new(2)).ShouldBeEmpty();
+        }
+
+        [Theory]
+        [InlineData("/active-oasis", true, StatusEnums.Offline)]
+        [InlineData("/active_oasis", true, StatusEnums.Paused)]
+        [InlineData("/deactive-oasis", false, StatusEnums.Online)]
+        [InlineData("/deactive_oasis", false, StatusEnums.Offline)]
+        [InlineData("/check-oasis", false, StatusEnums.Online)]
+        [InlineData("/check_oasis", false, StatusEnums.Paused)]
+        public async Task OasisCommandsUseOwnerAndSavedSettingsWithoutChangingLocalActiveFlag(
+            string command, bool activate, StatusEnums status)
+        {
+            using var context = new AppDbContext(_options);
+            context.FarmOasisSettings.Add(new FarmOasisSetting
+            {
+                FarmId = 20, CheckAllowedAnimals = 3, SafeAnimal = 5,
+            });
+            context.SaveChanges();
+            _manager.SetStatus(new(2), status);
+            (await Execute($"{command} 2 20")).ShouldContain("farm list 20, account 2");
+            var task = _manager.GetTaskList(new(2)).OfType<CheckFarmTargetOasisTask.Task>().Single();
+            task.AccountId.ShouldBe(new AccountId(2));
+            task.FarmId.ShouldBe(new FarmId(20));
+            task.Activate.ShouldBe(activate);
+            task.Synchronize.ShouldBe(command.Replace('_', '-') == "/check-oasis");
+            var scheduled = task.ExecuteAt = DateTime.Now.AddHours(1);
+            (await Execute($"{command} 2 20")).ShouldContain("already queued");
+            task.ExecuteAt.ShouldBe(scheduled);
+            _manager.GetTaskList(new(2)).Count.ShouldBe(1);
+            _manager.GetTaskList(new(1)).ShouldBeEmpty();
+            context.FarmLists.AsNoTracking().Single(x => x.Id == 20).IsActive.ShouldBeTrue();
+            var saved = context.FarmOasisSettings.AsNoTracking().Single();
+            saved.CheckAllowedAnimals.ShouldBe(3);
+            saved.SafeAnimal.ShouldBe(5);
+        }
+
+        [Theory]
+        [InlineData("/active-oasis")]
+        [InlineData("/deactive-oasis")]
+        [InlineData("/check-oasis")]
+        public async Task OasisCommandsRejectMissingSettingsAndTransitionStates(string command)
+        {
+            (await Execute($"{command} 1 10")).ShouldContain("Save Check oasis settings");
+            foreach (var status in new[] { StatusEnums.Starting, StatusEnums.Pausing, StatusEnums.Stopping })
+            {
+                _manager.SetStatus(new(1), status);
+                (await Execute($"{command} 1 10")).ShouldContain("Wait and try again");
+            }
+            _manager.GetTaskList(new(1)).ShouldBeEmpty();
+        }
+
+        [Theory]
+        [InlineData("/active")]
+        [InlineData("/deactive")]
+        [InlineData("/active-oasis")]
+        [InlineData("/deactive-oasis")]
+        [InlineData("/check-oasis")]
+        public async Task FarmCommandsRejectAnotherAccountsFarmList(string command)
+        {
+            (await Execute($"{command} 1 20")).ShouldContain("Farm list not found for this account");
+            using var context = new AppDbContext(_options);
+            context.FarmLists.AsNoTracking().Single(x => x.Id == 20).IsActive.ShouldBeTrue();
+            _manager.GetTaskList(new(1)).ShouldBeEmpty();
+            _manager.GetTaskList(new(2)).ShouldBeEmpty();
         }
 
         [Fact]

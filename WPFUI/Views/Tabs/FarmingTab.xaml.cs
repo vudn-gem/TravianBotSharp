@@ -28,6 +28,7 @@ namespace WPFUI.Views.Tabs
                 this.BindCommand(ViewModel, vm => vm.UpdateFarmListCommand, v => v.Load).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.DeactiveOasisCommand, v => v.DeactiveOasisButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.ActiveOasisCommand, v => v.ActiveOasisButton).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.CheckOasisCommand, v => v.CheckOasisButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.ClearOasisCommand, v => v.ClearOasisButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.RemoveClearOasisCommand, v => v.RemoveClearOasisButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.SaveOasisSettingsCommand, v => v.SaveOasisSettingsButton).DisposeWith(d);
@@ -65,6 +66,7 @@ namespace WPFUI.Views.Tabs
                 this.OneWayBind(ViewModel, vm => vm.HasOasisSettings, v => v.CheckOasisSettingsGroup.IsEnabled).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HasOasisSettings, v => v.DeactiveOasisButton.IsEnabled).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HasOasisSettings, v => v.ActiveOasisButton.IsEnabled).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.HasOasisSettings, v => v.CheckOasisButton.IsEnabled).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.CheckOasisSettingInput.SafeAnimal, v => v.SafeAnimal.ViewModel).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.CheckOasisSettingInput.AllowRat, v => v.CheckAllowRat.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.CheckOasisSettingInput.AllowSpider, v => v.CheckAllowSpider.IsChecked).DisposeWith(d);

@@ -19,6 +19,8 @@ namespace MainCore.Test
             first.Key.ShouldNotBe(new MainCore.Tasks.CheckFarmTargetOasisTask.Task(
                 new AccountId(1), new FarmId(6706), activate: true).Key);
             first.Description.ShouldContain("6706");
+            first.Key.ShouldNotBe(new MainCore.Tasks.CheckFarmTargetOasisTask.Task(
+                new AccountId(1), new FarmId(6706), synchronize: true).Key);
         }
 
         [Theory]
@@ -30,10 +32,20 @@ namespace MainCore.Test
         [InlineData("1", false, true, false, 0)]
         [InlineData("1", true, true, true, 1)]
         [InlineData("2", true, true, true, 0)]
-        [InlineData("none", true, true, true, 0)]
+        [InlineData("none", true, true, true, 1)]
+        [InlineData("1", true, true, false, 1, true)]
+        [InlineData("1", false, true, false, 0, true)]
+        [InlineData("2", false, true, false, 1, true)]
+        [InlineData("2", true, true, false, 0, true)]
+        [InlineData("none", true, true, false, 1, true)]
+        [InlineData("none", false, true, false, 0, true)]
+        [InlineData("0", true, true, false, 1, true)]
+        [InlineData("?", true, true, false, 0, true)]
+        [InlineData("?", false, true, false, 0, true)]
         public async Task ChangesOnlyTargetsMatchingSelectedOasisAction(
-            string troopCount, bool initiallyDisabled, bool persist, bool activate, int expectedSaves)
+            string troopCount, bool initiallyDisabled, bool persist, bool activate, int expectedSaves, bool synchronize = false)
         {
+            if (synchronize) activate = initiallyDisabled;
             await using var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
             var disabled = initiallyDisabled;
@@ -146,12 +158,12 @@ namespace MainCore.Test
                 return Result.Ok();
             });
 
-            var allowedAnimals = activate || troopCount == "1"
+            var allowedAnimals = synchronize || activate || troopCount == "1"
                 ? new HashSet<int> { 31 }
                 : new HashSet<int>();
             (await new FarmTargetTroopsScanner(browser).Scan(
                 new FarmId(6706), activate, allowedAnimals,
-                1, CancellationToken.None)).IsSuccess.ShouldBeTrue();
+                1, CancellationToken.None, synchronize)).IsSuccess.ShouldBeTrue();
 
             saves.ShouldBe(expectedSaves);
             disabled.ShouldBe(expectedSaves == 1 && persist ? !activate : initiallyDisabled);
@@ -159,7 +171,7 @@ namespace MainCore.Test
             currentVillage.ShouldBe(2);
             switches.ShouldBe(1);
             originNavigations.ShouldBe(1);
-            targetNavigations.ShouldBe(initiallyDisabled == activate ? 1 : 0);
+            targetNavigations.ShouldBe(synchronize || initiallyDisabled == activate ? 1 : 0);
             newTabFarmNavigations.ShouldBe(0);
             if (initiallyDisabled == activate)
                 events.IndexOf("check-target").ShouldBeLessThan(events.IndexOf("close-check-tab"));

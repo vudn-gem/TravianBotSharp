@@ -153,7 +153,9 @@
                                 <Button x:Name="DeactiveOasisButton" Content="Deactive oasis" Margin="10"
                                         ToolTip="Deactivate active targets with animals outside the safe allowed-animal limit" />
                                 <Button x:Name="ActiveOasisButton" Content="Active oasis" Margin="10"
-                                        ToolTip="Activate deactivated targets with only safe allowed animals" />
+                                        ToolTip="Activate deactivated targets that are empty or have only safe allowed animals" />
+                                <Button x:Name="CheckOasisButton" Content="Check oasis" Margin="10"
+                                        ToolTip="Check all targets: activate empty or safe allowed-animal oasis; deactivate unsafe oasis" />
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>

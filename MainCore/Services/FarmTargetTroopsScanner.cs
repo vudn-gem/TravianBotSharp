@@ -5,7 +5,7 @@ namespace MainCore.Services
     {
         public async Task<Result> Scan(
             FarmId farmId, bool activate, IReadOnlySet<int> allowedAnimals, int safeAnimal,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken, bool synchronize = false)
         {
             var page = browser.CurrentPage;
             var farmUrl = page.Url;
@@ -39,12 +39,13 @@ namespace MainCore.Services
             foreach (var target in targets.Value)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (target.Disabled != activate) continue;
+                if (!synchronize && target.Disabled != activate) continue;
+                var targetActivate = synchronize ? target.Disabled : activate;
                 var saved = false;
                 try
                 {
                     var result = await ProcessTarget(
-                        farmId, target, activate, allowedAnimals, safeAnimal, cancellationToken);
+                        farmId, target, targetActivate, allowedAnimals, safeAnimal, cancellationToken);
                     if (result.IsFailed)
                         browser.Logger.Warning("Farm target {SlotId} skipped: {Reason}", target.SlotId, result.Errors[0].Message);
                     else saved = result.Value;
@@ -59,17 +60,17 @@ namespace MainCore.Services
                 if (prepared.IsFailed) return prepared;
                 if (saved)
                 {
-                    if (await FarmTargetDeactivator.IsConfirmed(page, farmId, target, activate))
+                    if (await FarmTargetDeactivator.IsConfirmed(page, farmId, target, targetActivate))
                     {
                         changedCount++;
                         browser.Logger.Information("Farm target {SlotId} {Action} in list {FarmListId}",
-                            target.SlotId, activate ? "activated" : "deactivated", farmId.Value);
+                            target.SlotId, targetActivate ? "activated" : "deactivated", farmId.Value);
                     }
                     else browser.Logger.Warning("Farm target {SlotId}: saved status change was not confirmed", target.SlotId);
                 }
             }
             browser.Logger.Information("Farm target oasis check completed: list {FarmListId}, {Action}, {TargetCount} targets, {ChangedCount} changed",
-                farmId.Value, activate ? "activate" : "deactivate", targets.Value.Count, changedCount);
+                farmId.Value, synchronize ? "synchronize" : activate ? "activate" : "deactivate", targets.Value.Count, changedCount);
             return Result.Ok();
         }
 

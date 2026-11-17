@@ -9,12 +9,13 @@ namespace MainCore.Tasks
         FarmTargetTroopsScanner scanner,
         IDbContextFactory<AppDbContext> contextFactory)
     {
-        public sealed class Task(AccountId accountId, FarmId farmId, bool activate = false) : AccountTask(accountId)
+        public sealed class Task(AccountId accountId, FarmId farmId, bool activate = false, bool synchronize = false) : AccountTask(accountId)
         {
             public FarmId FarmId { get; } = farmId;
             public bool Activate { get; } = activate;
-            protected override string TaskName => $"{(Activate ? "Activate" : "Deactive")} oasis in farm list {FarmId.Value}";
-            public override string Key => $"{AccountId}_{FarmId.Value}_{Activate}";
+            public bool Synchronize { get; } = synchronize;
+            protected override string TaskName => $"{(Synchronize ? "Check" : Activate ? "Activate" : "Deactive")} oasis in farm list {FarmId.Value}";
+            public override string Key => $"{AccountId}_{FarmId.Value}_{(Synchronize ? "Check" : Activate.ToString())}";
             public override bool CanStart(AppDbContext context) =>
                 context.FarmLists.Any(x => x.Id == FarmId.Value && x.AccountId == AccountId.Value);
         }
@@ -37,7 +38,7 @@ namespace MainCore.Tasks
             }
             var result = await toFarmListPageCommand.HandleAsync(new(task.AccountId), cancellationToken);
             if (result.IsFailed) return result;
-            return await scanner.Scan(task.FarmId, task.Activate, allowedAnimals, safeAnimal, cancellationToken);
+            return await scanner.Scan(task.FarmId, task.Activate, allowedAnimals, safeAnimal, cancellationToken, task.Synchronize);
         }
     }
 }

@@ -59,18 +59,23 @@ before scanning; a collapsed or partially loaded list is not treated as empty.
 For Check oasis, TBS opens each target in a temporary browser tab and reads
 the actual **Troops** table, not report history or the farm row's configured
 raiding troops. It closes the check tab before continuing in the original farm
-list tab. A `none` row or all-zero counts leaves the target unchanged. Any
-positive troop/animal count causes TBS to open that target's context menu in
-the original farm list tab and select **Deactivate target**. TBS rescans the
-farm-list element in the current page and confirms the same slot is disabled
-without reloading the farm page.
+list tab. **Active oasis** checks disabled targets and activates empty oasis or
+oasis containing only allowed animal types with a total count at or below
+**Safe animal**. **Deactive oasis** checks active targets and deactivates unsafe
+oasis. **Check oasis** combines both: it inspects all targets in the selected
+list, activates safe or empty oasis and deactivates unsafe oasis. Targets already
+in the correct state are not toggled. All three use the selected list's saved
+Check oasis settings. Save changes before queuing a scan.
+TBS applies changes through each target's context menu, rescans the farm-list
+element and confirms the changed state without reloading the farm page.
+Telegram `/check-oasis <account-id> <farm-list-id>` queues the same combined scan.
 
 Clear oasis also opens each target in a temporary tab to inspect animals and
 send the raid, then closes it before continuing on the farm list tab. Targets
 that exceed the animal limit or contain disallowed animals are deactivated from
 the main farm list after the temporary tab closes.
 
-Already disabled targets stay disabled, even if empty. Non-oasis targets,
+Non-oasis targets,
 unknown/invalid troop counts, missing dialogs/context menus, and mismatched
 list/coordinates are skipped with warnings; no new targets are added.
 The English game UI is required. Check the account's **Debug** tab for

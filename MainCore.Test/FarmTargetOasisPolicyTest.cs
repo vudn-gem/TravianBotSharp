@@ -35,15 +35,21 @@ namespace MainCore.Test
         }
 
         [Theory]
-        [InlineData(0, false)]
+        [InlineData(0, true)]
         [InlineData(-1, false)]
-        public void EmptyOasisOrInvalidLimitIsNotSafe(int count, bool expected)
+        public void EmptyOasisIsSafeButInvalidLimitIsNot(int count, bool expected)
         {
             IReadOnlyList<OasisAnimalTroop> troops = count < 0
                 ? Array.Empty<OasisAnimalTroop>()
                 : new[] { new OasisAnimalTroop(31, "Rat", count) };
             FarmTargetOasisPolicy.HasOnlySafeAllowedAnimals(troops, Allowed, count < 0 ? count : 1)
                 .ShouldBe(expected);
+        }
+
+        [Fact]
+        public void EmptyOasisIsSafeWithNoAllowedAnimalsAndZeroLimit()
+        {
+            FarmTargetOasisPolicy.HasOnlySafeAllowedAnimals([], new HashSet<int>(), 0).ShouldBeTrue();
         }
     }
 }

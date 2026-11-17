@@ -9,7 +9,6 @@ namespace MainCore.Services
         {
             if (safeAnimalLimit < 0) return false;
             var present = troops.Where(x => x.Count > 0).ToList();
-            if (present.Count == 0) return false;
             long total = 0;
             foreach (var animal in present)
             {

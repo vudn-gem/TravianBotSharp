@@ -16,6 +16,11 @@ namespace MainCore.Services
             new("accounts", 0, "/accounts", "List account IDs and status."),
             new("status", 1, "/status <account-id>", "Show status and queued tasks."),
             new("farm-lists", 1, "/farm-lists <account-id>", "List saved farm list IDs and Active settings."),
+            new("active", 2, "/active <account-id> <farm-list-id>", "Set the saved farm list Active (does not start farming)."),
+            new("deactive", 2, "/deactive <account-id> <farm-list-id>", "Set the saved farm list Inactive."),
+            new("active-oasis", 2, "/active-oasis <account-id> <farm-list-id>", "Queue activation of safe disabled oasis targets using saved Check oasis settings."),
+            new("deactive-oasis", 2, "/deactive-oasis <account-id> <farm-list-id>", "Queue deactivation of unsafe active oasis targets using saved Check oasis settings."),
+            new("check-oasis", 2, "/check-oasis <account-id> <farm-list-id>", "Check all oasis targets: activate safe or empty targets and deactivate unsafe targets."),
             new("hero-farm", 2, "/hero-farm <account-id> <farm-list-id>", "Queue Hero clear oasis using saved settings."),
             new("pause", 1, "/pause <account-id>", "Pause an online account."),
             new("resume", 1, "/resume <account-id>", "Resume a paused account; does not log in an offline account."),
@@ -38,6 +43,41 @@ namespace MainCore.Services
                     "\nUse /accounts, then /farm-lists <account-id> to find IDs. Queued tasks wait while paused/offline.";
 
             using var context = contextFactory.CreateDbContext();
+            if (name is "active" or "deactive" or "active-oasis" or "deactive-oasis" or "check-oasis")
+            {
+                if (!TryId(parts[1], out var ownerValue) || !TryId(parts[2], out var farmValue))
+                    return $"Usage: {command.Usage}. IDs must be positive integers.";
+                if (!context.Accounts.Any(x => x.Id == ownerValue))
+                    return "Account not found. Send /accounts.";
+                var farm = context.FarmLists.AsNoTracking().SingleOrDefault(x => x.Id == farmValue && x.AccountId == ownerValue);
+                if (farm is null) return "Farm list not found for this account. Send /farm-lists <account-id>.";
+                cancellationToken.ThrowIfCancellationRequested();
+                var ownerId = new AccountId(farm.AccountId);
+                if (name is "active" or "deactive")
+                {
+                    var active = name == "active";
+                    var updated = context.FarmLists.Where(x => x.Id == farmValue && x.AccountId == farm.AccountId)
+                        .ExecuteUpdate(x => x.SetProperty(f => f.IsActive, active));
+                    if (updated == 0) return "Farm list no longer exists.";
+                    rxQueue.Enqueue(new FarmsModified(ownerId));
+                    return $"Farm list {farmValue}: {Label(farm.Name)} - {(active ? "Active" : "Inactive")} (account {farm.AccountId}).";
+                }
+
+                var ownerQueue = taskManager.GetTaskQueue(ownerId);
+                lock (ownerQueue)
+                {
+                    if (ownerQueue.Status is StatusEnums.Starting or StatusEnums.Pausing or StatusEnums.Stopping)
+                        return $"Account is {ownerQueue.Status}. Wait and try again.";
+                    if (!context.FarmOasisSettings.Any(x => x.FarmId == farmValue))
+                        return "Save Check oasis settings for this farm list in TBS first.";
+                    var activate = name == "active-oasis";
+                    var synchronize = name == "check-oasis";
+                    var action = synchronize ? "synchronize all" : activate ? "activate safe disabled" : "deactivate unsafe active";
+                    if (!taskManager.TryAdd(new CheckFarmTargetOasisTask.Task(ownerId, new FarmId(farmValue), activate, synchronize)))
+                        return $"The {action} oasis check is already queued for farm list {farmValue}. Its schedule was not changed.";
+                    return $"Queued {action} oasis check for farm list {farmValue}, account {farm.AccountId}, using saved Check oasis settings. Current status: {ownerQueue.Status}.";
+                }
+            }
             if (name == "accounts")
             {
                 var accounts = context.Accounts.AsNoTracking().OrderBy(x => x.Id).ToList();

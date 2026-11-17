@@ -147,7 +147,13 @@ namespace MainCore.UI.ViewModels.Tabs
             await QueueOasisCheck(activate: true);
         }
 
-        private async Task QueueOasisCheck(bool activate)
+        [ReactiveCommand(RunInBackground = true)]
+        private async Task CheckOasis()
+        {
+            await QueueOasisCheck(activate: false, synchronize: true);
+        }
+
+        private async Task QueueOasisCheck(bool activate, bool synchronize = false)
         {
             var selected = FarmLists.SelectedItem;
             if (selected is null)
@@ -162,8 +168,10 @@ namespace MainCore.UI.ViewModels.Tabs
                 return;
             }
             _taskManager.AddOrUpdate<CheckFarmTargetOasisTask.Task>(
-                new(AccountId, new FarmId(selected.Id), activate));
-            await _dialogService.SendMessage("Information", activate
+                new(AccountId, new FarmId(selected.Id), activate, synchronize));
+            await _dialogService.SendMessage("Information", synchronize
+                ? "Added check oasis task. Safe or empty oasis targets will be activated; unsafe targets will be deactivated."
+                : activate
                 ? "Added activate oasis task. Safe oasis targets will be activated."
                 : "Added deactive oasis task. Unsafe oasis targets with animals will be deactivated.");
         }
