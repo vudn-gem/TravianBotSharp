@@ -191,6 +191,8 @@ namespace MainCore.Test
             settings.RaidMarksmen.ShouldBe(0);
             settings.RaidMarauders.ShouldBe(0);
             settings.LimitAnimal.ShouldBe(0);
+            settings.CheckAllowedAnimals.ShouldBe(0);
+            settings.SafeAnimal.ShouldBe(1);
         }
 
         [Fact]
@@ -248,12 +250,12 @@ namespace MainCore.Test
             var input = new FarmOasisSettingInput();
             for (var mask = 0; mask < 1024; mask++)
             {
-                input.Set(new FarmOasisSetting
-                {
-                    FarmId = 10, AllowedAnimals = mask, SafetyFactor = 6,
-                    AttackTroop = OasisAttackTroop.Marauder, RaidSteppeRiders = 1, RaidMarksmen = 2, RaidMarauders = 3,
-                    LimitAnimal = 17,
-                });
+                    input.Set(new FarmOasisSetting
+                    {
+                        FarmId = 10, AllowedAnimals = mask, SafetyFactor = 6,
+                        AttackTroop = OasisAttackTroop.Marauder, RaidSteppeRiders = 1, RaidMarksmen = 2, RaidMarauders = 3,
+                        LimitAnimal = 17,
+                    });
                 var result = input.Get(11);
                 result.FarmId.ShouldBe(11);
                 result.AllowedAnimals.ShouldBe(mask);
@@ -263,6 +265,25 @@ namespace MainCore.Test
                 result.RaidMarksmen.ShouldBe(2);
                 result.RaidMarauders.ShouldBe(3);
                 result.LimitAnimal.ShouldBe(17);
+            }
+        }
+
+        [Fact]
+        public void CheckOasisInputRoundTripsAllowedAnimalsAndSafeCount()
+        {
+            RxAppBuilder.CreateReactiveUIBuilder().WithCoreServices().BuildApp();
+            var input = new CheckOasisSettingInput();
+            for (var mask = 0; mask < 1024; mask++)
+            {
+                var setting = new FarmOasisSetting
+                {
+                    FarmId = 10,
+                    CheckAllowedAnimals = mask,
+                    SafeAnimal = 1,
+                };
+                input.Set(setting);
+                input.AllowedAnimals.ShouldBe(mask);
+                input.SafeAnimal.Get().ShouldBe(1);
             }
         }
 

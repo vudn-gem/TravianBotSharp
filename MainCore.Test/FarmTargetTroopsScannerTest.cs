@@ -11,28 +11,35 @@ namespace MainCore.Test
         [Fact]
         public void QueueIdentitySeparatesListsWithinAnAccount()
         {
-            var first = new MainCore.Tasks.CheckFarmTargetTroopsTask.Task(new AccountId(1), new FarmId(6706));
-            var same = new MainCore.Tasks.CheckFarmTargetTroopsTask.Task(new AccountId(1), new FarmId(6706));
-            var other = new MainCore.Tasks.CheckFarmTargetTroopsTask.Task(new AccountId(1), new FarmId(56));
+            var first = new MainCore.Tasks.CheckFarmTargetOasisTask.Task(new AccountId(1), new FarmId(6706));
+            var same = new MainCore.Tasks.CheckFarmTargetOasisTask.Task(new AccountId(1), new FarmId(6706));
+            var other = new MainCore.Tasks.CheckFarmTargetOasisTask.Task(new AccountId(1), new FarmId(56));
             first.Key.ShouldBe(same.Key);
             first.Key.ShouldNotBe(other.Key);
+            first.Key.ShouldNotBe(new MainCore.Tasks.CheckFarmTargetOasisTask.Task(
+                new AccountId(1), new FarmId(6706), activate: true).Key);
             first.Description.ShouldContain("6706");
         }
 
         [Theory]
-        [InlineData("2", false, true, 1)]
-        [InlineData("none", false, true, 0)]
-        [InlineData("?", false, true, 0)]
-        [InlineData("2", true, true, 0)]
-        [InlineData("2", false, false, 1)]
-        public async Task DisablesOnlyConfirmedTroopTargetsInSelectedList(
-            string troopCount, bool initiallyDisabled, bool persist, int expectedSaves)
+        [InlineData("2", false, true, false, 1)]
+        [InlineData("none", false, true, false, 0)]
+        [InlineData("?", false, true, false, 0)]
+        [InlineData("2", true, true, false, 0)]
+        [InlineData("2", false, false, false, 1)]
+        [InlineData("1", false, true, false, 0)]
+        [InlineData("1", true, true, true, 1)]
+        [InlineData("2", true, true, true, 0)]
+        [InlineData("none", true, true, true, 0)]
+        public async Task ChangesOnlyTargetsMatchingSelectedOasisAction(
+            string troopCount, bool initiallyDisabled, bool persist, bool activate, int expectedSaves)
         {
             await using var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
             var disabled = initiallyDisabled;
             var saves = 0;
-            var mapOpens = 0;
+            var targetNavigations = 0;
+            var newTabFarmNavigations = 0;
             var events = new List<string>();
             var originNavigations = 0;
             var currentVillage = 1;
@@ -48,7 +55,7 @@ namespace MainCore.Test
                 if (route.Request.Url.Contains("/save", StringComparison.Ordinal))
                 {
                     saves++;
-                    if (persist) disabled = true;
+                    if (persist) disabled = !activate;
                     await route.FulfillAsync(new() { Body = "ok" });
                     return;
                 }
@@ -61,18 +68,24 @@ namespace MainCore.Test
                     <div><table id="troop_info" class="rep"><tr><td>No information</td></tr></table></div></div>
                     </div>
                     """;
-                var body = $"""
+                if (url.AbsolutePath == "/karte.php")
+                {
+                    await route.FulfillAsync(new() { ContentType = "text/html", Body = map });
+                    return;
+                }
+                var body = $$"""
                     <div id="rallyPointFarmList"><div class="farmListWrapper expanded">
                     <div class="farmListHeader"><div data-list="6706"></div></div>
-                    <table class="slots"><tbody><tr class="slot {(disabled ? "disabled" : "")}">
+                    <table class="slots"><tbody><tr class="slot {{(disabled ? "disabled" : "")}}">
                     <td><input name="selectOne" data-slot-id="637157"></td>
                     <td class="target"><a href="/karte.php?x=25&amp;y=184"
                     onclick="document.querySelector('#dialogContent').innerHTML=document.querySelector('#target-map').innerHTML;return false;">Oasis</a></td>
                     <td class="actions"><button class="menuButton" onclick="document.querySelector('#slot-menu-637157').hidden=false">⋯</button>
                     <div id="slot-menu-637157" class="menu" hidden>
-                    <button data-action="deactivate" onclick="fetch('/save').then(()=>{{document.querySelector('#slot-menu-637157').hidden=true;{(persist ? "document.querySelector(\"input[data-slot-id='637157']\")?.closest(\"tr.slot\")?.classList.add(\"disabled\");" : "")}}})">Deactivate target</button>
+                    <button data-action="deactivate" onclick="fetch('/save').then(()=>{document.querySelector('#slot-menu-637157').hidden=true;{{(persist && !activate ? "document.querySelector('input[name=selectOne]')?.closest('tr.slot')?.classList.add('disabled');" : "")}}})">Deactivate target</button>
+                    <button data-action="activate" onclick="fetch('/save').then(()=>{document.querySelector('#slot-menu-637157').hidden=true;{{(persist && activate ? "document.querySelector('input[name=selectOne]')?.closest('tr.slot')?.classList.remove('disabled');" : "")}}})">Activate target</button>
                     </div></td></tr></tbody></table></div></div>
-                    <div id="dialogContent"></div><template id="target-map">{map}</template>
+                    <div id="dialogContent"></div><template id="target-map">{{map}}</template>
                     """;
                 body = $"""
                     <div id="sidebarBoxVillageList">
@@ -82,6 +95,8 @@ namespace MainCore.Test
                     """ + body.Replace(
                         "<div id=\"rallyPointFarmList\">",
                         """<div id="rallyPointFarmList"><div class="villageWrapper"><div class="villageHeader collapsed"><div class="villageName">7</div><a class="expandCollapse" onclick="this.parentElement.classList.replace('collapsed', 'expanded')"><svg width="12" height="8" viewBox="0 0 12 8"><path d="M0 0L6 8L12 0Z"></path></svg></a></div>""") + "</div>";
+                if (url.AbsolutePath == "/switch")
+                    body = body[..body.IndexOf("<div id=\"rallyPointFarmList\">", StringComparison.Ordinal)];
                 await route.FulfillAsync(new() { ContentType = "text/html", Body = body });
             });
             await page.GotoAsync("https://example.com/farm");
@@ -105,21 +120,24 @@ namespace MainCore.Test
             browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
             {
                 var locator = (ILocator)call[0];
-                if (await locator.GetAttributeAsync("href") == "/karte.php?x=25&y=184")
-                {
-                    events.Add("check-target");
-                    mapOpens++;
-                }
-                if (await locator.GetAttributeAsync("data-action") == "deactivate")
-                    events.Add("deactivate");
+                var action = await locator.GetAttributeAsync("data-action");
+                if (action is "deactivate" or "activate")
+                    events.Add(action);
                 await locator.ClickAsync();
                 await currentPage.WaitForLoadStateAsync();
                 return Result.Ok();
             });
             browser.Navigate(Arg.Any<string>()).Returns(async call =>
             {
+                var target = new Uri((string)call[0]);
                 if (currentPage == page) originNavigations++;
-                await currentPage.GotoAsync((string)call[0]);
+                else if (target.AbsolutePath == "/farm") newTabFarmNavigations++;
+                else if (target.AbsolutePath == "/karte.php")
+                {
+                    targetNavigations++;
+                    events.Add("check-target");
+                }
+                await currentPage.GotoAsync(target.AbsoluteUri);
                 return Result.Ok();
             });
             browser.Wait(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
@@ -128,23 +146,30 @@ namespace MainCore.Test
                 return Result.Ok();
             });
 
-            (await new FarmTargetTroopsScanner(browser).Scan(new FarmId(6706), CancellationToken.None)).IsSuccess.ShouldBeTrue();
+            var allowedAnimals = activate || troopCount == "1"
+                ? new HashSet<int> { 31 }
+                : new HashSet<int>();
+            (await new FarmTargetTroopsScanner(browser).Scan(
+                new FarmId(6706), activate, allowedAnimals,
+                1, CancellationToken.None)).IsSuccess.ShouldBeTrue();
 
             saves.ShouldBe(expectedSaves);
-            disabled.ShouldBe(initiallyDisabled || (expectedSaves == 1 && persist));
+            disabled.ShouldBe(expectedSaves == 1 && persist ? !activate : initiallyDisabled);
             new Uri(page.Url).AbsolutePath.ShouldBe("/farm");
             currentVillage.ShouldBe(2);
             switches.ShouldBe(1);
             originNavigations.ShouldBe(1);
-            mapOpens.ShouldBe(initiallyDisabled ? 0 : 1);
-            if (!initiallyDisabled)
+            targetNavigations.ShouldBe(initiallyDisabled == activate ? 1 : 0);
+            newTabFarmNavigations.ShouldBe(0);
+            if (initiallyDisabled == activate)
                 events.IndexOf("check-target").ShouldBeLessThan(events.IndexOf("close-check-tab"));
+            var actionName = activate ? "activate" : "deactivate";
             if (expectedSaves == 1 && !persist)
-                logger.Received().Warning("Farm target {SlotId}: saved deactivation was not confirmed", "637157");
+                logger.Received().Warning("Farm target {SlotId}: saved status change was not confirmed", "637157");
             if (expectedSaves == 1)
             {
                 events.IndexOf("check-target").ShouldBeLessThan(events.IndexOf("close-check-tab"));
-                events.IndexOf("close-check-tab").ShouldBeLessThan(events.IndexOf("deactivate"));
+                events.IndexOf("close-check-tab").ShouldBeLessThan(events.IndexOf(actionName));
             }
         }
 

@@ -100,6 +100,8 @@ namespace MainCore.Infrasturecture.Persistence
                 CREATE TABLE IF NOT EXISTS "FarmOasisSettings" (
                     "FarmId" INTEGER NOT NULL CONSTRAINT "PK_FarmOasisSettings" PRIMARY KEY,
                     "AllowedAnimals" INTEGER NOT NULL,
+                    "CheckAllowedAnimals" INTEGER NOT NULL DEFAULT 0,
+                    "SafeAnimal" INTEGER NOT NULL DEFAULT 1,
                     "SafetyFactor" INTEGER NOT NULL,
                     "AttackTroop" INTEGER NOT NULL DEFAULT 0,
                     "RaidSteppeRiders" INTEGER NOT NULL DEFAULT 2,
@@ -123,6 +125,10 @@ namespace MainCore.Infrasturecture.Persistence
                 Database.ExecuteSqlRaw("""ALTER TABLE "FarmOasisSettings" ADD COLUMN "RaidMarauders" INTEGER NOT NULL DEFAULT 0""");
             if (!columns.Contains("LimitAnimal"))
                 Database.ExecuteSqlRaw("""ALTER TABLE "FarmOasisSettings" ADD COLUMN "LimitAnimal" INTEGER NOT NULL DEFAULT 0""");
+            if (!columns.Contains("CheckAllowedAnimals"))
+                Database.ExecuteSqlRaw("""ALTER TABLE "FarmOasisSettings" ADD COLUMN "CheckAllowedAnimals" INTEGER NOT NULL DEFAULT 0""");
+            if (!columns.Contains("SafeAnimal"))
+                Database.ExecuteSqlRaw("""ALTER TABLE "FarmOasisSettings" ADD COLUMN "SafeAnimal" INTEGER NOT NULL DEFAULT 1""");
 
             var existing = FarmOasisSettings.Select(x => x.FarmId).ToHashSet();
             var legacyKeys = OasisRaidSettings.LegacyAnimalSettings.Keys

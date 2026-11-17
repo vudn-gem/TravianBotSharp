@@ -43,11 +43,11 @@
                         <materialDesign:PackIcon Width="{DynamicResource IconSize}" Height="{DynamicResource IconSize}" Kind="ContentSave" />
                     </Button>
                 </StackPanel>
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <TabControl Grid.Row="1">
+                    <TabItem Header="Farming">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel VerticalAlignment="Center" Margin="10">
                     <Button x:Name="ActiveButton" Margin="10" />
-                    <Button x:Name="CheckTargetTroopsButton" Content="Check oasis" Margin="10"
-                            ToolTip="Check oasis targets and deactivate those containing troops" />
                     <GroupBox x:Name="OasisSettingsGroup" Header="Selected farm list oasis settings" Margin="10,0,10,10">
                         <StackPanel Margin="8">
                             <uc:AmountInputUc x:Name="OasisRaidSafetyFactor" Text="Oasis raid safety factor" Unit="x" />
@@ -127,6 +127,37 @@
                     </GroupBox>
                 </StackPanel>
                 </ScrollViewer>
+                    </TabItem>
+                    <TabItem Header="Check oasis setting">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="10">
+                                <GroupBox x:Name="CheckOasisSettingsGroup" Header="Selected farm list check oasis settings">
+                                    <StackPanel Margin="8">
+                                        <uc:AmountInputUc x:Name="SafeAnimal" Text="Safe animal (maximum total)" Unit="animals" />
+                                        <TextBlock Text="Allowed oasis animals" FontWeight="SemiBold" Margin="0,8,0,4" />
+                                        <WrapPanel Orientation="Horizontal">
+                                            <CheckBox x:Name="CheckAllowRat" Content="Rat" Margin="0,0,12,4" />
+                                            <CheckBox x:Name="CheckAllowSpider" Content="Spider" Margin="0,0,12,4" />
+                                            <CheckBox x:Name="CheckAllowSnake" Content="Snake" Margin="0,0,12,4" />
+                                            <CheckBox x:Name="CheckAllowBat" Content="Bat" Margin="0,0,12,4" />
+                                            <CheckBox x:Name="CheckAllowWildBoar" Content="Wild Boar" Margin="0,0,12,4" />
+                                            <CheckBox x:Name="CheckAllowWolf" Content="Wolf" Margin="0,0,12,4" />
+                                            <CheckBox x:Name="CheckAllowBear" Content="Bear" Margin="0,0,12,4" />
+                                            <CheckBox x:Name="CheckAllowCrocodile" Content="Crocodile" Margin="0,0,12,4" />
+                                            <CheckBox x:Name="CheckAllowTiger" Content="Tiger" Margin="0,0,12,4" />
+                                            <CheckBox x:Name="CheckAllowElephant" Content="Elephant" Margin="0,0,12,4" />
+                                        </WrapPanel>
+                                        <Button x:Name="SaveCheckOasisSettingsButton" Content="Save check oasis settings" Margin="0,8,0,0" />
+                                    </StackPanel>
+                                </GroupBox>
+                                <Button x:Name="DeactiveOasisButton" Content="Deactive oasis" Margin="10"
+                                        ToolTip="Deactivate active targets with animals outside the safe allowed-animal limit" />
+                                <Button x:Name="ActiveOasisButton" Content="Active oasis" Margin="10"
+                                        ToolTip="Activate deactivated targets with only safe allowed animals" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
                 <Button x:Name="StartButton"    Grid.Row="2" ToolTip="Start" Margin="10">
                     <materialDesign:PackIcon Width="{DynamicResource IconSize}" Height="{DynamicResource IconSize}" Kind="Play" />
                 </Button>

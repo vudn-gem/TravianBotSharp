@@ -18,6 +18,7 @@ namespace MainCore.UI.ViewModels.Tabs
     {
         public AccountSettingInput AccountSettingInput { get; } = new();
         public FarmOasisSettingInput FarmOasisSettingInput { get; } = new();
+        public CheckOasisSettingInput CheckOasisSettingInput { get; } = new();
         public HeroOasisSettingInput HeroOasisSettingInput { get; } = new();
         public ListBoxItemViewModel FarmLists { get; } = new();
         private int? _oasisSettingsFarmId;
@@ -97,6 +98,7 @@ namespace MainCore.UI.ViewModels.Tabs
                         return;
                     }
                     FarmOasisSettingInput.Set(setting);
+                    CheckOasisSettingInput.Set(setting);
                     _oasisSettingsFarmId = selectedItem.Id;
                     HasOasisSettings = true;
                 });
@@ -134,7 +136,18 @@ namespace MainCore.UI.ViewModels.Tabs
         }
 
         [ReactiveCommand(RunInBackground = true)]
-        private async Task CheckTargetTroops()
+        private async Task DeactiveOasis()
+        {
+            await QueueOasisCheck(activate: false);
+        }
+
+        [ReactiveCommand(RunInBackground = true)]
+        private async Task ActiveOasis()
+        {
+            await QueueOasisCheck(activate: true);
+        }
+
+        private async Task QueueOasisCheck(bool activate)
         {
             var selected = FarmLists.SelectedItem;
             if (selected is null)
@@ -148,8 +161,11 @@ namespace MainCore.UI.ViewModels.Tabs
                 await _dialogService.SendMessage("Warning", "Selected farm list no longer belongs to this account");
                 return;
             }
-            _taskManager.AddOrUpdate<CheckFarmTargetTroopsTask.Task>(new(AccountId, new FarmId(selected.Id)));
-            await _dialogService.SendMessage("Information", "Added check oasis task. Targets with oasis troops will be deactivated.");
+            _taskManager.AddOrUpdate<CheckFarmTargetOasisTask.Task>(
+                new(AccountId, new FarmId(selected.Id), activate));
+            await _dialogService.SendMessage("Information", activate
+                ? "Added activate oasis task. Safe oasis targets will be activated."
+                : "Added deactive oasis task. Unsafe oasis targets with animals will be deactivated.");
         }
 
         [ReactiveCommand(RunInBackground = true)]
@@ -366,6 +382,42 @@ namespace MainCore.UI.ViewModels.Tabs
                 return;
             }
             await _dialogService.SendMessage("Information", "Farm list oasis settings saved.");
+        }
+
+        [ReactiveCommand]
+        private async Task SaveCheckOasisSettings()
+        {
+            var selected = FarmLists.SelectedItem;
+            if (selected is null || _oasisSettingsFarmId != selected.Id)
+            {
+                await _dialogService.SendMessage("Warning", "Select a farm list with loaded oasis settings.");
+                return;
+            }
+            var allowedAnimals = CheckOasisSettingInput.AllowedAnimals;
+            var safeAnimal = CheckOasisSettingInput.SafeAnimal.Get();
+            if (allowedAnimals < 0 || (allowedAnimals & ~1023) != 0)
+            {
+                await _dialogService.SendMessage("Warning", "Allowed oasis animal selection is invalid.");
+                return;
+            }
+            if (safeAnimal < 0)
+            {
+                await _dialogService.SendMessage("Warning", "Safe animal count must be zero or greater.");
+                return;
+            }
+            using var context = _contextFactory.CreateDbContext();
+            var updated = context.FarmOasisSettings
+                .Where(x => x.FarmId == selected.Id &&
+                    context.FarmLists.Any(f => f.Id == x.FarmId && f.AccountId == AccountId.Value))
+                .ExecuteUpdate(x => x
+                    .SetProperty(y => y.CheckAllowedAnimals, allowedAnimals)
+                    .SetProperty(y => y.SafeAnimal, safeAnimal));
+            if (updated != 1)
+            {
+                await _dialogService.SendMessage("Warning", "Selected farm list or its oasis settings no longer exist.");
+                return;
+            }
+            await _dialogService.SendMessage("Information", "Check oasis settings saved.");
         }
 
         [ReactiveCommand(RunInBackground = true)]

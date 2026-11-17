@@ -8,6 +8,8 @@ namespace MainCore.Entities
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int FarmId { get; set; }
         public int AllowedAnimals { get; set; }
+        public int CheckAllowedAnimals { get; set; }
+        public int SafeAnimal { get; set; } = 1;
         public int SafetyFactor { get; set; } = 2;
         public OasisAttackTroop AttackTroop { get; set; } = OasisAttackTroop.SteppeRider;
         public int RaidSteppeRiders { get; set; } = 2;

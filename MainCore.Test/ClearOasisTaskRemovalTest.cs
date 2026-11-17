@@ -18,7 +18,7 @@ namespace MainCore.Test
             var selected = new ClearFarmOasisTask.Task(account, new FarmId(10));
             var otherFarm = new ClearFarmOasisTask.Task(account, new FarmId(20));
             var otherAccountTask = new ClearFarmOasisTask.Task(otherAccount, new FarmId(10));
-            var otherTask = new CheckFarmTargetTroopsTask.Task(account, new FarmId(10));
+            var otherTask = new CheckFarmTargetOasisTask.Task(account, new FarmId(10));
             manager.Add(selected);
             manager.Add(otherFarm);
             manager.Add(otherAccountTask);
