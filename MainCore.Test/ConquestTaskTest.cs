@@ -23,8 +23,14 @@ namespace MainCore.Test
         [InlineData(true, 4, 4)]
         [InlineData(true, 99, 25)]
         [InlineData(false, 4, 25, true)]
+        [InlineData(false, 4, 25, false, "late")]
+        [InlineData(false, 4, 25, false, "save-overrun")]
+        [InlineData(false, 4, 25, false, "save-fails")]
+        [InlineData(false, 4, 25, false, "cancel")]
+        [InlineData(false, 4, 25, false, "cancel-locked")]
         public async Task SendsPerWaveTargetsWithRandomFallback(
-            bool unavailable, int firstTarget, int secondTarget, bool inputFails = false)
+            bool unavailable, int firstTarget, int secondTarget, bool inputFails = false,
+            string timingScenario = "")
         {
             await using var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -112,9 +118,14 @@ namespace MainCore.Test
                         event.preventDefault(); saveTargets(); entry();
                     };
                     form.querySelector('#confirmSendTroops').onclick = () => {
-                        saveTargets(); window.confirmed = true; form.remove();
+                        saveTargets(); window.confirmed = true; window.confirmedAt = Date.now(); form.remove();
                     };
                 }
+                const getAttribute = Element.prototype.getAttribute;
+                Element.prototype.getAttribute = function(name) {
+                    if (this.id === 'at' && name === 'value') window.finalCheckAt = Date.now();
+                    return getAttribute.call(this, name);
+                };
                 entry();
                 </script>
                 """);
@@ -141,12 +152,51 @@ namespace MainCore.Test
             var second = new long[11];
             second[0] = 19;
             second[7] = 1;
+            var sendAt = DateTime.Now.AddSeconds(timingScenario == "late" ? 8 : 13);
             var task = new ConquestTask.Task(new AccountId(1), new VillageId(2), -50, 50,
                 [new ConquestWave(first, firstTarget, secondTarget), new ConquestWave(second, 27)],
-                DateTime.Now.AddHours(2), DateTime.Now.AddSeconds(-1), 0);
+                DateTime.Now.AddHours(2), sendAt, 0);
+            DateTime? lockedAt = null;
+            task.Persist = () =>
+            {
+                if (task.Status == "Waiting for final check")
+                {
+                    if (timingScenario == "cancel" && !task.CancelRequested) task.RequestCancel();
+                    return;
+                }
+                if (!task.ConfirmationAttempted) return;
+                lockedAt = DateTime.Now;
+                if (timingScenario == "save-fails") throw new InvalidOperationException("Save failed.");
+                if (timingScenario == "cancel-locked") task.RequestCancel().ShouldBeFalse();
+                Thread.Sleep(timingScenario == "save-overrun" ? 5500 : 200);
+            };
             var handler = new ConquestTask.HandleBehavior(new ConquestTask(browser));
 
-            var result = await handler.HandleAsync(task, CancellationToken.None);
+            if (timingScenario is "save-fails" or "cancel")
+            {
+                if (timingScenario == "save-fails")
+                    await Should.ThrowAsync<InvalidOperationException>(async () =>
+                        await handler.HandleAsync(task, task.CancelToken));
+                else
+                    await Should.ThrowAsync<OperationCanceledException>(async () =>
+                        await handler.HandleAsync(task, task.CancelToken));
+                task.ConfirmationAttempted.ShouldBe(timingScenario == "save-fails");
+                (await page.EvaluateAsync<bool>("window.confirmed")).ShouldBeFalse();
+                await browser.Received(1).CloseNewTab();
+                return;
+            }
+
+            var result = await handler.HandleAsync(task, task.CancelToken);
+            if (timingScenario is "late" or "save-overrun")
+            {
+                result.IsFailed.ShouldBeTrue();
+                result.Errors.ShouldContain(error => error.Message.Contains(
+                    timingScenario == "late" ? "ten seconds" : "send deadline"));
+                task.ConfirmationAttempted.ShouldBe(timingScenario == "save-overrun");
+                (await page.EvaluateAsync<bool>("window.confirmed")).ShouldBeFalse();
+                await browser.Received(1).CloseNewTab();
+                return;
+            }
             if (inputFails)
             {
                 result.IsFailed.ShouldBeTrue();
@@ -172,6 +222,15 @@ namespace MainCore.Test
                 return;
             }
 
+            lockedAt.ShouldNotBeNull();
+            (lockedAt.Value - sendAt).TotalSeconds.ShouldBeInRange(-5, -4.25);
+            var finalCheckAt = await page.EvaluateAsync<double>("window.finalCheckAt");
+            var sendAtMilliseconds = new DateTimeOffset(sendAt).ToUnixTimeMilliseconds();
+            (finalCheckAt - sendAtMilliseconds).ShouldBeInRange(-10000, -8500);
+            var confirmedAt = await page.EvaluateAsync<double>("window.confirmedAt");
+            (confirmedAt - sendAtMilliseconds).ShouldBeInRange(0, 750);
+            task.ConfirmationAttempted.ShouldBeTrue();
+            task.CancelRequested.ShouldBeFalse();
             (await page.EvaluateAsync<string[]>("waves.map(wave => wave.target1)"))
                 .ShouldBe([unavailable ? "99" : firstTarget.ToString(), "27"]);
             (await page.EvaluateAsync<string[]>("waves.map(wave => wave.target2)"))

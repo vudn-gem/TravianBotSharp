@@ -79,6 +79,17 @@ Their hidden coordinates and normal-attack type are checked rather than edited.
 The browser flow is: switch village, open Rally Point, click **Send troops**,
 fill troops and coordinates, select **Attack: Normal**, submit to Confirm,
 then add any additional waves before the final timed confirmation.
+Preparation must finish before **send time minus 10 seconds**, when TBS performs
+the final wave, target, arrival-time, and Confirm-button checks. At **send time
+minus 5 seconds**, TBS locks cancellation and durably records the confirmation
+attempt, displaying **Send locked - waiting to send**. If preparation, final
+checks, or saving this record misses its deadline, TBS skips the attack rather
+than sending it late. A failed save prevents the click.
+The final wait uses a monotonic clock and accounts for time spent saving.
+At send time, TBS calls Confirm directly without the account click delay or
+additional DOM queries/database writes. Browser, OS, and network latency still
+prevent a guarantee of millisecond-accurate server receipt. The configured
+network delay is already subtracted when calculating send time.
 If Conquest preparation fails, the attempt's tab is closed and the task is
 retried once using the existing retry delay. A second failure removes the task
 and lets the account continue with its queue instead of pausing it. Late-arrival
@@ -92,7 +103,7 @@ Select a row and use **Cancel selected** to remove a scheduled task or cancel
 preparation, the send-time wait, or the retry delay. Its dedicated tab is closed
 before execution finishes, and the account continues with its next task without
 being paused. Cancel is separate from the account's Pause button.
-Tasks whose final confirmation has already been attempted cannot be canceled;
+Tasks locked for confirmation (five seconds before send) cannot be canceled;
 an uncertain outcome is shown as **Check in game** and must not be resent.
 Plans, wave counts/targets, attempt counts, cancellation, and history are saved
 in the existing SQLite database. On startup, TBS restores unfinished plans
@@ -101,9 +112,10 @@ account. They run only when the account is online; opening TBS does not log in
 or start the account automatically. Past send times become **Expired**.
 The two-attempt limit is retained across restarts. Completed, canceled, expired,
 and failed plans remain as history and are not queued again.
-Before clicking final Confirm, TBS durably records that confirmation was
-attempted. If TBS stops at that point, the plan becomes **Check in game** on
-restart and is never automatically resent. Keep the database when moving TBS.
+Five seconds before final Confirm, TBS durably records that confirmation may
+be attempted. If TBS stops at that point, even before the click, the plan becomes
+**Check in game** on restart and is never automatically resent. Keep the
+database when moving TBS.
 
 ## FAQs
 

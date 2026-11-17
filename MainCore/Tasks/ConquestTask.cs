@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 
 using MainCore.Tasks.Base;
@@ -181,6 +182,17 @@ namespace MainCore.Tasks
                 if (verifyResult.IsFailed) return verifyResult;
             }
 
+            var waitStarted = Stopwatch.GetTimestamp();
+            var sendDelay = task.SendAt - DateTime.Now;
+            if (sendDelay <= TimeSpan.FromSeconds(10))
+                return Skip.Error.WithError("Preparation missed the final check at ten seconds before send; the attack was skipped.");
+
+            task.Status = "Waiting for final check";
+            task.Persist?.Invoke();
+            await WaitUntil(waitStarted, sendDelay - TimeSpan.FromSeconds(10), cancellationToken);
+            if (Stopwatch.GetElapsedTime(waitStarted) >= sendDelay - TimeSpan.FromSeconds(5))
+                return Skip.Error.WithError("The final check window was missed; the attack was skipped.");
+
             for (var waveIndex = 0; waveIndex < task.Waves.Count; waveIndex++)
             {
                 var verifyResult = await VerifyWave(page, waveIndex, task.Waves[waveIndex].Troops, task);
@@ -194,27 +206,31 @@ namespace MainCore.Tasks
             if (WillArriveLate(travelTimes.Value, task))
                 return Skip.Error.WithError("Estimated arrival is later than the planned arrival time; the attack was skipped.");
 
-            var wait = task.SendAt - DateTime.Now;
-            task.Status = "Waiting to send";
-            task.Persist?.Invoke();
-            if (wait > TimeSpan.Zero)
-                await System.Threading.Tasks.Task.Delay(wait, cancellationToken);
+            var confirmButton = page.Locator("#troopSendForm #confirmSendTroops");
+            if (await confirmButton.CountAsync() != 1)
+                return Stop.Error.WithError("The Rally Point confirmation button is missing or ambiguous.");
+            await confirmButton.ClickAsync(new LocatorClickOptions { Trial = true, Timeout = 1500 });
+            if (Stopwatch.GetElapsedTime(waitStarted) >= sendDelay - TimeSpan.FromSeconds(5))
+                return Skip.Error.WithError("Final checks missed the confirmation lock at five seconds before send; the attack was skipped.");
 
+            await WaitUntil(waitStarted, sendDelay - TimeSpan.FromSeconds(5), cancellationToken);
+            lock (task)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (Stopwatch.GetElapsedTime(waitStarted) >= sendDelay)
+                    return Skip.Error.WithError("The send deadline passed before confirmation could be recorded; the attack was skipped.");
+                task.ConfirmationAttempted = true;
+                task.Status = "Send locked - waiting to send";
+                task.Persist?.Invoke();
+            }
+            if (Stopwatch.GetElapsedTime(waitStarted) >= sendDelay)
+                return Skip.Error.WithError("Recording confirmation missed the send deadline; the attack was skipped.");
+
+            await WaitUntil(waitStarted, sendDelay, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (WillArriveLate(travelTimes.Value, task))
                 return Skip.Error.WithError("Estimated arrival is later than the planned arrival time; the attack was skipped.");
 
-            var confirmButton = page.Locator("#troopSendForm #confirmSendTroops");
-            if (await confirmButton.CountAsync() != 1)
-                return Stop.Error.WithError("The Rally Point confirmation button is missing or ambiguous.");
-
-            lock (task)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                task.ConfirmationAttempted = true;
-                task.Status = "Confirming";
-                task.Persist?.Invoke();
-            }
             await confirmButton.ClickAsync();
             await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
 
@@ -224,6 +240,22 @@ namespace MainCore.Tasks
             if (await errors.CountAsync() > 0)
                 return Stop.Error.WithError("The game reported an error after confirming the attack. Check the game before retrying.");
             return Result.Ok();
+        }
+
+        private static async System.Threading.Tasks.Task WaitUntil(
+            long started, TimeSpan target, CancellationToken cancellationToken)
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var remaining = target - Stopwatch.GetElapsedTime(started);
+                if (remaining <= TimeSpan.Zero) return;
+                await System.Threading.Tasks.Task.Delay(
+                    remaining > TimeSpan.FromMilliseconds(30)
+                        ? remaining - TimeSpan.FromMilliseconds(20)
+                        : TimeSpan.FromMilliseconds(1),
+                    cancellationToken);
+            }
         }
 
         private async System.Threading.Tasks.Task<Result> FillWave(
