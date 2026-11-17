@@ -88,7 +88,7 @@ namespace MainCore.Services
                         pendingReturns,
                         cancellationToken);
                     if (result.IsFailed)
-                        browser.Logger.Warning("Clear oasis target {SlotId} skipped: {Reason}", target.SlotId, result.Errors[0].Message);
+                        browser.Logger.Warning("Oasis ({Coordinates}) skipped. {Reason}", target.Coordinates, result.Errors[0].Message);
                     else
                     {
                         checkDeactivation = result.Value.CheckDeactivation;
@@ -100,8 +100,8 @@ namespace MainCore.Services
                             {
                                 retryAt = DateTime.Now.AddMinutes(30);
                                 browser.Logger.Warning(
-                                    "Clear oasis target {SlotId}: troop return time unavailable, fallback retry at {RetryAt}",
-                                    target.SlotId, retryAt.Value);
+                                    "Oasis ({Coordinates}): troop return time unavailable, fallback retry at {RetryAt:yyyy-MM-dd HH:mm:ss}",
+                                    target.Coordinates, retryAt.Value);
                             }
                             return Result.Ok(new ClearOasisScanResult(
                                 i,
@@ -114,17 +114,17 @@ namespace MainCore.Services
                 }
                 catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
                 {
-                    browser.Logger.Warning(ex, "Clear oasis target {SlotId} failed ({ErrorType})",
-                        target.SlotId, ex.GetType().Name);
+                    browser.Logger.Warning(ex, "Oasis ({Coordinates}) failed ({ErrorType})",
+                        target.Coordinates, ex.GetType().Name);
                 }
                 prepared = await FarmListPreparation.Prepare(browser, farmId, owner.Value);
                 if (prepared.IsFailed) return Result.Fail(prepared.Errors);
                 if (checkDeactivation)
                 {
                     if (await FarmTargetDeactivator.IsConfirmed(page, farmId, target))
-                        browser.Logger.Information("Clear oasis target {SlotId}: deactivation confirmed", target.SlotId);
+                        browser.Logger.Information("Oasis ({Coordinates}): deactivation confirmed", target.Coordinates);
                     else
-                        browser.Logger.Warning("Clear oasis target {SlotId}: deactivation was not confirmed", target.SlotId);
+                        browser.Logger.Warning("Oasis ({Coordinates}): deactivation was not confirmed", target.Coordinates);
                 }
                 if (maxTargetsPerPhase > 0 && raids >= maxTargetsPerPhase && i + 1 < targets.Value.Count)
                     return Result.Ok(new ClearOasisScanResult(
@@ -211,8 +211,8 @@ namespace MainCore.Services
             if (settings.LimitAnimal > 0 && animalCount > settings.LimitAnimal)
             {
                 browser.Logger.Information(
-                    "Clear oasis target {SlotId}: {AnimalCount} animals exceed limit {AnimalLimit}; checking deactivation",
-                    target.SlotId, animalCount, settings.LimitAnimal);
+                    "Oasis ({Coordinates}): {AnimalCount} animals exceed limit {AnimalLimit}; checking deactivation",
+                    target.Coordinates, animalCount, settings.LimitAnimal);
                 return Result.Ok(new ProcessTargetResult(false, false, null, true));
             }
             var blocked = troops.Value.Where(x => x.Count > 0 && !settings.AllowedAnimals.Contains(x.UnitId))
@@ -220,14 +220,20 @@ namespace MainCore.Services
             if (blocked.Count > 0)
             {
                 browser.Logger.Information(
-                    "Clear oasis target {SlotId}: blocked animals [{Blocked}]; checking deactivation",
-                    target.SlotId, string.Join(", ", blocked));
+                    "Oasis ({Coordinates}): blocked animals [{Blocked}]; checking deactivation",
+                    target.Coordinates, string.Join(", ", blocked));
                 return Result.Ok(new ProcessTargetResult(false, false, null, true));
             }
 
             var clearable = troops.Value.Where(x => x.Count > 0 && settings.AllowedAnimals.Contains(x.UnitId)).ToList();
             var clearableCount = clearable.Sum(x => x.Count);
             var required = settings.RequiredTroops(clearableCount);
+            if (required == (0L, 0L, 0L))
+            {
+                browser.Logger.Information(
+                    "Oasis ({Coordinates}) skipped. Empty oasis raid disabled.", target.Coordinates);
+                return Result.Ok(new ProcessTargetResult(false, false, null));
+            }
 
             var openRaid = await OpenRaidUnoccupiedOasisFromDialog(target.Href);
             if (openRaid.IsFailed) return Result.Fail(openRaid.Errors);
@@ -242,15 +248,15 @@ namespace MainCore.Services
                     draft.MarksmenRemaining >= settings.RaidMarksmen &&
                     draft.MaraudersRemaining >= settings.RaidMarauders;
                 browser.Logger.Information(
-                    "Clear oasis target {SlotId}: troop availability, required Steppe {RequiredSteppe}, required Marksmen {RequiredMarksmen}, required Marauders {RequiredMarauders}, real-time Steppe {RemainingSteppe}, real-time Marksmen {RemainingMarksmen}, real-time Marauders {RemainingMarauders}",
-                    target.SlotId,
+                    "Oasis ({Coordinates}): troop availability, required Steppe {RequiredSteppe}, required Marksmen {RequiredMarksmen}, required Marauders {RequiredMarauders}, real-time Steppe {RemainingSteppe}, real-time Marksmen {RemainingMarksmen}, real-time Marauders {RemainingMarauders}",
+                    target.Coordinates,
                     raid.Value.RequiredSteppeRiders, raid.Value.RequiredMarksmen, raid.Value.RequiredMarauders,
                     draft.SteppeRidersRemaining, draft.MarksmenRemaining, draft.MaraudersRemaining);
                 if (canRaidEmptyOasis)
                 {
                     browser.Logger.Information(
-                        "Clear oasis target {SlotId}: not enough attack troops; continuing to the next target",
-                        target.SlotId);
+                        "Oasis ({Coordinates}) skipped. Not enough attack troops; continuing to the next target.",
+                        target.Coordinates);
                     return Result.Ok(new ProcessTargetResult(false, false, null));
                 }
                 var retryAt = ResolveRetryAt(
@@ -262,15 +268,15 @@ namespace MainCore.Services
                     draft.MaraudersRemaining,
                     pendingReturns);
                 browser.Logger.Information(
-                    "Clear oasis target {SlotId}: insufficient troops for the configured empty oasis raid; scheduling a retry",
-                    target.SlotId);
+                    "Oasis ({Coordinates}): insufficient troops for the configured empty oasis raid; scheduling a retry",
+                    target.Coordinates);
                 return Result.Ok(new ProcessTargetResult(false, true, retryAt));
             }
             if (raid.Value.ReturnAt is DateTime returnAt)
                 pendingReturns.Add((raid.Value.RequiredSteppeRiders, raid.Value.RequiredMarksmen, raid.Value.RequiredMarauders, returnAt));
             browser.Logger.Information(
-                "Clear oasis target {SlotId}: sent Steppe {SentSteppe}, Marksmen {SentMarksmen}, Marauders {SentMarauders}, remaining Steppe {RemainingSteppe}, remaining Marksmen {RemainingMarksmen}, remaining Marauders {RemainingMarauders}",
-                target.SlotId,
+                "Oasis ({Coordinates}): sent Steppe {SentSteppe}, Marksmen {SentMarksmen}, Marauders {SentMarauders}, remaining Steppe {RemainingSteppe}, remaining Marksmen {RemainingMarksmen}, remaining Marauders {RemainingMarauders}",
+                target.Coordinates,
                 raid.Value.RequiredSteppeRiders, raid.Value.RequiredMarksmen, raid.Value.RequiredMarauders,
                 draft.SteppeRidersRemaining, draft.MarksmenRemaining, draft.MaraudersRemaining);
             return Result.Ok(new ProcessTargetResult(true, false, null));

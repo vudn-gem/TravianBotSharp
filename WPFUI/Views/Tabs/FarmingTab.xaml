@@ -50,7 +50,10 @@
                     <Button x:Name="ActiveButton" Margin="10" />
                     <GroupBox x:Name="OasisSettingsGroup" Header="Selected farm list oasis settings" Margin="10,0,10,10">
                         <StackPanel Margin="8">
-                            <uc:AmountInputUc x:Name="OasisRaidSafetyFactor" Text="Oasis raid safety factor" Unit="x" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Oasis raid safety factor" VerticalAlignment="Center" Margin="5,0,10,0" />
+                                <TextBox x:Name="OasisRaidSafetyFactor" Width="80" ToolTip="Decimal factor, e.g. 2.5. Troop counts round up." />
+                            </StackPanel>
                             <uc:AmountInputUc x:Name="LimitAnimal" Text="Limit animal (0 = unlimited)" Unit="animals" />
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                 <TextBlock Text="Attack troop" VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -62,10 +65,11 @@
                             </StackPanel>
                             <TextBlock Text="Raid troops (empty oasis)" FontWeight="SemiBold" Margin="0,8,0,4" />
                             <WrapPanel Orientation="Horizontal">
-                                <uc:AmountInputUc x:Name="RaidSteppeRiders" Text="Steppe Rider" Unit="troops" Margin="0,0,12,0" />
-                                <uc:AmountInputUc x:Name="RaidMarksmen" Text="Marksman" Unit="troops" Margin="0,0,12,0" />
-                                <uc:AmountInputUc x:Name="RaidMarauders" Text="Marauder" Unit="troops" />
+                                <uc:AmountInputUc x:Name="RaidSteppeRiders" Text="Steppe Rider" Unit="troops" EmptyIsZero="True" Margin="0,0,12,0" />
+                                <uc:AmountInputUc x:Name="RaidMarksmen" Text="Marksman" Unit="troops" EmptyIsZero="True" Margin="0,0,12,0" />
+                                <uc:AmountInputUc x:Name="RaidMarauders" Text="Marauder" Unit="troops" EmptyIsZero="True" />
                             </WrapPanel>
+                            <TextBlock Text="Blank means 0. Total 0 skips empty oasis." TextWrapping="Wrap" />
                             <TextBlock Text="Allowed oasis animals" FontWeight="SemiBold" Margin="0,8,0,4" />
                             <WrapPanel Orientation="Horizontal">
                                 <CheckBox x:Name="AllowRatOasisCheckBox" Content="Rat" Margin="0,0,12,4" />
@@ -99,6 +103,8 @@
                                 <uc:AmountInputUc x:Name="HeroMarksmen" Text="Marksman" Unit="troops" Margin="0,0,12,0" />
                                 <uc:AmountInputUc x:Name="HeroMarauders" Text="Marauder" Unit="troops" />
                             </WrapPanel>
+                            <CheckBox x:Name="HeroUseTroop" Content="Use troop to clear weak oasis" Margin="0,8,0,4" />
+                            <TextBlock Text="Use saved Clear oasis settings for empty oasis or animal counts below Min animal (no hero). When off, skip counts at or below Min animal." TextWrapping="Wrap" />
                             <TextBlock Text="Allowed oasis animals" FontWeight="SemiBold" Margin="0,8,0,4" />
                             <WrapPanel>
                                 <CheckBox x:Name="HeroAllowRat" Content="Rat" Margin="0,0,12,4" />

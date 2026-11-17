@@ -74,6 +74,14 @@ Clear oasis also opens each target in a temporary tab to inspect animals and
 send the raid, then closes it before continuing on the farm list tab. Targets
 that exceed the animal limit or contain disallowed animals are deactivated from
 the main farm list after the temporary tab closes.
+In **Raid troops (empty oasis)**, blank fields mean zero. If all three counts
+are zero, empty oasis are skipped without sending or waiting for raid troops.
+Animal-bearing targets still use the selected attack troop and safety factor.
+Safety factor accepts decimals (for example `2.5`); required troops are rounded
+up, so 3 animals at 2.5 require 8 troops. New Clear oasis settings default to 2.5
+and allow Rat, Spider, Bat and Wild Boar. New Hero clear oasis settings allow the
+same animals. Previously saved values, including legacy account settings, are
+preserved.
 
 Non-oasis targets,
 unknown/invalid troop counts, missing dialogs/context menus, and mismatched
@@ -82,14 +90,29 @@ The English game UI is required. Check the account's **Debug** tab for
 per-target results and the final summary. This button does not send raids
 or toggle the local farm-list Active setting.
 
+Check oasis, Activate oasis, Deactive oasis, Clear oasis and Hero clear oasis
+task names show the farm list name. Clear oasis and Hero clear oasis
+per-target Debug messages identify oasis by map coordinates `(x|y)`, including
+skipped targets and sent raids, instead of internal farm-list slot IDs.
+
 ## clearing oasis with the hero
 
 Select a farm list and configure **Hero clear oasis - selected farm list**.
-These settings are independent of normal clear-oasis settings. Save them before
+Hero combat settings are separate from normal clear-oasis settings. Save them before
 clicking **Hero clear oasis**.
 
-- Set inclusive **Min animal** and **Max animal** limits and allowed animal types.
+- Set **Min animal**, inclusive **Max animal**, and allowed animal types.
   Any positive count of a disallowed animal skips the target without disabling it.
+- **Use troop to clear weak oasis** is off by default. When off, counts at or below Min animal are
+  skipped; only counts above Min animal enter the hero path.
+  When on, empty oasis and counts below Min animal use the same farm list's saved
+  **Clear oasis** settings, without the hero or simulation. Positive animal
+  counts use Attack troop and Safety factor (rounded up); empty oasis use Raid
+  troops and are skipped if all raid counts are zero. Clear oasis Allowed animals
+  and Limit animal apply to this troop-only path, not the hero animal selection.
+  At exactly Min animal (> 0), the hero path applies when Use troop is on.
+  There is no separate Hero raid troop composition or safety factor; save the
+  shared Clear oasis settings before starting.
 - Configure fixed Hun sub troop counts: Steppe Rider, Marksman and Marauder.
   Zero for all three sends only the hero. For other attacker troop inputs, only
   positive counts are cleared; zero and empty fields are left untouched.
@@ -108,14 +131,17 @@ TBS checks the hero HUD and its village against the farm list owner, switching
 villages if needed; it does not open Send troops just to check hero availability.
 For each target, TBS opens the oasis in a temporary tab, checks its animals, and
 simulates or prepares the raid in that tab. The main tab stays on the farm list.
-Hero availability is checked again on the send form before dispatch. After
+Hero availability is checked again on the send form before a hero dispatch. After
 sending, the temporary tab closes and the task waits until the hero returns and
 the task delay buffer elapses. On resumption TBS reopens the Farm List to refresh
 the hero state before continuing, even if the main tab was already on that page.
-Each eligible oasis is simulated as a raid with the configured army. TBS checks
+Each eligible hero raid is simulated with the configured army. TBS checks
 real troop availability and requires the
 confirmation army, village, coordinates and raid type to match the simulation
 exactly. Missing or reduced troops are never silently accepted.
+Troop-only raids also validate the exact army (including no hero), village,
+coordinates and raid type at confirmation. They yield for the task delay buffer
+and count toward phase limits, but do not wait for the hero's return.
 
 Only one hero-clear task can be queued per account. Automatic adventures wait
 while it is queued. After Confirm, success requires both the Overview URL

@@ -2,7 +2,7 @@ namespace MainCore.Services
 {
     public sealed record OasisRaidSettings(
         IReadOnlySet<int> AllowedAnimals,
-        int SafetyFactor,
+        decimal SafetyFactor,
         OasisAttackTroop AttackTroop,
         int RaidSteppeRiders,
         int RaidMarksmen,
@@ -39,7 +39,7 @@ namespace MainCore.Services
             if (!Enum.IsDefined(setting.AttackTroop))
                 return Result.Fail("Farm list attack troop is invalid.");
             if (!IsValidRaidComposition(setting.RaidSteppeRiders, setting.RaidMarksmen, setting.RaidMarauders))
-                return Result.Fail("Farm list raid troop counts must be between 0 and 999999, with at least one troop.");
+                return Result.Fail("Farm list raid troop counts must be between 0 and 999999.");
             var allowed = Enumerable.Range(31, 10)
                 .Where(id => (setting.AllowedAnimals & (1 << (id - 31))) != 0).ToHashSet();
             return Result.Ok(new OasisRaidSettings(allowed, setting.SafetyFactor, setting.AttackTroop,
@@ -48,12 +48,12 @@ namespace MainCore.Services
 
         public static bool IsValidRaidComposition(int steppe, int marksmen, int marauders) =>
             steppe is >= 0 and <= 999999 && marksmen is >= 0 and <= 999999 &&
-            marauders is >= 0 and <= 999999 && (steppe > 0 || marksmen > 0 || marauders > 0);
+            marauders is >= 0 and <= 999999;
 
         public (long Steppe, long Marksmen, long Marauders) RequiredTroops(long animalCount)
         {
             if (animalCount == 0) return (RaidSteppeRiders, RaidMarksmen, RaidMarauders);
-            var amount = checked(animalCount * SafetyFactor);
+            var amount = checked((long)decimal.Ceiling(animalCount * SafetyFactor));
             return AttackTroop switch
             {
                 OasisAttackTroop.SteppeRider => (amount, 0, 0),

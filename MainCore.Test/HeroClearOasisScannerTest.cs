@@ -112,7 +112,7 @@ namespace MainCore.Test
                 outcome.Task.ConfirmationAttempted.ShouldBeFalse();
                 var previous = outcome.Task.ExecuteAt;
                 await outcome.Context.Pages[0].GotoAsync("https://example.com/build.php?gid=16&tt=99");
-                var resumed = await outcome.Scanner.Scan(outcome.Task, outcome.Settings, CancellationToken.None);
+                var resumed = await outcome.Scanner.Scan(outcome.Task, outcome.Settings, CancellationToken.None, outcome.TroopSettings);
                 resumed.IsSuccess.ShouldBeTrue();
                 outcome.Task.ExecuteAt.ShouldBe(previous);
             }
@@ -283,10 +283,185 @@ namespace MainCore.Test
             await outcome.Context.DisposeAsync();
         }
 
+        [Theory]
+        [InlineData(0, 1, 0, true, false, false)]
+        [InlineData(0, 0, 0, true, false, false)]
+        [InlineData(2, 5, 0, true, true, false)]
+        [InlineData(0, 1, 2, true, true, false)]
+        [InlineData(0, 1, 2, true, true, true)]
+        [InlineData(0, 0, 2, true, true, false)]
+        [InlineData(0, 1, 2, false, true, false)]
+        [InlineData(2, 5, 2, true, true, false)]
+        [InlineData(2, 5, 2, false, false, false)]
+        public async Task UsesOnlyRaidTroopsBelowMinimumAndSkipsWhenDisabled(
+            int animals, int minimumAnimals, int raidSteppe, bool allowedAnimals, bool sends, bool missingHero)
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0,
+                hero: false, animalCount: animals, minAnimal: minimumAnimals,
+                raidSteppe: raidSteppe, allowAnimals: allowedAnimals, missingHeroCell: missingHero);
+            try
+            {
+                outcome.Result.IsSuccess.ShouldBeTrue(outcome.Details);
+                outcome.Confirms.ShouldBe(sends ? 1 : 0, outcome.Details);
+                outcome.Simulates.ShouldBe(0);
+                outcome.Task.ProcessedSlots.ShouldContain("1");
+                outcome.Task.HeroReturnAt.ShouldBeNull();
+                outcome.Task.SentRaidThisRun.ShouldBe(sends);
+                outcome.Task.ConfirmationAttempted.ShouldBeFalse();
+                outcome.Context.Pages.Count.ShouldBe(1);
+                if (sends) outcome.Task.ExecuteAt.ShouldBeLessThan(DateTime.Now.AddMinutes(1));
+            }
+            finally
+            {
+                await outcome.Context.DisposeAsync();
+            }
+        }
+
+        [Theory]
+        [InlineData(false, 20)]
+        [InlineData(true, 2)]
+        public async Task DoesNotSendTroopOnlyRaidWithInsufficientTroopsOrUnexpectedHero(bool unexpectedHero, int raidSteppe)
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0,
+                animalCount: 0, raidSteppe: raidSteppe, unexpectedRaidHero: unexpectedHero);
+            try
+            {
+                outcome.Result.IsFailed.ShouldBeTrue(outcome.Details);
+                outcome.Confirms.ShouldBe(0);
+                outcome.Simulates.ShouldBe(0);
+                outcome.Task.ProcessedSlots.ShouldBeEmpty();
+                outcome.Task.ConfirmationAttempted.ShouldBeFalse();
+                if (unexpectedHero) outcome.Details.ShouldContain("Army differs from simulation at t11");
+                else outcome.Result.HasError<Skip>().ShouldBeTrue();
+            }
+            finally
+            {
+                await outcome.Context.DisposeAsync();
+            }
+        }
+
+        [Fact]
+        public async Task UsesHeroAtExactlyMinimumEvenWhenRaidTroopsAreConfigured()
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, minAnimal: 8, raidSteppe: 2);
+            try
+            {
+                outcome.Result.IsSuccess.ShouldBeTrue(outcome.Details);
+                outcome.Confirms.ShouldBe(1);
+                outcome.Simulates.ShouldBe(1);
+                outcome.Task.HeroReturnAt.ShouldNotBeNull();
+            }
+            finally
+            {
+                await outcome.Context.DisposeAsync();
+            }
+        }
+
+        [Theory]
+        [InlineData(0, 0)]
+        [InlineData(0, 5)]
+        [InlineData(2, 5)]
+        [InlineData(5, 5)]
+        public async Task UseTroopOffSkipsCountsAtOrBelowMinimum(int animals, int minimumAnimals)
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0,
+                animalCount: animals, minAnimal: minimumAnimals, raidSteppe: 2, useTroop: false);
+            try
+            {
+                outcome.Result.IsSuccess.ShouldBeTrue(outcome.Details);
+                outcome.Confirms.ShouldBe(0);
+                outcome.Simulates.ShouldBe(0);
+                outcome.Task.ProcessedSlots.ShouldContain("1");
+                outcome.Details.ShouldContain("Oasis ({Coordinates}) skipped. {Reason} -125|-6");
+            }
+            finally
+            {
+                await outcome.Context.DisposeAsync();
+            }
+        }
+
+        [Fact]
+        public async Task UseTroopOffUsesHeroAboveMinimum()
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, minAnimal: 7, useTroop: false);
+            try
+            {
+                outcome.Result.IsSuccess.ShouldBeTrue(outcome.Details);
+                outcome.Confirms.ShouldBe(1);
+                outcome.Simulates.ShouldBe(1);
+                outcome.Task.HeroReturnAt.ShouldNotBeNull();
+            }
+            finally
+            {
+                await outcome.Context.DisposeAsync();
+            }
+        }
+
+        [Theory]
+        [InlineData(1, false, true, 0, true)]
+        [InlineData(3, false, true, 0, true)]
+        [InlineData(3, true, false, 0, false)]
+        [InlineData(3, true, true, 2, false)]
+        public async Task TroopPathUsesClearAnimalPolicyAndDecimalFactor(
+            int animals, bool heroAllows, bool clearAllows, int limit, bool sends)
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, animalCount: animals, minAnimal: 5,
+                allowAnimals: heroAllows, clearAllowsAnimals: clearAllows, clearLimit: limit);
+            try
+            {
+                outcome.Result.IsSuccess.ShouldBeTrue(outcome.Details);
+                outcome.Confirms.ShouldBe(sends ? 1 : 0, outcome.Details);
+                outcome.Simulates.ShouldBe(0);
+                outcome.Task.HeroReturnAt.ShouldBeNull();
+            }
+            finally
+            {
+                await outcome.Context.DisposeAsync();
+            }
+        }
+
+        [Theory]
+        [InlineData(0, 2, 0)]
+        [InlineData(0, 0, 2)]
+        [InlineData(1, 2, 3)]
+        public async Task UsesFullRaidCompositionWithoutHero(int steppe, int marksmen, int marauders)
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, animalCount: 0,
+                raidSteppe: steppe, raidMarksmen: marksmen, raidMarauders: marauders);
+            try
+            {
+                outcome.Result.IsSuccess.ShouldBeTrue(outcome.Details);
+                outcome.Confirms.ShouldBe(1);
+                outcome.Simulates.ShouldBe(0);
+                outcome.Task.HeroReturnAt.ShouldBeNull();
+            }
+            finally
+            {
+                await outcome.Context.DisposeAsync();
+            }
+        }
+
+        [Fact]
+        public async Task RetainsUncertainConfirmationGuardForTroopOnlyRaid()
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0,
+                animalCount: 0, raidSteppe: 2, overview: false);
+            try
+            {
+                outcome.Confirms.ShouldBe(1);
+                outcome.Task.ConfirmationAttempted.ShouldBeTrue();
+                outcome.Task.ProcessedSlots.ShouldBeEmpty();
+            }
+            finally
+            {
+                await outcome.Context.DisposeAsync();
+            }
+        }
+
         private sealed record Outcome(
             Result Result, HeroClearFarmOasisTask.Task Task, HeroOasisSetting Settings,
             HeroClearOasisScanner Scanner, IBrowserContext Context, int Confirms, int Simulates,
-            string Details, bool MainTabOpenedSendTroops, int MainTabFarmListNavigations);
+            string Details, bool MainTabOpenedSendTroops, int MainTabFarmListNavigations, OasisRaidSettings TroopSettings);
 
         private async Task<Outcome> Run(
             int health, int after, int minimum, int maxHealthLost, int lost, int maxTroopLost,
@@ -294,7 +469,10 @@ namespace MainCore.Test
             bool switchVillage = false, bool skipFirst = false, bool heroOnly = false, bool blankZeros = false,
             string? actionOverride = null, bool overrideHero = false, int[]? missingActionTroops = null,
             bool duplicateActionInput = false, bool missingConfirmationInput = false, bool missingHeroCell = false,
-            int heroVillage = 2, bool failSendInput = false)
+            int heroVillage = 2, bool failSendInput = false, int animalCount = 8, int minAnimal = 1,
+            int raidSteppe = 0, bool allowAnimals = true, bool unexpectedRaidHero = false,
+            int raidMarksmen = 0, int raidMarauders = 0, bool useTroop = true,
+            bool? clearAllowsAnimals = null, int clearLimit = 0)
         {
             var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -307,14 +485,20 @@ namespace MainCore.Test
             {
                 FarmId = 10, AllowedAnimals = 1, MinHeroHealth = minimum,
                 MaxHeroHealthLost = maxHealthLost, MaxSubTroopLost = maxTroopLost,
+                MinAnimal = minAnimal, UseTroop = useTroop,
             };
+            if (!allowAnimals) settings.AllowedAnimals = 0;
             if (heroOnly)
             {
                 settings.SteppeRiders = 0;
                 settings.Marksmen = 0;
                 settings.Marauders = 0;
             }
-            var army = HeroOasisSettings.Troops(settings);
+            var troopSettings = new OasisRaidSettings(
+                (clearAllowsAnimals ?? allowAnimals) ? new HashSet<int> { 31 } : new HashSet<int>(),
+                2.5m, MainCore.Enums.OasisAttackTroop.SteppeRider, raidSteppe, raidMarksmen, raidMarauders, clearLimit);
+            var troopOnly = useTroop && (animalCount == 0 || animalCount < minAnimal);
+            var army = troopOnly ? HeroOasisSettings.RaidTroops(troopSettings, animalCount) : HeroOasisSettings.Troops(settings);
             var simulationInputs = string.Concat(Enumerable.Range(1, 10).Select(i =>
                 $"<td><input data-t='t{i}' name='unit{i}' value='9'></td>"));
             var defenderIcons = string.Concat(Enumerable.Range(31, 10).Select(i => $"<td><i class='unit u{i}'></i></td>"));
@@ -340,6 +524,7 @@ namespace MainCore.Test
             }
             var confirmArmy = army.ToArray();
             if (reducedConfirmation) confirmArmy[10] = 0;
+            if (unexpectedRaidHero) confirmArmy[10] = 1;
             var confirmationInputs = HiddenArmy("troops[0]", confirmArmy, blankZeros);
             if (missingConfirmationInput)
                 confirmationInputs = confirmationInputs.Replace("<input type='hidden' name='troops[0][t1]' value='0'>", "");
@@ -431,12 +616,14 @@ namespace MainCore.Test
                         <div id="map_details"><table id="troop_info"><tbody>
                         <tr><td><img class="unit u31"></td><td class="val">200</td></tr>
                         </tbody></table></div></div>
-                        """ : """
+                        """ : $"""
                         <div id="tileDetails" class="oasis">
                         <a data-centermap href="/karte.php?x=-125&amp;y=-6">Center</a>
-                        <a href="/build.php?tt=2&amp;targetMapId=82682">Raid</a>
+                        <div class="detailImage"><div class="options"><div class="option">
+                        <a href="/build.php?tt=2&amp;targetMapId=82682&amp;eventType=4">Raid unoccupied oasis</a>
+                        </div></div></div>
                         <div id="map_details"><table id="troop_info"><tbody>
-                        <tr><td><img class="unit u31"></td><td class="val">8</td></tr>
+                        <tr><td><img class="unit u31"></td><td class="val">{animalCount}</td></tr>
                         <tr><td><a href="/build.php?tt=3&amp;screen=combatSimulator&amp;kid=82682">simulate raid</a></td></tr>
                         </tbody></table></div></div>
                         """;
@@ -508,7 +695,7 @@ namespace MainCore.Test
                 }
                 if (id == "ok")
                 {
-                    for (var i = 1; i <= 11; i++)
+                    for (var i = 1; i <= (missingHeroCell ? 10 : 11); i++)
                         (await currentPage.Locator($"#troops input[name='troop[t{i}]']").InputValueAsync())
                             .ShouldBe(army[i - 1] == 0 ? "" : army[i - 1].ToString());
                 }
@@ -537,7 +724,7 @@ namespace MainCore.Test
             Result result;
             try
             {
-                result = await scanner.Scan(task, settings, CancellationToken.None);
+                result = await scanner.Scan(task, settings, CancellationToken.None, troopSettings);
             }
             catch (TimeoutException) when (!overview && task.ConfirmationAttempted)
             {
@@ -546,7 +733,7 @@ namespace MainCore.Test
             var details = string.Join("; ", result.Errors.Select(x => x.Message)) + " " +
                 string.Join("; ", logger.ReceivedCalls().Select(call => string.Join(" ", call.GetArguments())));
             return new(result, task, settings, scanner, context, confirms, simulates, details,
-                mainTabOpenedSendTroops, mainTabFarmListNavigations);
+                mainTabOpenedSendTroops, mainTabFarmListNavigations, troopSettings);
         }
 
         private static string HiddenArmy(string prefix, int[] army, bool blankZeros = false) =>

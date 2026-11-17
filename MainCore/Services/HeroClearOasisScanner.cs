@@ -7,8 +7,11 @@ namespace MainCore.Services
     public sealed class HeroClearOasisScanner(IChromeBrowser browser)
     {
         public async Task<Result> Scan(
-            HeroClearFarmOasisTask.Task task, HeroOasisSetting settings, CancellationToken cancellationToken)
+            HeroClearFarmOasisTask.Task task, HeroOasisSetting settings, CancellationToken cancellationToken,
+            OasisRaidSettings? troopSettings = null)
         {
+            if (settings.UseTroop && troopSettings is null)
+                return Stop.Error.WithError("Use troop requires saved Clear oasis settings for this farm list.");
             var page = browser.CurrentPage;
             var status = await HeroOasisParser.ReadHudStatus(page);
             if (status.IsFailed) return Stop.Error.WithErrors(status.Errors);
@@ -76,7 +79,7 @@ namespace MainCore.Services
                     return Stop.Error.WithError("Hero oasis target changed while opening it.");
                 var continueScanning = false;
                 var result = await FarmTargetOasisTab.Run(browser, target.Href, oasisPage =>
-                    ProcessTargetInOasisTab(task, settings, target, owner.Value, oasisPage,
+                    ProcessTargetInOasisTab(task, settings, troopSettings, target, owner.Value, oasisPage,
                         cancellationToken, () => continueScanning = true));
                 if (result.IsFailed) return result;
                 if (continueScanning) continue;
@@ -87,6 +90,7 @@ namespace MainCore.Services
         private async Task<Result> ProcessTargetInOasisTab(
             HeroClearFarmOasisTask.Task task,
             HeroOasisSetting settings,
+            OasisRaidSettings? troopSettings,
             FarmTargetSlot target,
             VillageId owner,
             IPage page,
@@ -95,13 +99,43 @@ namespace MainCore.Services
         {
             var animals = await FarmTargetTroopsParser.ReadOasisAnimalTroops(page, target.Href);
             if (animals.IsFailed) return Stop.Error.WithErrors(animals.Errors);
-            if (!HeroOasisSettings.AllowsAnimals(settings, animals.Value))
+            var animalCount = animals.Value.Sum(x => x.Count);
+            var troopOnly = settings.UseTroop && (animalCount == 0 || animalCount < settings.MinAnimal);
+            int[]? troopArmy = null;
+            if (troopOnly)
+            {
+                if (troopSettings is null)
+                    return Stop.Error.WithError("Clear oasis settings are missing.");
+                if ((troopSettings.LimitAnimal > 0 && animalCount > troopSettings.LimitAnimal) ||
+                    animals.Value.Any(x => x.Count > 0 && !troopSettings.AllowedAnimals.Contains(x.UnitId)))
+                {
+                    SkipTarget(task, target, "Animal count or allowed animals do not match Clear oasis settings.");
+                    continueScanning();
+                    return Result.Ok();
+                }
+                try
+                {
+                    troopArmy = HeroOasisSettings.RaidTroops(troopSettings, animalCount);
+                }
+                catch (OverflowException)
+                {
+                    return Stop.Error.WithError("Clear oasis troop count exceeds the supported range.");
+                }
+                if (troopArmy.All(x => x == 0))
+                {
+                    SkipTarget(task, target, "Empty oasis raid disabled in Clear oasis settings.");
+                    continueScanning();
+                    return Result.Ok();
+                }
+            }
+            var allowed = troopOnly || HeroOasisSettings.AllowsAnimals(settings, animals.Value);
+            if (!allowed)
             {
                 SkipTarget(task, target, "Animal count or allowed animals do not match.");
                 continueScanning();
                 return Result.Ok();
             }
-            if (HeroOasisSettings.AllowsSafeClear(settings, animals.Value))
+            if (troopOnly || HeroOasisSettings.AllowsSafeClear(settings, animals.Value))
             {
                 var opened = await OpenRaidUnoccupiedOasisFromDialog(target.Href);
                 if (opened.IsFailed) return Stop.Error.WithErrors(opened.Errors);
@@ -171,11 +205,14 @@ namespace MainCore.Services
                 ready = await browser.Wait(page.Locator("#build .a2b form[action*='tt=2'] #troops"));
                 if (ready.IsFailed) return ready;
             }
-            var availableHero = await HeroOasisParser.IsHeroHome(page);
-            if (availableHero.IsFailed) return Stop.Error.WithErrors(availableHero.Errors);
-            if (!availableHero.Value)
-                return await HandleHeroUnavailable(task, target, "Hero is no longer in the village.");
-            var send = await HeroOasisParser.PrepareSend(browser, settings, owner, target.Href, cancellationToken);
+            if (!troopOnly)
+            {
+                var availableHero = await HeroOasisParser.IsHeroHome(page);
+                if (availableHero.IsFailed) return Stop.Error.WithErrors(availableHero.Errors);
+                if (!availableHero.Value)
+                    return await HandleHeroUnavailable(task, target, "Hero is no longer in the village.");
+            }
+            var send = await HeroOasisParser.PrepareSend(browser, settings, owner, target.Href, cancellationToken, troopArmy);
             if (send.IsFailed)
             {
                 if (IsHeroUnavailable(send.Errors))
@@ -189,7 +226,7 @@ namespace MainCore.Services
             if (sent.IsFailed) return sent;
             var confirmationReady = await browser.Wait(page.Locator("#troopSendForm #confirmSendTroops"));
             if (confirmationReady.IsFailed) return confirmationReady;
-            var confirmation = await HeroOasisParser.ReadConfirmation(page, settings, owner, target.Href);
+            var confirmation = await HeroOasisParser.ReadConfirmation(page, settings, owner, target.Href, troopArmy);
             if (confirmation.IsFailed) return Stop.Error.WithErrors(confirmation.Errors);
             if (confirmation.Value <= DateTime.Now)
                 return Stop.Error.WithError("Hero return time is not in the future. Raid not confirmed.");
@@ -202,20 +239,21 @@ namespace MainCore.Services
                     !!document.querySelector('.subNavi a.tabItem.active[href*="tt=1"]')
                 """);
             task.ProcessedSlots.Add(target.SlotId);
-            task.HeroReturnAt = confirmation.Value;
-            task.ExecuteAt = confirmation.Value.AddMilliseconds(task.TaskBufferMilliseconds <= 0 ? 1000 : task.TaskBufferMilliseconds);
+            task.HeroReturnAt = troopOnly ? null : confirmation.Value;
+            task.ExecuteAt = (troopOnly ? DateTime.Now : confirmation.Value)
+                .AddMilliseconds(task.TaskBufferMilliseconds <= 0 ? 1000 : task.TaskBufferMilliseconds);
             task.ConfirmationAttempted = false;
             task.SentRaidThisRun = true;
             browser.Logger.Information(
-                "Hero raid sent to slot {SlotId}; next target scheduled at {ExecuteAt}",
-                target.SlotId, task.ExecuteAt);
+                "{RaidType} raid sent to oasis ({Coordinates}); next target scheduled at {ExecuteAt:yyyy-MM-dd HH:mm:ss}",
+                troopOnly ? "Troop-only" : "Hero", target.Coordinates, task.ExecuteAt);
             return Result.Ok();
         }
 
         private void SkipTarget(HeroClearFarmOasisTask.Task task, FarmTargetSlot target, string reason)
         {
             task.ProcessedSlots.Add(target.SlotId);
-            browser.Logger.Information("Hero oasis target {SlotId} skipped: {Reason}", target.SlotId, reason);
+            browser.Logger.Information("Oasis ({Coordinates}) skipped. {Reason}", target.Coordinates, reason);
         }
 
         private static bool IsHeroUnavailable(IReadOnlyList<IError> errors) =>
@@ -227,9 +265,9 @@ namespace MainCore.Services
             {
                 task.ExecuteAt = DateTime.Now.AddMilliseconds(task.RetryDelayMilliseconds <= 0 ? 1000 : task.RetryDelayMilliseconds);
                 return Skip.Error.WithError(
-                    $"{reason} Slot {target.SlotId} scheduled once at {task.ExecuteAt:yyyy-MM-dd HH:mm:ss}.");
+                    $"{reason} Oasis ({target.Coordinates}) scheduled once at {task.ExecuteAt:yyyy-MM-dd HH:mm:ss}.");
             }
-            return Stop.Error.WithError($"{reason} Slot {target.SlotId} already retried once.");
+            return Stop.Error.WithError($"{reason} Oasis ({target.Coordinates}) already retried once.");
         }
 
         private Result ScheduleByHeroTimer(HeroClearFarmOasisTask.Task task, HeroHudStatus status, string reason)

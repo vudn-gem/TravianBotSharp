@@ -73,7 +73,7 @@ namespace MainCore.Services
                     var activate = name == "active-oasis";
                     var synchronize = name == "check-oasis";
                     var action = synchronize ? "synchronize all" : activate ? "activate safe disabled" : "deactivate unsafe active";
-                    if (!taskManager.TryAdd(new CheckFarmTargetOasisTask.Task(ownerId, new FarmId(farmValue), activate, synchronize)))
+                    if (!taskManager.TryAdd(new CheckFarmTargetOasisTask.Task(ownerId, new FarmId(farmValue), activate, synchronize, farm.Name)))
                         return $"The {action} oasis check is already queued for farm list {farmValue}. Its schedule was not changed.";
                     return $"Queued {action} oasis check for farm list {farmValue}, account {farm.AccountId}, using saved Check oasis settings. Current status: {ownerQueue.Status}.";
                 }
@@ -143,6 +143,12 @@ namespace MainCore.Services
                         var validation = HeroOasisSettings.Validate(settings);
                         if (validation.IsFailed)
                             return "Invalid saved hero settings: " + string.Join("; ", validation.Errors.Select(x => x.Message));
+                        if (settings.UseTroop)
+                        {
+                            var troopSettings = OasisRaidSettings.Read(context, accountId, new FarmId(farmValue));
+                            if (troopSettings.IsFailed)
+                                return "Invalid saved Clear oasis settings: " + string.Join("; ", troopSettings.Errors.Select(x => x.Message));
+                        }
                         return taskManager.TryAddHeroClearOasis(accountId, new FarmId(farmValue))
                             ? $"Queued Hero clear oasis for account {accountValue}, farm list {farmValue}. Current status: {queue.Status}."
                             : "A Hero clear oasis task already exists for this account, or the farm list no longer exists.";

@@ -124,6 +124,25 @@ namespace MainCore.Test
         }
 
         [Fact]
+        public async Task HeroUseTroopRequiresValidClearSettingsForTheSameFarm()
+        {
+            using var context = new AppDbContext(_options);
+            context.HeroOasisSettings.Single().UseTroop = true;
+            context.FarmOasisSettings.Add(new FarmOasisSetting { FarmId = 20 });
+            context.SaveChanges();
+            (await Execute("/hero-farm 1 10")).ShouldContain("Invalid saved Clear oasis settings");
+            _manager.GetTaskList(new(1)).ShouldBeEmpty();
+            var clear = new FarmOasisSetting { FarmId = 10, SafetyFactor = 0 };
+            context.FarmOasisSettings.Add(clear);
+            context.SaveChanges();
+            (await Execute("/hero-farm 1 10")).ShouldContain("Invalid saved Clear oasis settings");
+            _manager.GetTaskList(new(1)).ShouldBeEmpty();
+            clear.SafetyFactor = 2.5m;
+            context.SaveChanges();
+            (await Execute("/hero-farm 1 10")).ShouldContain("Queued Hero clear oasis");
+        }
+
+        [Fact]
         public async Task ActiveAndDeactiveSetStateIdempotentlyWithoutStartingFarming()
         {
             using var context = new AppDbContext(_options);

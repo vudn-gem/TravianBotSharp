@@ -43,6 +43,7 @@ namespace WPFUI.Views.Tabs
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.SteppeRiders, v => v.HeroSteppeRiders.ViewModel).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.Marksmen, v => v.HeroMarksmen.ViewModel).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.Marauders, v => v.HeroMarauders.ViewModel).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.HeroOasisSettingInput.UseTroop, v => v.HeroUseTroop.IsChecked).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.MinHeroHealth, v => v.HeroMinHealth.ViewModel).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.MaxHeroHealthLost, v => v.HeroMaxHealthLost.ViewModel).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.MaxSubTroopLost, v => v.HeroMaxSubTroopLost.ViewModel).DisposeWith(d);
@@ -88,7 +89,7 @@ namespace WPFUI.Views.Tabs
                 this.Bind(ViewModel, vm => vm.FarmOasisSettingInput.AllowCrocodile, v => v.AllowCrocodileOasisCheckBox.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.FarmOasisSettingInput.AllowTiger, v => v.AllowTigerOasisCheckBox.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.FarmOasisSettingInput.AllowElephant, v => v.AllowElephantOasisCheckBox.IsChecked).DisposeWith(d);
-                this.OneWayBind(ViewModel, vm => vm.FarmOasisSettingInput.SafetyFactor, v => v.OasisRaidSafetyFactor.ViewModel).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.FarmOasisSettingInput.SafetyFactor, v => v.OasisRaidSafetyFactor.Text).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.FarmOasisSettingInput.LimitAnimal, v => v.LimitAnimal.ViewModel).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.FarmOasisSettingInput.AttackTroopIndex, v => v.OasisAttackTroop.SelectedIndex).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.FarmOasisSettingInput.RaidSteppeRiders, v => v.RaidSteppeRiders.ViewModel).DisposeWith(d);

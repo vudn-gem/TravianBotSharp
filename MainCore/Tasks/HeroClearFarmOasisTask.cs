@@ -11,7 +11,7 @@ namespace MainCore.Tasks
         IDbContextFactory<AppDbContext> contextFactory,
         HeroClearOasisScanner scanner)
     {
-        public sealed class Task(AccountId accountId, FarmId farmId) : AccountTask(accountId)
+        public sealed class Task(AccountId accountId, FarmId farmId, string? farmName = null) : AccountTask(accountId)
         {
             public FarmId FarmId { get; } = farmId;
             public VillageId? Owner { get; set; }
@@ -25,7 +25,7 @@ namespace MainCore.Tasks
             public int CurrentPhaseSentCount { get; set; }
             public bool SentRaidThisRun { get; set; }
             public bool ConfirmationAttempted { get; set; }
-            protected override string TaskName => $"Hero clear oasis in farm list {FarmId.Value}";
+            protected override string TaskName => $"Hero clear oasis in farm list {farmName ?? FarmId.Value.ToString()}";
             public override string Key => $"{AccountId}_{FarmId.Value}";
             public override bool CanStart(AppDbContext context) =>
                 context.FarmLists.Any(x => x.Id == FarmId.Value && x.AccountId == AccountId.Value);
@@ -52,6 +52,13 @@ namespace MainCore.Tasks
             if (settings is null) return Skip.Error.WithError("Hero oasis settings or farm list no longer exist.");
             var valid = HeroOasisSettings.Validate(settings);
             if (valid.IsFailed) return Skip.Error.WithErrors(valid.Errors);
+            OasisRaidSettings? troopSettings = null;
+            if (settings.UseTroop)
+            {
+                var saved = OasisRaidSettings.Read(context, task.AccountId, task.FarmId);
+                if (saved.IsFailed) return Skip.Error.WithErrors(saved.Errors);
+                troopSettings = saved.Value;
+            }
             task.TaskBufferMilliseconds = Math.Max(200, context.ByName(task.AccountId,
                 AccountSettingEnums.TaskDelayMin, AccountSettingEnums.TaskDelayMax));
             task.RetryDelayMilliseconds = Math.Max(400, context.ByName(task.AccountId,
@@ -67,7 +74,7 @@ namespace MainCore.Tasks
             var opened = await toFarmListPageCommand.HandleAsync(
                 new(task.AccountId, ForceOpen: resumingAfterHeroReturn), cancellationToken);
             if (opened.IsFailed) return opened;
-            var scan = await scanner.Scan(task, settings, cancellationToken);
+            var scan = await scanner.Scan(task, settings, cancellationToken, troopSettings);
             if (scan.IsFailed) return scan;
             if (!task.SentRaidThisRun) return scan;
             task.CurrentPhaseSentCount++;

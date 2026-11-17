@@ -1,6 +1,8 @@
 using MainCore.Entities;
 using MainCore.Parsers;
 using MainCore.Services;
+using MainCore.UI.Models.Input;
+using ReactiveUI.Builder;
 
 namespace MainCore.Test
 {
@@ -21,7 +23,7 @@ namespace MainCore.Test
         }
 
         [Theory]
-        [InlineData(2, 31, true)]
+        [InlineData(2, 31, false)]
         [InlineData(5, 31, true)]
         [InlineData(1, 31, false)]
         [InlineData(6, 31, false)]
@@ -67,6 +69,25 @@ namespace MainCore.Test
             settings.MinHeroHealth = 50;
             settings.SteppeRiders = -1;
             HeroOasisSettings.Validate(settings).IsFailed.ShouldBeTrue();
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void RoundTripsUseTroopWithoutChangingHeroArmy(bool useTroop)
+        {
+            RxAppBuilder.CreateReactiveUIBuilder().WithCoreServices().BuildApp();
+            var setting = new HeroOasisSetting
+            {
+                FarmId = 10, UseTroop = useTroop,
+            };
+            HeroOasisSettings.Validate(setting).IsSuccess.ShouldBeTrue();
+            var input = new HeroOasisSettingInput();
+            input.Set(setting);
+            var saved = input.Get(11);
+            saved.FarmId.ShouldBe(11);
+            saved.UseTroop.ShouldBe(useTroop);
+            HeroOasisSettings.Troops(saved).ShouldBe([0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1]);
         }
 
         [Theory]

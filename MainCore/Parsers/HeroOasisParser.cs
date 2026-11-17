@@ -216,8 +216,9 @@ namespace MainCore.Parsers
 
         public static async Task<Result<bool>> PrepareSend(
             IChromeBrowser browser, HeroOasisSetting settings, VillageId owner,
-            string targetHref, CancellationToken cancellationToken)
+            string targetHref, CancellationToken cancellationToken, int[]? troopArmy = null)
         {
+            var troopOnly = troopArmy is not null;
             var page = browser.CurrentPage;
             var form = page.Locator("#build .a2b form[action*='tt=2']:has(#troops)");
             if (await form.CountAsync() != 1) return Result.Fail("Send troops form is missing.");
@@ -229,19 +230,24 @@ namespace MainCore.Parsers
                 if (await form.Locator($"input[name='{coordinate}']").InputValueAsync() != Query(target, coordinate))
                     return Result.Fail("Send troops coordinates differ from the oasis.");
             }
-            var hero = await IsHeroHome(page);
-            if (hero.IsFailed) return Result.Fail(hero.Errors);
-            if (!hero.Value) return Result.Fail("Hero is no longer available in the selected village.");
+            if (!troopOnly)
+            {
+                var hero = await IsHeroHome(page);
+                if (hero.IsFailed) return Result.Fail(hero.Errors);
+                if (!hero.Value) return Result.Fail("Hero is no longer available in the selected village.");
+            }
+            var expected = troopArmy ?? HeroOasisSettings.Troops(settings);
+            if (expected.All(x => x == 0)) return Result.Fail("Cannot send an empty oasis army.");
             var draft = await FarmTargetTroopsParser.ReadSteppeRiderDraft(page);
             if (draft.IsFailed) return Result.Fail(draft.Errors);
-            if (draft.Value.AvailableSteppeRiders < settings.SteppeRiders ||
-                draft.Value.AvailableMarksmen < settings.Marksmen || draft.Value.AvailableMarauders < settings.Marauders)
+            if (draft.Value.AvailableSteppeRiders < expected[3] ||
+                draft.Value.AvailableMarksmen < expected[4] || draft.Value.AvailableMarauders < expected[5])
                 return Result.Ok(false);
-            var expected = HeroOasisSettings.Troops(settings);
             for (var i = 1; i <= 11; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var input = form.Locator($"#troops input[name='troop[t{i}]']");
+                if (troopOnly && i == 11 && await input.CountAsync() == 0) continue;
                 if (await input.CountAsync() != 1) return Result.Fail("Send troop input is missing.");
                 if (await input.IsDisabledAsync())
                 {
@@ -259,13 +265,14 @@ namespace MainCore.Parsers
         }
 
         public static async Task<Result<DateTime>> ReadConfirmation(
-            IPage page, HeroOasisSetting settings, VillageId owner, string targetHref)
+            IPage page, HeroOasisSetting settings, VillageId owner, string targetHref, int[]? troopArmy = null)
         {
             var form = page.Locator("#troopSendForm");
             if (await form.CountAsync() != 1) return Result.Fail("Confirmation form is missing.");
             if (await VillagePanelParser.GetCurrentVillageId(page) != owner)
                 return Result.Fail("Active confirmation village differs from the farm list owner.");
-            var composition = await ValidateComposition(form, "troops[0]", HeroOasisSettings.Troops(settings));
+            var composition = await ValidateComposition(form, "troops[0]",
+                troopArmy ?? HeroOasisSettings.Troops(settings));
             if (composition.IsFailed) return Result.Fail(composition.Errors);
             var destination = await ValidateDestination(form, page.Url, owner, targetHref, true);
             if (destination.IsFailed) return Result.Fail(destination.Errors);

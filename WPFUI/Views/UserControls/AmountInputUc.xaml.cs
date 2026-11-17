@@ -23,8 +23,21 @@ namespace WPFUI.Views.UserControls
 
             this.WhenActivated(d =>
             {
-                this.Bind(ViewModel, vm => vm.Value, v => v.Value.Text).DisposeWith(d);
+                if (EmptyIsZero)
+                    this.Bind(ViewModel, vm => vm.Value, v => v.Value.Text,
+                        null, null, new EmptyAsZeroConverter()).DisposeWith(d);
+                else
+                    this.Bind(ViewModel, vm => vm.Value, v => v.Value.Text).DisposeWith(d);
             });
+        }
+
+        public static readonly DependencyProperty EmptyIsZeroProperty =
+            DependencyProperty.Register(nameof(EmptyIsZero), typeof(bool), typeof(AmountInputUc), new PropertyMetadata(false));
+
+        public bool EmptyIsZero
+        {
+            get => (bool)GetValue(EmptyIsZeroProperty);
+            set => SetValue(EmptyIsZeroProperty, value);
         }
 
         public static readonly DependencyProperty TextProperty =

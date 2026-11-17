@@ -7,13 +7,14 @@ namespace MainCore.Entities
     {
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int FarmId { get; set; }
-        public int AllowedAnimals { get; set; }
+        public int AllowedAnimals { get; set; } = 27;
         public int MinAnimal { get; set; } = 1;
         public int SafeAnimal { get; set; }
         public int MaxAnimal { get; set; } = 100;
         public int SteppeRiders { get; set; } = 1;
         public int Marksmen { get; set; } = 1;
         public int Marauders { get; set; } = 1;
+        public bool UseTroop { get; set; }
         public int MinHeroHealth { get; set; } = 50;
         public int MaxHeroHealthLost { get; set; } = 10;
         public int MaxSubTroopLost { get; set; }

@@ -3,7 +3,7 @@ using MainCore.UI.ViewModels.UserControls;
 
 namespace MainCore.UI.Models.Input
 {
-    public class HeroOasisSettingInput : ViewModelBase
+    public partial class HeroOasisSettingInput : ViewModelBase
     {
         public FarmOasisSettingInput Animals { get; } = new();
         public AmountInputViewModel MinAnimal { get; } = new();
@@ -12,6 +12,7 @@ namespace MainCore.UI.Models.Input
         public AmountInputViewModel SteppeRiders { get; } = new();
         public AmountInputViewModel Marksmen { get; } = new();
         public AmountInputViewModel Marauders { get; } = new();
+        [Reactive] private bool _useTroop;
         public AmountInputViewModel MinHeroHealth { get; } = new();
         public AmountInputViewModel MaxHeroHealthLost { get; } = new();
         public AmountInputViewModel MaxSubTroopLost { get; } = new();
@@ -25,6 +26,7 @@ namespace MainCore.UI.Models.Input
             SteppeRiders.Set(setting.SteppeRiders);
             Marksmen.Set(setting.Marksmen);
             Marauders.Set(setting.Marauders);
+            UseTroop = setting.UseTroop;
             MinHeroHealth.Set(setting.MinHeroHealth);
             MaxHeroHealthLost.Set(setting.MaxHeroHealthLost);
             MaxSubTroopLost.Set(setting.MaxSubTroopLost);
@@ -40,6 +42,7 @@ namespace MainCore.UI.Models.Input
             SteppeRiders = SteppeRiders.Get(),
             Marksmen = Marksmen.Get(),
             Marauders = Marauders.Get(),
+            UseTroop = UseTroop,
             MinHeroHealth = MinHeroHealth.Get(),
             MaxHeroHealthLost = MaxHeroHealthLost.Get(),
             MaxSubTroopLost = MaxSubTroopLost.Get(),

@@ -15,7 +15,7 @@ namespace MainCore.UI.Models.Input
         [Reactive] private bool _allowCrocodile;
         [Reactive] private bool _allowTiger;
         [Reactive] private bool _allowElephant;
-        public AmountInputViewModel SafetyFactor { get; } = new();
+        [Reactive] private string _safetyFactor = "2.5";
         [Reactive] private int _attackTroopIndex;
         public AmountInputViewModel RaidSteppeRiders { get; } = new();
         public AmountInputViewModel RaidMarksmen { get; } = new();
@@ -35,7 +35,7 @@ namespace MainCore.UI.Models.Input
             AllowCrocodile = (mask & (1 << 7)) != 0;
             AllowTiger = (mask & (1 << 8)) != 0;
             AllowElephant = (mask & (1 << 9)) != 0;
-            SafetyFactor.Set(setting.SafetyFactor);
+            SafetyFactor = setting.SafetyFactor.ToString(System.Globalization.CultureInfo.InvariantCulture);
             AttackTroopIndex = (int)setting.AttackTroop;
             RaidSteppeRiders.Set(setting.RaidSteppeRiders);
             RaidMarksmen.Set(setting.RaidMarksmen);
@@ -51,7 +51,8 @@ namespace MainCore.UI.Models.Input
                 (AllowWildBoar ? 1 << 4 : 0) | (AllowWolf ? 1 << 5 : 0) |
                 (AllowBear ? 1 << 6 : 0) | (AllowCrocodile ? 1 << 7 : 0) |
                 (AllowTiger ? 1 << 8 : 0) | (AllowElephant ? 1 << 9 : 0),
-            SafetyFactor = SafetyFactor.Get(),
+            SafetyFactor = decimal.TryParse(SafetyFactor, System.Globalization.NumberStyles.AllowDecimalPoint,
+                System.Globalization.CultureInfo.InvariantCulture, out var factor) ? factor : -1,
             AttackTroop = (OasisAttackTroop)AttackTroopIndex,
             RaidSteppeRiders = RaidSteppeRiders.Get(),
             RaidMarksmen = RaidMarksmen.Get(),

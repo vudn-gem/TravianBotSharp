@@ -207,13 +207,14 @@ namespace MainCore.Services
         public bool TryAddHeroClearOasis(AccountId accountId, FarmId farmId)
         {
             using var context = contextFactory.CreateDbContext();
-            if (!context.FarmLists.Any(x => x.Id == farmId.Value && x.AccountId == accountId.Value))
+            var farm = context.FarmLists.SingleOrDefault(x => x.Id == farmId.Value && x.AccountId == accountId.Value);
+            if (farm is null)
                 return false;
             var queue = GetTaskQueue(accountId);
             lock (queue)
             {
                 if (queue.Tasks.OfType<HeroClearFarmOasisTask.Task>().Any()) return false;
-                queue.Tasks.Add(new HeroClearFarmOasisTask.Task(accountId, farmId));
+                queue.Tasks.Add(new HeroClearFarmOasisTask.Task(accountId, farmId, farm.Name));
             }
             rxQueue.Enqueue(new TasksModified(accountId));
             return true;

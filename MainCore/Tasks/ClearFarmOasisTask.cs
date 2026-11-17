@@ -11,11 +11,11 @@ namespace MainCore.Tasks
         IDbContextFactory<AppDbContext> contextFactory,
         ClearOasisScanner scanner)
     {
-        public sealed class Task(AccountId accountId, FarmId farmId) : AccountTask(accountId)
+        public sealed class Task(AccountId accountId, FarmId farmId, string? farmName = null) : AccountTask(accountId)
         {
             public FarmId FarmId { get; } = farmId;
             public int ResumeTargetIndex { get; set; } = 0;
-            protected override string TaskName => $"Clear oasis in farm list {FarmId.Value}";
+            protected override string TaskName => $"Clear oasis in farm list {farmName ?? FarmId.Value.ToString()}";
             public override string Key => $"{AccountId}_{FarmId.Value}";
             public override bool CanStart(AppDbContext context) =>
                 context.FarmLists.Any(x => x.Id == FarmId.Value && x.AccountId == AccountId.Value);

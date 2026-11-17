@@ -24,7 +24,8 @@ namespace MainCore.Services
         public static bool AllowsAnimals(HeroOasisSetting setting, IReadOnlyList<OasisAnimalTroop> animals)
         {
             var total = animals.Sum(x => x.Count);
-            return total >= setting.MinAnimal && total <= setting.MaxAnimal &&
+            return (setting.UseTroop ? total >= setting.MinAnimal : total > setting.MinAnimal) &&
+                total > 0 && total <= setting.MaxAnimal &&
                 animals.All(x => x.Count == 0 || (x.UnitId is >= 31 and <= 40 &&
                     (setting.AllowedAnimals & (1 << (x.UnitId - 31))) != 0));
         }
@@ -45,5 +46,11 @@ namespace MainCore.Services
 
         public static int[] Troops(HeroOasisSetting setting) =>
             [0, 0, 0, setting.SteppeRiders, setting.Marksmen, setting.Marauders, 0, 0, 0, 0, 1];
+
+        public static int[] RaidTroops(OasisRaidSettings setting, long animalCount)
+        {
+            var (steppe, marksmen, marauders) = setting.RequiredTroops(animalCount);
+            return [0, 0, 0, checked((int)steppe), checked((int)marksmen), checked((int)marauders), 0, 0, 0, 0, 0];
+        }
     }
 }

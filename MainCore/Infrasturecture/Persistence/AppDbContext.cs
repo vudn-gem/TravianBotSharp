@@ -73,13 +73,14 @@ namespace MainCore.Infrasturecture.Persistence
             Database.ExecuteSqlRaw("""
                 CREATE TABLE IF NOT EXISTS "HeroOasisSettings" (
                     "FarmId" INTEGER NOT NULL PRIMARY KEY,
-                    "AllowedAnimals" INTEGER NOT NULL DEFAULT 0,
+                    "AllowedAnimals" INTEGER NOT NULL DEFAULT 27,
                     "MinAnimal" INTEGER NOT NULL DEFAULT 1,
                     "SafeAnimal" INTEGER NOT NULL DEFAULT 0,
                     "MaxAnimal" INTEGER NOT NULL DEFAULT 100,
                     "SteppeRiders" INTEGER NOT NULL DEFAULT 1,
                     "Marksmen" INTEGER NOT NULL DEFAULT 1,
                     "Marauders" INTEGER NOT NULL DEFAULT 1,
+                    "UseTroop" INTEGER NOT NULL DEFAULT 0,
                     "MinHeroHealth" INTEGER NOT NULL DEFAULT 50,
                     "MaxHeroHealthLost" INTEGER NOT NULL DEFAULT 10,
                     "MaxSubTroopLost" INTEGER NOT NULL DEFAULT 0,
@@ -90,6 +91,8 @@ namespace MainCore.Infrasturecture.Persistence
                 """SELECT "name" AS "Value" FROM pragma_table_info('HeroOasisSettings')""").ToHashSet();
             if (!heroColumns.Contains("SafeAnimal"))
                 Database.ExecuteSqlRaw("""ALTER TABLE "HeroOasisSettings" ADD COLUMN "SafeAnimal" INTEGER NOT NULL DEFAULT 0""");
+            if (!heroColumns.Contains("UseTroop"))
+                Database.ExecuteSqlRaw("""ALTER TABLE "HeroOasisSettings" ADD COLUMN "UseTroop" INTEGER NOT NULL DEFAULT 0""");
             var heroSettingsFarms = HeroOasisSettings.Select(x => x.FarmId).ToHashSet();
             foreach (var farmId in FarmLists.Select(x => x.Id).ToList())
             {
@@ -102,7 +105,7 @@ namespace MainCore.Infrasturecture.Persistence
                     "AllowedAnimals" INTEGER NOT NULL,
                     "CheckAllowedAnimals" INTEGER NOT NULL DEFAULT 0,
                     "SafeAnimal" INTEGER NOT NULL DEFAULT 1,
-                    "SafetyFactor" INTEGER NOT NULL,
+                    "SafetyFactor" TEXT NOT NULL,
                     "AttackTroop" INTEGER NOT NULL DEFAULT 0,
                     "RaidSteppeRiders" INTEGER NOT NULL DEFAULT 2,
                     "RaidMarksmen" INTEGER NOT NULL DEFAULT 0,
@@ -140,10 +143,12 @@ namespace MainCore.Infrasturecture.Persistence
             {
                 if (existing.Contains(farm.Id)) continue;
                 var accountSettings = legacy.GetValueOrDefault(farm.AccountId);
-                var mask = accountSettings is null ? 0 : OasisRaidSettings.LegacyAnimalSettings
+                var mask = accountSettings is null ? 27 : OasisRaidSettings.LegacyAnimalSettings
                     .Where(x => accountSettings.GetValueOrDefault(x.Key) == 1)
                     .Aggregate(0, (current, entry) => current | entry.Value);
-                var factor = accountSettings?.GetValueOrDefault(AccountSettingEnums.OasisRaidSafetyFactor, 2) ?? 2;
+                var factor = accountSettings is not null &&
+                    accountSettings.TryGetValue(AccountSettingEnums.OasisRaidSafetyFactor, out var legacyFactor)
+                    ? Math.Max(1, legacyFactor) : 2.5m;
                 FarmOasisSettings.Add(new FarmOasisSetting
                 {
                     FarmId = farm.Id,

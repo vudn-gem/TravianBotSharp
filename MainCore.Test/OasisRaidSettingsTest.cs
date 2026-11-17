@@ -4,6 +4,7 @@ using MainCore.Infrasturecture.Persistence;
 using MainCore.Services;
 using MainCore.Tasks;
 using MainCore.UI.Models.Input;
+using MainCore.UI.ViewModels.UserControls;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ReactiveUI.Builder;
@@ -47,6 +48,7 @@ namespace MainCore.Test
             manager.TryAddHeroClearOasis(new AccountId(2), new FarmId(10)).ShouldBeFalse();
             manager.TryAddHeroClearOasis(new AccountId(2), new FarmId(20)).ShouldBeTrue();
             var task = manager.GetTaskList(account).OfType<HeroClearFarmOasisTask.Task>().Single();
+            task.Description.ShouldBe("Hero clear oasis in farm list first");
             task.Stage = StageEnums.Executing;
             manager.RemoveHeroClearOasis(account, new FarmId(10)).ShouldBe(ClearOasisRemovalResult.Executing);
             task.Stage = StageEnums.Waiting;
@@ -66,8 +68,8 @@ namespace MainCore.Test
             _context.SaveChanges();
             _context.InitializeFarmOasisSettings();
             _context.HeroOasisSettings.Single(x => x.FarmId == 10).MinHeroHealth.ShouldBe(70);
-            _context.HeroOasisSettings.Single(x => x.FarmId == 11).AllowedAnimals.ShouldBe(0);
-            _context.FarmOasisSettings.Single(x => x.FarmId == 10).AllowedAnimals.ShouldBe(0);
+            _context.HeroOasisSettings.Single(x => x.FarmId == 11).AllowedAnimals.ShouldBe(27);
+            _context.FarmOasisSettings.Single(x => x.FarmId == 10).AllowedAnimals.ShouldBe(27);
             _context.FarmLists.Where(x => x.Id == 10).ExecuteDelete();
             _context.HeroOasisSettings.AsNoTracking().Any(x => x.FarmId == 10).ShouldBeFalse();
         }
@@ -129,8 +131,8 @@ namespace MainCore.Test
             firstSettings.Value.AttackTroop.ShouldBe(OasisAttackTroop.Marksman);
             firstSettings.Value.RequiredTroops(0).ShouldBe((0L, 2L, 1L));
             firstSettings.Value.LimitAnimal.ShouldBe(7);
-            secondSettings.Value.AllowedAnimals.ShouldBeEmpty();
-            secondSettings.Value.SafetyFactor.ShouldBe(2);
+            secondSettings.Value.AllowedAnimals.ShouldBe([31, 32, 34, 35], ignoreOrder: true);
+            secondSettings.Value.SafetyFactor.ShouldBe(2.5m);
             secondSettings.Value.AttackTroop.ShouldBe(OasisAttackTroop.SteppeRider);
             secondSettings.Value.RequiredTroops(0).ShouldBe((2L, 0L, 0L));
             secondSettings.Value.LimitAnimal.ShouldBe(0);
@@ -162,8 +164,8 @@ namespace MainCore.Test
             _context.SaveChanges();
             var result = OasisRaidSettings.Read(_context, new AccountId(1), new FarmId(12));
             result.IsSuccess.ShouldBeTrue();
-            result.Value.SafetyFactor.ShouldBe(2);
-            result.Value.AllowedAnimals.ShouldBeEmpty();
+            result.Value.SafetyFactor.ShouldBe(2.5m);
+            result.Value.AllowedAnimals.ShouldBe([31, 32, 34, 35], ignoreOrder: true);
             result.Value.AttackTroop.ShouldBe(OasisAttackTroop.SteppeRider);
             result.Value.RequiredTroops(0).ShouldBe((2L, 0L, 0L));
         }
@@ -193,6 +195,10 @@ namespace MainCore.Test
             settings.LimitAnimal.ShouldBe(0);
             settings.CheckAllowedAnimals.ShouldBe(0);
             settings.SafeAnimal.ShouldBe(1);
+            _context.FarmOasisSettings.Where(x => x.FarmId == 10)
+                .ExecuteUpdate(x => x.SetProperty(y => y.SafetyFactor, 2.5m));
+            OasisRaidSettings.Read(_context, new AccountId(1), new FarmId(10))
+                .Value.SafetyFactor.ShouldBe(2.5m);
         }
 
         [Fact]
@@ -237,11 +243,106 @@ namespace MainCore.Test
         [InlineData(1, 1, 0, true)]
         [InlineData(1, 1, 1, true)]
         [InlineData(0, 2, 0, true)]
-        [InlineData(0, 0, 0, false)]
+        [InlineData(0, 0, 0, true)]
         [InlineData(-1, 2, 0, false)]
         [InlineData(1000000, 0, 0, false)]
         public void ValidatesEmptyOasisTroopCounts(int steppe, int marksmen, int marauders, bool valid) =>
             OasisRaidSettings.IsValidRaidComposition(steppe, marksmen, marauders).ShouldBe(valid);
+
+        [Theory]
+        [InlineData("2.5", 3, 8)]
+        [InlineData("2.5", 2, 5)]
+        [InlineData("1.1", 1, 2)]
+        public void PersistsDecimalFactorAndRoundsTroopsUp(string text, int animals, long troops)
+        {
+            _context.InitializeFarmOasisSettings();
+            var factor = decimal.Parse(text, System.Globalization.CultureInfo.InvariantCulture);
+            _context.FarmOasisSettings.Where(x => x.FarmId == 10)
+                .ExecuteUpdate(x => x.SetProperty(y => y.SafetyFactor, factor));
+            _context.ChangeTracker.Clear();
+            var saved = OasisRaidSettings.Read(_context, new AccountId(1), new FarmId(10));
+            saved.IsSuccess.ShouldBeTrue();
+            saved.Value.SafetyFactor.ShouldBe(factor);
+            saved.Value.RequiredTroops(animals).ShouldBe((troops, 0L, 0L));
+        }
+
+        [Theory]
+        [InlineData("2.5", true)]
+        [InlineData("2", true)]
+        [InlineData("abc", false)]
+        [InlineData("", false)]
+        [InlineData("0.5", false)]
+        public void DecimalFactorInputRoundTripsAndRejectsInvalidSettings(string text, bool valid)
+        {
+            RxAppBuilder.CreateReactiveUIBuilder().WithCoreServices().BuildApp();
+            var input = new FarmOasisSettingInput { SafetyFactor = text };
+            (input.Get(10).SafetyFactor >= 1).ShouldBe(valid);
+            input.Set(new FarmOasisSetting { SafetyFactor = 2.5m });
+            input.SafetyFactor.ShouldBe("2.5");
+            input.Get(10).SafetyFactor.ShouldBe(2.5m);
+        }
+
+        [Fact]
+        public void AllowsSavedZeroRaidTroopsWithoutDisablingAnimalAttacks()
+        {
+            _context.InitializeFarmOasisSettings();
+            var setting = _context.FarmOasisSettings.Single(x => x.FarmId == 10);
+            setting.RaidSteppeRiders = setting.RaidMarksmen = setting.RaidMarauders = 0;
+            _context.SaveChanges();
+            var result = OasisRaidSettings.Read(_context, new AccountId(1), new FarmId(10));
+            result.IsSuccess.ShouldBeTrue();
+            result.Value.RequiredTroops(0).ShouldBe((0L, 0L, 0L));
+            result.Value.RequiredTroops(3).ShouldBe((8L, 0L, 0L));
+        }
+
+        [Theory]
+        [InlineData("", true, 0)]
+        [InlineData("  ", true, 0)]
+        [InlineData("0", true, 0)]
+        [InlineData("12", true, 12)]
+        [InlineData("-1", true, -1)]
+        [InlineData("abc", false, 0)]
+        [InlineData("999999999999", false, 0)]
+        public void BlankRaidInputMeansZero(string text, bool valid, int expected)
+        {
+            var converter = new EmptyAsZeroConverter();
+            converter.TryConvert(text, null, out var value).ShouldBe(valid);
+            if (valid) value.ShouldBe(expected);
+        }
+
+        [Fact]
+        public void UpgradesHeroUseTroopWithDisabledDefaultAndPreservesSavedValues()
+        {
+            _context.Database.ExecuteSqlRaw("DROP TABLE \"HeroOasisSettings\"");
+            _context.Database.ExecuteSqlRaw("""
+                CREATE TABLE "HeroOasisSettings" (
+                    "FarmId" INTEGER PRIMARY KEY,
+                    "AllowedAnimals" INTEGER NOT NULL DEFAULT 0,
+                    "MinAnimal" INTEGER NOT NULL DEFAULT 1,
+                    "SafeAnimal" INTEGER NOT NULL DEFAULT 0,
+                    "MaxAnimal" INTEGER NOT NULL DEFAULT 100,
+                    "SteppeRiders" INTEGER NOT NULL DEFAULT 1,
+                    "Marksmen" INTEGER NOT NULL DEFAULT 1,
+                    "Marauders" INTEGER NOT NULL DEFAULT 1,
+                    "MinHeroHealth" INTEGER NOT NULL DEFAULT 50,
+                    "MaxHeroHealthLost" INTEGER NOT NULL DEFAULT 10,
+                    "MaxSubTroopLost" INTEGER NOT NULL DEFAULT 0
+                )
+                """);
+            _context.Database.ExecuteSqlRaw("""INSERT INTO "HeroOasisSettings" ("FarmId", "MinAnimal") VALUES (10, 5)""");
+            _context.InitializeFarmOasisSettings();
+            var setting = _context.HeroOasisSettings.Single(x => x.FarmId == 10);
+            setting.MinAnimal.ShouldBe(5);
+            setting.UseTroop.ShouldBeFalse();
+            setting.AllowedAnimals.ShouldBe(0);
+            setting.UseTroop = true;
+            _context.SaveChanges();
+            _context.InitializeFarmOasisSettings();
+            _context.ChangeTracker.Clear();
+            setting = _context.HeroOasisSettings.Single(x => x.FarmId == 10);
+            setting.UseTroop.ShouldBeTrue();
+            _context.HeroOasisSettings.Single(x => x.FarmId == 11).UseTroop.ShouldBeFalse();
+        }
 
         [Fact]
         public void InputRoundTripsAllAnimalBitsAndSafetyFactor()

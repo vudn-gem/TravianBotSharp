@@ -118,9 +118,9 @@ namespace MainCore.Test
             context.Pages.Count.ShouldBe(1);
             page.Url.ShouldContain("gid=16");
             if (expectedSaves == 1 && !persist)
-                logger.Received().Warning("Clear oasis target {SlotId}: deactivation was not confirmed", "1");
+                logger.Received().Warning("Oasis ({Coordinates}): deactivation was not confirmed", "25|184");
             if (expectedDisabled)
-                logger.Received().Information("Clear oasis target {SlotId}: deactivation confirmed", "1");
+                logger.Received().Information("Oasis ({Coordinates}): deactivation confirmed", "25|184");
         }
 
         [Theory]
@@ -132,6 +132,9 @@ namespace MainCore.Test
         [InlineData(OasisAttackTroop.Marksman, false, 1, 1, 1, 10, true, 1, 1, 1)]
         [InlineData(OasisAttackTroop.Marksman, false, 0, 2, 0, 0, true, 0, 2, 0)]
         [InlineData(OasisAttackTroop.Marksman, false, 2, 0, 0, 0, false, 0, 0, 0)]
+        [InlineData(OasisAttackTroop.SteppeRider, false, 0, 0, 0, 10, false, 0, 0, 0)]
+        [InlineData(OasisAttackTroop.SteppeRider, false, 0, 0, 0, 0, false, 0, 0, 0)]
+        [InlineData(OasisAttackTroop.SteppeRider, true, 0, 0, 0, 10, true, 6, 0, 0)]
         [InlineData(OasisAttackTroop.SteppeRider, true, 1, 1, 1, 10, false, 0, 0, 0, true)]
         public async Task SendsConfiguredTroopsForOasis(
             OasisAttackTroop attackTroop, bool hasAnimals, int raidSteppe, int raidMarksmen, int raidMarauders,
@@ -216,7 +219,10 @@ namespace MainCore.Test
             if (!sends)
             {
                 submitted.ShouldBeEmpty();
-                result.Value.RetryAt.ShouldNotBeNull();
+                if (raidSteppe + raidMarksmen + raidMarauders == 0)
+                    result.Value.RetryAt.ShouldBeNull();
+                else
+                    result.Value.RetryAt.ShouldNotBeNull();
                 return;
             }
             submitted.ShouldHaveSingleItem();

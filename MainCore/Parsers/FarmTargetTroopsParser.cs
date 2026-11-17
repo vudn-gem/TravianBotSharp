@@ -2,7 +2,20 @@ using System.Text.Json;
 
 namespace MainCore.Parsers
 {
-    public sealed record FarmTargetSlot(string SlotId, string Href, string Name, bool Disabled);
+    public sealed record FarmTargetSlot(string SlotId, string Href, string Name, bool Disabled)
+    {
+        public string Coordinates
+        {
+            get
+            {
+                if (Uri.TryCreate(new Uri("https://example.com"), Href, out var uri) &&
+                    int.TryParse(HeroOasisParser.Query(uri, "x"), out var x) &&
+                    int.TryParse(HeroOasisParser.Query(uri, "y"), out var y))
+                    return $"{x}|{y}";
+                return $"unknown coordinates; slot {SlotId}";
+            }
+        }
+    }
     public sealed record OasisAnimalTroop(int UnitId, string Name, long Count);
     public sealed record RallyPointDraft(
         long AvailableSteppeRiders,

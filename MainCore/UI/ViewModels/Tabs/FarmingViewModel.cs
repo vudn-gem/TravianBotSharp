@@ -162,13 +162,14 @@ namespace MainCore.UI.ViewModels.Tabs
                 return;
             }
             using var context = _contextFactory.CreateDbContext();
-            if (!context.FarmLists.Any(x => x.Id == selected.Id && x.AccountId == AccountId.Value))
+            var farm = context.FarmLists.SingleOrDefault(x => x.Id == selected.Id && x.AccountId == AccountId.Value);
+            if (farm is null)
             {
                 await _dialogService.SendMessage("Warning", "Selected farm list no longer belongs to this account");
                 return;
             }
             _taskManager.AddOrUpdate<CheckFarmTargetOasisTask.Task>(
-                new(AccountId, new FarmId(selected.Id), activate, synchronize));
+                new(AccountId, new FarmId(selected.Id), activate, synchronize, farm.Name));
             await _dialogService.SendMessage("Information", synchronize
                 ? "Added check oasis task. Safe or empty oasis targets will be activated; unsafe targets will be deactivated."
                 : activate
@@ -186,12 +187,13 @@ namespace MainCore.UI.ViewModels.Tabs
                 return;
             }
             using var context = _contextFactory.CreateDbContext();
-            if (!context.FarmLists.Any(x => x.Id == selected.Id && x.AccountId == AccountId.Value))
+            var farm = context.FarmLists.SingleOrDefault(x => x.Id == selected.Id && x.AccountId == AccountId.Value);
+            if (farm is null)
             {
                 await _dialogService.SendMessage("Warning", "Selected farm list no longer belongs to this account");
                 return;
             }
-            _taskManager.AddOrUpdate<ClearFarmOasisTask.Task>(new(AccountId, new FarmId(selected.Id)));
+            _taskManager.AddOrUpdate<ClearFarmOasisTask.Task>(new(AccountId, new FarmId(selected.Id), farm.Name));
             await _dialogService.SendMessage("Information", "Added clear oasis task using the selected farm list's saved troop settings.");
         }
 
@@ -271,6 +273,15 @@ namespace MainCore.UI.ViewModels.Tabs
             {
                 await _dialogService.SendMessage("Warning", string.Join(Environment.NewLine, valid.Errors.Select(x => x.Message)));
                 return;
+            }
+            if (saved.UseTroop)
+            {
+                var troopSettings = OasisRaidSettings.Read(context, AccountId, new FarmId(selected.Id));
+                if (troopSettings.IsFailed)
+                {
+                    await _dialogService.SendMessage("Warning", string.Join(Environment.NewLine, troopSettings.Errors.Select(x => x.Message)));
+                    return;
+                }
             }
             var added = _taskManager.TryAddHeroClearOasis(AccountId, new FarmId(selected.Id));
             await _dialogService.SendMessage(added ? "Information" : "Warning", added
@@ -369,7 +380,7 @@ namespace MainCore.UI.ViewModels.Tabs
             }
             if (!OasisRaidSettings.IsValidRaidComposition(settings.RaidSteppeRiders, settings.RaidMarksmen, settings.RaidMarauders))
             {
-                await _dialogService.SendMessage("Warning", "Raid troop counts must be between 0 and 999999, with at least one troop.");
+                await _dialogService.SendMessage("Warning", "Raid troop counts must be between 0 and 999999.");
                 return;
             }
             using var context = _contextFactory.CreateDbContext();

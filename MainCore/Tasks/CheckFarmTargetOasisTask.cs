@@ -9,12 +9,13 @@ namespace MainCore.Tasks
         FarmTargetTroopsScanner scanner,
         IDbContextFactory<AppDbContext> contextFactory)
     {
-        public sealed class Task(AccountId accountId, FarmId farmId, bool activate = false, bool synchronize = false) : AccountTask(accountId)
+        public sealed class Task(AccountId accountId, FarmId farmId, bool activate = false, bool synchronize = false,
+            string? farmName = null) : AccountTask(accountId)
         {
             public FarmId FarmId { get; } = farmId;
             public bool Activate { get; } = activate;
             public bool Synchronize { get; } = synchronize;
-            protected override string TaskName => $"{(Synchronize ? "Check" : Activate ? "Activate" : "Deactive")} oasis in farm list {FarmId.Value}";
+            protected override string TaskName => $"{(Synchronize ? "Check" : Activate ? "Activate" : "Deactive")} oasis in farm list {farmName ?? FarmId.Value.ToString()}";
             public override string Key => $"{AccountId}_{FarmId.Value}_{(Synchronize ? "Check" : Activate.ToString())}";
             public override bool CanStart(AppDbContext context) =>
                 context.FarmLists.Any(x => x.Id == FarmId.Value && x.AccountId == AccountId.Value);
