@@ -1,5 +1,6 @@
 ﻿using MainCore.Commands.Misc;
 using MainCore.Infrasturecture.Extensions;
+using MainCore.Services;
 using MainCore.Tasks.Base;
 using MainCore.UI.ViewModels.UserControls;
 
@@ -10,7 +11,8 @@ namespace MainCore.Tasks
         IDbContextFactory<AppDbContext> contextFactory,
         IChromeBrowser browser,
         ILogger logger,
-        OpenBrowserCommand.Handler openBrowserCommand)
+        OpenBrowserCommand.Handler openBrowserCommand,
+        TaskManager taskManager)
     {
         public sealed class Task(AccountId accountId) : AccountTask(accountId)
         {
@@ -21,6 +23,7 @@ namespace MainCore.Tasks
             Task task,
             CancellationToken cancellationToken)
         {
+            taskManager.Remove<StartFarmListTask.Task>(task.AccountId);
             await browser.Shutdown();
             await Sleep(task.AccountId, cancellationToken);
 

@@ -12,5 +12,7 @@
 ## important behavior
 
 - **Restart** works when the account is paused.
+- **Sleep** and **Logout** remove the queued **Start farm list** task. Click
+  **Start** again after waking or logging back in to resume farming.
 - If account is in a transition state (starting/pausing/stopping), wait a moment and try again.
 - Always select an account first.

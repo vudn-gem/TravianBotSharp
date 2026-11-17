@@ -1,5 +1,6 @@
 using System.Reflection;
 
+using MainCore.Tasks;
 using MainCore.UI.Models.Output;
 using MainCore.UI.Stores;
 using MainCore.UI.ViewModels.Abstract;
@@ -264,6 +265,7 @@ namespace MainCore.UI.ViewModels.UserControls
 
             _taskManager.SetStatus(accountId, StatusEnums.Stopping);
             await _taskManager.StopCurrentTask(accountId);
+            _taskManager.Remove<StartFarmListTask.Task>(accountId);
             await browser.Shutdown();
             _taskManager.SetStatus(accountId, StatusEnums.Offline);
         }
