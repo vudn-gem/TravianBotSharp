@@ -45,7 +45,9 @@ namespace MainCore.UI.ViewModels.Tabs
             await LoadSettingsCommand.Execute(accountId);
             try
             {
-                TelegramChatId = _telegramSettingsStore.Load().ChatId;
+                var credentials = _telegramSettingsStore.Load();
+                TelegramChatId = credentials.ChatId;
+                TelegramEnableCommands = credentials.EnableCommands;
                 TelegramBotToken = "";
             }
             catch (Exception ex) when (IsTelegramSettingsError(ex))
@@ -145,6 +147,9 @@ namespace MainCore.UI.ViewModels.Tabs
         [Reactive]
         private string _telegramChatId = "";
 
+        [Reactive]
+        private bool _telegramEnableCommands;
+
         [ReactiveCommand(RunInBackground = true)]
         private async Task SaveTelegram()
         {
@@ -154,6 +159,11 @@ namespace MainCore.UI.ViewModels.Tabs
                 if (!credentials.IsValid)
                 {
                     await _dialogService.SendMessage("Error", "Enter a valid bot token and numeric chat ID.");
+                    return;
+                }
+                if (credentials.EnableCommands && !credentials.CanReceiveCommands)
+                {
+                    await _dialogService.SendMessage("Error", "Telegram commands require a positive private chat ID. Groups and channels cannot control TBS.");
                     return;
                 }
                 _telegramSettingsStore.Save(credentials);
@@ -188,6 +198,7 @@ namespace MainCore.UI.ViewModels.Tabs
                 ? _telegramSettingsStore.Load().BotToken
                 : TelegramBotToken.Trim(),
             ChatId = TelegramChatId.Trim(),
+            EnableCommands = TelegramEnableCommands,
         };
 
         private bool ReportFeaturesChanged(AppDbContext context, Dictionary<AccountSettingEnums, int> settings) =>

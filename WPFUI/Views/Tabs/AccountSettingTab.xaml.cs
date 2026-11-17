@@ -31,6 +31,7 @@ namespace WPFUI.Views.Tabs
                 this.BindCommand(ViewModel, vm => vm.SaveTelegramCommand, v => v.SaveTelegramButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.TestTelegramCommand, v => v.TestTelegramButton).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.TelegramChatId, v => v.TelegramChatId.Text).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.TelegramEnableCommands, v => v.TelegramEnableCommands.IsChecked).DisposeWith(d);
                 this.WhenAnyValue(x => x.ViewModel!.TelegramBotToken)
                     .ObserveOn(RxSchedulers.MainThreadScheduler)
                     .Subscribe(token => TelegramBotToken.Password = token).DisposeWith(d);

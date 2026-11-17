@@ -122,6 +122,9 @@
                                      materialDesign:HintAssist.Hint="Bot token" />
                         <TextBox x:Name="TelegramChatId" Margin="0,5"
                                  materialDesign:HintAssist.Hint="Numeric chat ID" />
+                        <CheckBox x:Name="TelegramEnableCommands" Content="Enable Telegram commands (private chat only)" />
+                        <TextBlock Margin="0,5" TextWrapping="Wrap"
+                                   Text="Remote control is off by default. Only the private chat ID above may issue commands. Save Telegram settings, then send /tbs-command. Run only one receiver per bot; webhooks must be disabled." />
                         <Button x:Name="SaveTelegramButton" Margin="0,5" Content="Save Telegram settings" />
                         <Button x:Name="TestTelegramButton" Margin="0,5" Content="Send test message" />
                         <TextBlock Margin="0,5" TextWrapping="Wrap"

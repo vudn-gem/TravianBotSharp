@@ -18,10 +18,16 @@ namespace MainCore.Test
             {
                 var store = new TelegramSettingsStore(path);
                 store.Load().IsValid.ShouldBeFalse();
-                store.Save(new TelegramCredentials { BotToken = "123:fake-token", ChatId = "-456" });
+                store.Save(new TelegramCredentials { BotToken = "123:fake-token", ChatId = "456", EnableCommands = true });
                 var saved = new TelegramSettingsStore(path).Load();
                 saved.BotToken.ShouldBe("123:fake-token");
-                saved.ChatId.ShouldBe("-456");
+                saved.ChatId.ShouldBe("456");
+                saved.EnableCommands.ShouldBeTrue();
+                saved.CanReceiveCommands.ShouldBeTrue();
+                Should.Throw<ArgumentException>(() => store.Save(new TelegramCredentials
+                {
+                    BotToken = "123:fake-token", ChatId = "-456", EnableCommands = true,
+                }));
                 Encoding.UTF8.GetString(File.ReadAllBytes(path)).ShouldNotContain("fake-token");
 
                 File.WriteAllBytes(path, [1, 2, 3]);

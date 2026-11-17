@@ -171,6 +171,57 @@ are removed. A timeout after Telegram accepts a message can cause a duplicate.
 Messages contain the account label, counts, and detection time, not report
 contents. TBS and the machine must remain running for scans and delivery.
 
+## Telegram remote commands
+
+Remote control is **off by default**. In Settings, save the Telegram bot token
+and your **positive private chat ID**, enable **Enable Telegram commands (private
+chat only)**, then click **Save Telegram settings**. This global switch permits
+control of all accounts in this TBS instance; it is separate from the per-account
+notification switches. Notification-only use still supports group chat IDs.
+Only messages from that private chat's owner are accepted. Groups, channels,
+bots, forwarded messages, edited messages and messages relayed via another bot
+cannot control TBS.
+
+TBS uses long polling: no public server, domain or open inbound port is needed.
+TBS and the machine must be running and connected to the Internet. Use only one
+receiver for each bot token and disable any webhook configured for that bot
+before enabling this feature. Polling conflicts and configuration errors appear
+in the TBS logs; TBS does not automatically delete an existing webhook.
+After enabling or restarting, allow a few seconds for the receiver to become
+ready, then send `/tbs-command` as plain text to see the available commands.
+
+| Command | Behavior |
+|---|---|
+| `/tbs-command` | Show this command list and argument syntax. |
+| `/accounts` | List saved account IDs, names and statuses. |
+| `/status <account-id>` | Show account status, queue size and up to 20 queued tasks. |
+| `/farm-lists <account-id>` | List saved farm list IDs, names and Active flags. Load lists in TBS first. |
+| `/hero-farm <account-id> <farm-list-id>` | Queue Hero clear oasis with validated, saved settings. Only one hero-clear task per account is allowed. |
+| `/pause <account-id>` | Pause an online account, requesting cancellation of its current task. |
+| `/resume <account-id>` | Resume a paused account. This does not open or log in an offline account. |
+| `/start-farm <account-id>` | Queue Start farm list. Requires an active list or Start all. Existing farm schedules are not changed. |
+| `/stop-farm <account-id>` | Remove Start farm list. A send in progress may finish; raids already sent continue in game. |
+
+Example: send `/accounts`, then `/farm-lists 1`, then `/hero-farm 1 10`.
+Task commands use the normal sequential account queue, not a second browser
+controller. Paused/offline accounts retain newly queued tasks until online.
+Telegram replies distinguish queue acceptance from actual execution; they do not
+announce task completion. Account transition states reject control commands.
+The existing removal of Start farm list on sleep, logout and Restart is unchanged.
+
+Hyphenated commands are plain-text shortcuts. Telegram's native command menu
+does not support hyphens; underscore aliases such as `/tbs_command`,
+`/farm_lists` and `/hero_farm` are also accepted.
+
+Commands pending at startup, re-enabling or a bot/chat change are discarded.
+Commands older than two minutes are rejected; send a fresh command after the
+receiver is ready. TBS saves each received update ID before executing it in
+`%LOCALAPPDATA%\TravianBotSharp\telegram-command-cursor.json`. If saving fails,
+no command is executed. This prevents replay after restart, but a crash after
+claiming a command can lose that command or its reply: check `/status` before
+retrying. Reply delivery failures are logged and do not re-execute commands.
+Long responses are split into multiple plain-text messages.
+
 ## chrome settings
 
 - **Use headless chrome**: run Chrome in background without visible browser window. (this will break watching ads and some other interactive features)

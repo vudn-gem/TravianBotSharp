@@ -87,8 +87,13 @@ namespace MainCore.Services
 
         public async Task StopCurrentTask(AccountId accountId)
         {
-            var cts = GetCancellationTokenSource(accountId);
-            if (cts is not null) await cts.CancelAsync();
+            var queue = GetTaskQueue(accountId);
+            Task cancellation;
+            lock (queue)
+            {
+                cancellation = queue.CancellationTokenSource?.CancelAsync() ?? Task.CompletedTask;
+            }
+            await cancellation;
 
             BaseTask? currentTask;
             do
@@ -315,12 +320,6 @@ namespace MainCore.Services
                 incomingTroopsMonitor.Reset(accountId);
             }
             actor.SetStatus(status);
-        }
-
-        private CancellationTokenSource? GetCancellationTokenSource(AccountId accountId)
-        {
-            var actor = GetActor(accountId);
-            return actor.GetCancellationTokenSource();
         }
 
         public bool IsExecuting(AccountId accountId)

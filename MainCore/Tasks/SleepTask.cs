@@ -30,10 +30,13 @@ namespace MainCore.Tasks
             var sleepDuration = GetSleepDuration(task.AccountId);
             var expectedWakeUp = DateTimeOffset.Now.Add(sleepDuration);
             sleepNotificationService.NotifySleep(task.AccountId, sleepDuration, expectedWakeUp);
-            await Sleep(expectedWakeUp, cancellationToken);
+            var sleepResult = await Sleep(expectedWakeUp, cancellationToken);
+            if (sleepResult.IsFailed) return sleepResult;
+            cancellationToken.ThrowIfCancellationRequested();
 
             var (_, isFailed, access, errors) = await GetAccess(task.AccountId);
             if (isFailed) return Result.Fail(errors);
+            cancellationToken.ThrowIfCancellationRequested();
             await openBrowserCommand.HandleAsync(new(task.AccountId, access), cancellationToken);
 
             var activityDuration = GetWorkDuration(task.AccountId);

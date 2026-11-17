@@ -62,6 +62,9 @@ namespace MainCore
                 services.AddSingleton(new ReportNotificationOutbox(Path.Combine(notificationFolder, "report-notifications.db")));
                 services.AddSingleton(_ => new TelegramSender(new HttpClient { Timeout = TimeSpan.FromSeconds(15) }));
                 services.AddHostedService<ReportNotificationWorker>();
+                services.AddSingleton(new TelegramCommandCursorStore(Path.Combine(notificationFolder, "telegram-command-cursor.json")));
+                services.AddSingleton(_ => new TelegramCommandClient(new HttpClient { Timeout = TimeSpan.FromSeconds(40) }));
+                services.AddHostedService<TelegramCommandWorker>();
 
                 services.AddScoped(sp =>
                 {

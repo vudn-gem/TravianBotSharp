@@ -169,17 +169,16 @@ namespace MainCore.Services
             ResilienceContextPool.Shared.Return(resilienceContext);
             ///===========================================================///
 
+            bool wasCanceled;
             lock (taskQueue)
             {
                 task.Stage = StageEnums.Waiting;
+                taskQueue.IsExecuting = false;
+                wasCanceled = cts.IsCancellationRequested;
+                cts.Dispose();
+                taskQueue.CancellationTokenSource = null;
             }
             _rxQueue.Enqueue(new TasksModified(accountId));
-
-            taskQueue.IsExecuting = false;
-
-            var wasCanceled = cts.IsCancellationRequested;
-            cts.Dispose();
-            taskQueue.CancellationTokenSource = null;
 
             var manuallyCanceledConquest = task is ConquestTask.Task { CancelRequested: true };
             if (task is ConquestTask.Task completed)

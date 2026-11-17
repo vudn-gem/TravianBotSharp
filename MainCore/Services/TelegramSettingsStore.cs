@@ -8,6 +8,10 @@ namespace MainCore.Services
     {
         public string BotToken { get; set; } = "";
         public string ChatId { get; set; } = "";
+        public bool EnableCommands { get; set; }
+
+        public bool CanReceiveCommands =>
+            EnableCommands && IsValid && long.TryParse(ChatId, out var chatId) && chatId > 0;
 
         public bool IsValid =>
             Regex.IsMatch(BotToken, @"\A[0-9]+:[A-Za-z0-9_-]+\z", RegexOptions.CultureInvariant) &&
@@ -42,6 +46,8 @@ namespace MainCore.Services
         {
             if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Telegram credentials require Windows.");
             if (!credentials.IsValid) throw new ArgumentException("Enter a valid bot token and numeric chat ID.");
+            if (credentials.EnableCommands && !credentials.CanReceiveCommands)
+                throw new ArgumentException("Telegram commands require a positive private chat ID.");
             lock (_sync)
             {
                 var json = JsonSerializer.SerializeToUtf8Bytes(credentials);
