@@ -182,6 +182,7 @@ namespace MainCore.Infrasturecture.Persistence
             {AccountSettingEnums.EnableBotStopNotifications, 0 },
             {AccountSettingEnums.EnableAutoDeactivateLostReportTargets, 0 },
             {AccountSettingEnums.EnableScheduledMonitoring, 0 },
+            {AccountSettingEnums.EnableSleepNotifications, 0 },
             {AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes, 10 },
             {AccountSettingEnums.ScheduledMonitoringIntervalMaxMinutes, 10 },
             {AccountSettingEnums.ClearTargetsPerPhaseMin, 999999 },

@@ -205,7 +205,8 @@ namespace MainCore.UI.ViewModels.Tabs
         {
             if (settings.GetValueOrDefault(AccountSettingEnums.EnableReportNotifications) != 1 &&
                 settings.GetValueOrDefault(AccountSettingEnums.EnableIncomingTroopsNotifications) != 1 &&
-                settings.GetValueOrDefault(AccountSettingEnums.EnableBotStopNotifications) != 1) return true;
+                settings.GetValueOrDefault(AccountSettingEnums.EnableBotStopNotifications) != 1 &&
+                settings.GetValueOrDefault(AccountSettingEnums.EnableSleepNotifications) != 1) return true;
             try
             {
                 if (_telegramSettingsStore.Load().IsValid) return true;

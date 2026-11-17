@@ -20,6 +20,7 @@ namespace MainCore.UI.Models.Input
             EnableReportNotifications = settings.GetValueOrDefault(AccountSettingEnums.EnableReportNotifications) == 1;
             EnableIncomingTroopsNotifications = settings.GetValueOrDefault(AccountSettingEnums.EnableIncomingTroopsNotifications) == 1;
             EnableBotStopNotifications = settings.GetValueOrDefault(AccountSettingEnums.EnableBotStopNotifications) == 1;
+            EnableSleepNotifications = settings.GetValueOrDefault(AccountSettingEnums.EnableSleepNotifications) == 1;
             EnableAutoDeactivateLostReportTargets = settings.GetValueOrDefault(AccountSettingEnums.EnableAutoDeactivateLostReportTargets) == 1;
             EnableScheduledMonitoring = settings.GetValueOrDefault(AccountSettingEnums.EnableScheduledMonitoring) == 1;
             ScheduledMonitoringInterval.Set(
@@ -78,6 +79,7 @@ namespace MainCore.UI.Models.Input
                 { AccountSettingEnums.EnableReportNotifications, EnableReportNotifications ? 1 : 0 },
                 { AccountSettingEnums.EnableIncomingTroopsNotifications, EnableIncomingTroopsNotifications ? 1 : 0 },
                 { AccountSettingEnums.EnableBotStopNotifications, EnableBotStopNotifications ? 1 : 0 },
+                { AccountSettingEnums.EnableSleepNotifications, EnableSleepNotifications ? 1 : 0 },
                 { AccountSettingEnums.EnableAutoDeactivateLostReportTargets, EnableAutoDeactivateLostReportTargets ? 1 : 0 },
                 { AccountSettingEnums.EnableScheduledMonitoring, EnableScheduledMonitoring ? 1 : 0 },
                 { AccountSettingEnums.ScheduledMonitoringIntervalMinMinutes, monitoringMin },
@@ -122,6 +124,9 @@ namespace MainCore.UI.Models.Input
 
         [Reactive]
         private bool _enableBotStopNotifications;
+
+        [Reactive]
+        private bool _enableSleepNotifications;
 
         [Reactive]
         private bool _enableAutoDeactivateLostReportTargets;

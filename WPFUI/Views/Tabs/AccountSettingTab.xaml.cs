@@ -49,6 +49,7 @@ namespace WPFUI.Views.Tabs
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableAutoDeactivateLostReportTargets, v => v.EnableAutoDeactivateLostReportTargets.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableIncomingTroopsNotifications, v => v.EnableIncomingTroopsNotifications.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableBotStopNotifications, v => v.EnableBotStopNotifications.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableSleepNotifications, v => v.EnableSleepNotifications.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.AccountSettingInput.EnableScheduledMonitoring, v => v.EnableScheduledMonitoring.IsChecked).DisposeWith(d);
             });
         }

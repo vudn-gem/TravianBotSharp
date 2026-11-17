@@ -89,6 +89,13 @@ The independent scheduled scan, when enabled, also reads incoming troops at its
 configured interval and is not subject to the 60-second task-triggered throttle.
 It runs only while the incoming-notification switch is enabled.
 
+**Notify on sleep and wake up (Telegram)** queues a message when the account
+enters its scheduled sleep and after the browser has reopened. The sleep message
+includes the Access username, sleep duration in minutes, and expected wake-up
+time in UTC+07:00. The `Walkup` message includes the Access username and the
+following work duration in minutes. This switch is off by default and is saved
+per account.
+
 The 10-minute interval is a target, not a hard deadline: a long task or sleep can
 delay it. Paused/offline accounts do not execute the fallback. After resume, an
 overdue fallback can run when the queue is free. Enabling the feature or starting

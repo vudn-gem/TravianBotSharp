@@ -41,5 +41,6 @@
         ScheduledMonitoringIntervalMaxMinutes,
         ClearTargetsPerPhaseMin,
         ClearTargetsPerPhaseMax,
+        EnableSleepNotifications,
     }
 }

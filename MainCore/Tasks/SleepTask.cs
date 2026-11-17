@@ -12,7 +12,8 @@ namespace MainCore.Tasks
         IChromeBrowser browser,
         ILogger logger,
         OpenBrowserCommand.Handler openBrowserCommand,
-        TaskManager taskManager)
+        TaskManager taskManager,
+        SleepNotificationService sleepNotificationService)
     {
         public sealed class Task(AccountId accountId) : AccountTask(accountId)
         {
@@ -25,13 +26,19 @@ namespace MainCore.Tasks
         {
             taskManager.Remove<StartFarmListTask.Task>(task.AccountId);
             await browser.Shutdown();
-            await Sleep(task.AccountId, cancellationToken);
+            if (cancellationToken.IsCancellationRequested) return Cancel.Error;
+            var sleepDuration = GetSleepDuration(task.AccountId);
+            var expectedWakeUp = DateTimeOffset.Now.Add(sleepDuration);
+            sleepNotificationService.NotifySleep(task.AccountId, sleepDuration, expectedWakeUp);
+            await Sleep(expectedWakeUp, cancellationToken);
 
             var (_, isFailed, access, errors) = await GetAccess(task.AccountId);
             if (isFailed) return Result.Fail(errors);
             await openBrowserCommand.HandleAsync(new(task.AccountId, access), cancellationToken);
 
-            task.ExecuteAt = GetNextExecuteTime(task.AccountId);
+            var activityDuration = GetWorkDuration(task.AccountId);
+            task.ExecuteAt = DateTime.Now.Add(activityDuration);
+            sleepNotificationService.NotifyWakeUp(task.AccountId, access.Username, activityDuration);
             return Result.Ok();
         }
 
@@ -41,15 +48,14 @@ namespace MainCore.Tasks
             return await context.GetValidAccess(accountId);
         }
 
-        private async Task<Result> Sleep(AccountId accountId, CancellationToken cancellationToken)
+        private async Task<Result> Sleep(DateTimeOffset expectedWakeUp, CancellationToken cancellationToken)
         {
-            var sleepEnd = GetSleepTime(accountId);
             int lastMinute = 0;
             while (true)
             {
                 if (cancellationToken.IsCancellationRequested) return Cancel.Error;
 
-                var timeRemaining = sleepEnd - DateTime.Now;
+                var timeRemaining = expectedWakeUp - DateTimeOffset.Now;
                 if (timeRemaining < TimeSpan.Zero) return Result.Ok();
                 try
                 {
@@ -69,29 +75,26 @@ namespace MainCore.Tasks
             }
         }
 
-        private DateTime GetSleepTime(AccountId accountId)
+        private TimeSpan GetSleepDuration(AccountId accountId)
         {
             using var context = contextFactory.CreateDbContext();
-            var sleepTime = context.ByName(
+            var sleepSeconds = context.ByName(
                 accountId,
                 AccountSettingEnums.SleepTimeMin,
                 AccountSettingEnums.SleepTimeMax,
                 60);
-            var sleepEnd = DateTime.Now.AddSeconds(sleepTime);
-
-            return sleepEnd;
+            return TimeSpan.FromSeconds(sleepSeconds);
         }
 
-        private DateTime GetNextExecuteTime(AccountId accountId)
+        private TimeSpan GetWorkDuration(AccountId accountId)
         {
             using var context = contextFactory.CreateDbContext();
-            var workTime = context.ByName(
+            var workSeconds = context.ByName(
                 accountId,
                 AccountSettingEnums.WorkTimeMin,
                 AccountSettingEnums.WorkTimeMax,
                 60);
-            var sleepNext = DateTime.Now.AddSeconds(workTime);
-            return sleepNext;
+            return TimeSpan.FromSeconds(workSeconds);
         }
     }
 }
