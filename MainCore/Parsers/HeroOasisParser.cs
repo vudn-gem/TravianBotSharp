@@ -110,8 +110,10 @@ namespace MainCore.Parsers
             return Result.Ok(value);
         }
 
-        public static async Task<Result> FillSimulator(IPage page, HeroOasisSetting settings)
+        public static async Task<Result> FillSimulator(
+            IChromeBrowser browser, HeroOasisSetting settings, CancellationToken cancellationToken)
         {
+            var page = browser.CurrentPage;
             var attacker = page.Locator("#combatSimulatorForm .role.attacker");
             var icons = attacker.Locator(".troops.attack tr.troopIcons");
             if (await icons.Locator("i.u64").CountAsync() != 1 ||
@@ -122,17 +124,23 @@ namespace MainCore.Parsers
             var troops = HeroOasisSettings.Troops(settings);
             for (var i = 1; i <= 10; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var input = attacker.Locator($".troops.attack tr.troopUnits input[data-t='t{i}']");
                 if (troops[i - 1] > 0)
                 {
-                    await input.FillAsync(troops[i - 1].ToString(CultureInfo.InvariantCulture));
+                    var filled = await browser.Input(input, troops[i - 1].ToString(CultureInfo.InvariantCulture));
+                    if (filled.IsFailed) return filled;
                     continue;
                 }
                 var text = await input.InputValueAsync();
                 if (string.IsNullOrWhiteSpace(text)) continue;
                 if (!TryCount(text, out var count))
                     return Result.Fail($"Simulator troop count at t{i} is invalid.");
-                if (count > 0) await input.FillAsync("");
+                if (count > 0)
+                {
+                    var cleared = await browser.Input(input, "");
+                    if (cleared.IsFailed) return cleared;
+                }
             }
             await attacker.Locator(".troops.attack tr.troopUnits input[name='hero']").CheckAsync();
             return Result.Ok();
@@ -206,8 +214,11 @@ namespace MainCore.Parsers
             return Result.Ok(new HeroSimulationResult(before, after, losses, after > 0));
         }
 
-        public static async Task<Result<bool>> PrepareSend(IPage page, HeroOasisSetting settings, VillageId owner, string targetHref)
+        public static async Task<Result<bool>> PrepareSend(
+            IChromeBrowser browser, HeroOasisSetting settings, VillageId owner,
+            string targetHref, CancellationToken cancellationToken)
         {
+            var page = browser.CurrentPage;
             var form = page.Locator("#build .a2b form[action*='tt=2']:has(#troops)");
             if (await form.CountAsync() != 1) return Result.Fail("Send troops form is missing.");
             if (await VillagePanelParser.GetCurrentVillageId(page) != owner)
@@ -229,6 +240,7 @@ namespace MainCore.Parsers
             var expected = HeroOasisSettings.Troops(settings);
             for (var i = 1; i <= 11; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var input = form.Locator($"#troops input[name='troop[t{i}]']");
                 if (await input.CountAsync() != 1) return Result.Fail("Send troop input is missing.");
                 if (await input.IsDisabledAsync())
@@ -236,7 +248,9 @@ namespace MainCore.Parsers
                     if (expected[i - 1] != 0) return Result.Ok(false);
                     continue;
                 }
-                await input.FillAsync(expected[i - 1] == 0 ? "" : expected[i - 1].ToString(CultureInfo.InvariantCulture));
+                var filled = await browser.Input(
+                    input, expected[i - 1] == 0 ? "" : expected[i - 1].ToString(CultureInfo.InvariantCulture));
+                if (filled.IsFailed) return Result.Fail(filled.Errors);
             }
             await form.Locator("input[name='eventType'][value='4']").CheckAsync();
             var redeploy = form.Locator("input[name='redeployHero']");

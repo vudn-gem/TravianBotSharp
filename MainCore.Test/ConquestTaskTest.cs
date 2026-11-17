@@ -4,6 +4,7 @@ using MainCore.Models;
 using MainCore.Services;
 using MainCore.Tasks;
 using MainCore.Test.Parsers;
+using Microsoft.Playwright;
 
 namespace MainCore.Test
 {
@@ -21,7 +22,9 @@ namespace MainCore.Test
         [InlineData(true, 41, 41)]
         [InlineData(true, 4, 4)]
         [InlineData(true, 99, 25)]
-        public async Task SendsPerWaveTargetsWithRandomFallback(bool unavailable, int firstTarget, int secondTarget)
+        [InlineData(false, 4, 25, true)]
+        public async Task SendsPerWaveTargetsWithRandomFallback(
+            bool unavailable, int firstTarget, int secondTarget, bool inputFails = false)
         {
             await using var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -125,6 +128,12 @@ namespace MainCore.Test
             browser.OpenNewTab().Returns(Result.Ok());
             browser.CloseNewTab().Returns(Result.Ok());
             browser.Navigate(Arg.Any<string>()).Returns(Result.Ok());
+            browser.Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>()).Returns(async call =>
+            {
+                if (inputFails) return Result.Fail("Troop input failed.");
+                await ((ILocator)call[0]).FillAsync((string)call[1]);
+                return Result.Ok();
+            });
 
             var first = new long[11];
             first[0] = 19;
@@ -138,6 +147,15 @@ namespace MainCore.Test
             var handler = new ConquestTask.HandleBehavior(new ConquestTask(browser));
 
             var result = await handler.HandleAsync(task, CancellationToken.None);
+            if (inputFails)
+            {
+                result.IsFailed.ShouldBeTrue();
+                task.ConfirmationAttempted.ShouldBeFalse();
+                (await page.EvaluateAsync<bool>("window.confirmed")).ShouldBeFalse();
+                (await page.EvaluateAsync<int>("waves.length")).ShouldBe(0);
+                await browser.Received(1).CloseNewTab();
+                return;
+            }
             Received.InOrder(() =>
             {
                 browser.Navigate("https://example.com/dorf2.php?newdid=2");
@@ -161,6 +179,7 @@ namespace MainCore.Test
             task.Waves[0].CatapultTarget1.ShouldBe(firstTarget);
             task.Waves[0].CatapultTarget2.ShouldBe(secondTarget);
             (await page.EvaluateAsync<string[]>("waves.map(wave => wave.counts[7])")).ShouldBe(["20", "1"]);
+            await browser.Received(22).Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>());
         }
     }
 }

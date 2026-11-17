@@ -119,7 +119,7 @@ namespace MainCore.Services
                 opened = await browser.Click(attacker.Locator(".villageSelection a.reload"));
                 if (opened.IsFailed) return opened;
                 await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-                var filled = await HeroOasisParser.FillSimulator(page, settings);
+                var filled = await HeroOasisParser.FillSimulator(browser, settings, cancellationToken);
                 if (filled.IsFailed) return Skip.Error.WithErrors(filled.Errors);
                 var health = await HeroOasisParser.ReadHealth(page);
                 if (health.IsFailed) return Stop.Error.WithErrors(health.Errors);
@@ -175,7 +175,7 @@ namespace MainCore.Services
             if (availableHero.IsFailed) return Stop.Error.WithErrors(availableHero.Errors);
             if (!availableHero.Value)
                 return await HandleHeroUnavailable(task, target, "Hero is no longer in the village.");
-            var send = await HeroOasisParser.PrepareSend(page, settings, owner, target.Href);
+            var send = await HeroOasisParser.PrepareSend(browser, settings, owner, target.Href, cancellationToken);
             if (send.IsFailed)
             {
                 if (IsHeroUnavailable(send.Errors))

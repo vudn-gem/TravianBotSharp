@@ -381,22 +381,24 @@ namespace MainCore.Services
                     requiredSteppe, requiredMarksmen, requiredMarauders));
 
             cancellationToken.ThrowIfCancellationRequested();
-            var filled = await page.EvaluateAsync<bool>(@"draft => {
-                const form = document.querySelector('#build .a2b form[action*=""tt=2""]');
-                if (!form) return false;
-                const steppe = form.querySelector('table#troops input[name=""troop[t4]""]');
-                const marksman = form.querySelector('table#troops input[name=""troop[t5]""]');
-                const marauder = form.querySelector('table#troops input[name=""troop[t6]""]');
-                if (draft.steppe > 0 && (!steppe || steppe.disabled)) return false;
-                if (draft.marksman > 0 && (!marksman || marksman.disabled)) return false;
-                if (draft.marauder > 0 && (!marauder || marauder.disabled)) return false;
-                if (steppe) steppe.value = String(draft.steppe);
-                if (marksman) marksman.value = String(draft.marksman);
-                if (marauder) marauder.value = String(draft.marauder);
-                return !!form.querySelector('button#ok[type=""submit""]');
-            }", new { steppe = requiredSteppe, marksman = requiredMarksmen, marauder = requiredMarauders });
-            if (!filled) return Result.Fail("Unable to prepare oasis raid form.");
+            var form = page.Locator("#build .a2b form[action*='tt=2']");
+            foreach (var (troop, amount) in new[]
+                { (4, requiredSteppe), (5, requiredMarksmen), (6, requiredMarauders) })
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var input = form.Locator($"table#troops input[name='troop[t{troop}]']");
+                if (await input.CountAsync() != 1)
+                    return Result.Fail($"Oasis raid troop field t{troop} is missing or ambiguous.");
+                if (await input.IsDisabledAsync())
+                {
+                    if (amount > 0) return Result.Fail($"Oasis raid troop field t{troop} is disabled.");
+                    continue;
+                }
+                var filled = await browser.Input(input, amount.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                if (filled.IsFailed) return Result.Fail(filled.Errors);
+            }
 
+            cancellationToken.ThrowIfCancellationRequested();
             var sent = await browser.Click(page.Locator("#build .a2b form[action*='tt=2'] button#ok[type='submit']"));
             if (sent.IsFailed) return Result.Fail(sent.Errors);
             await page.WaitForLoadStateAsync(LoadState.NetworkIdle);

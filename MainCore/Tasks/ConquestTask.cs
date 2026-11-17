@@ -163,7 +163,7 @@ namespace MainCore.Tasks
                 }
 
                 var wave = task.Waves[waveIndex];
-                var fillResult = await FillWave(page, wave.Troops, task, waveIndex > 0);
+                var fillResult = await FillWave(page, wave.Troops, task, waveIndex > 0, cancellationToken);
                 if (fillResult.IsFailed) return fillResult;
 
                 var sendButton = waveIndex > 0
@@ -226,7 +226,9 @@ namespace MainCore.Tasks
             return Result.Ok();
         }
 
-        private static async System.Threading.Tasks.Task<Result> FillWave(IPage page, IReadOnlyList<long> troops, Task task, bool additionalWave)
+        private async System.Threading.Tasks.Task<Result> FillWave(
+            IPage page, IReadOnlyList<long> troops, Task task, bool additionalWave,
+            CancellationToken cancellationToken)
         {
             var form = additionalWave
                 ? page.Locator("#troopSendForm")
@@ -236,18 +238,23 @@ namespace MainCore.Tasks
 
             foreach (var (amount, index) in troops.Select((amount, index) => (amount, index)))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var input = form.Locator($"input[name='troop[t{index + 1}]']");
                 var count = await input.CountAsync();
                 if (amount > 0 && count != 1)
                     return Stop.Error.WithError($"Troop field t{index + 1} is unavailable for this village.");
                 if (count == 1 && await input.IsEnabledAsync())
-                    await input.FillAsync(amount.ToString(CultureInfo.InvariantCulture));
+                {
+                    var filled = await browser.Input(input, amount.ToString(CultureInfo.InvariantCulture));
+                    if (filled.IsFailed) return filled;
+                }
                 else if (amount > 0)
                     return Stop.Error.WithError($"Troop field t{index + 1} is disabled for this village.");
             }
 
             foreach (var (coordinate, name) in new[] { (task.TargetX, "x"), (task.TargetY, "y") })
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var input = form.Locator($"input[name='{name}']");
                 if (await input.CountAsync() != 1)
                     return Stop.Error.WithError($"Rally Point coordinate field '{name}' is missing or ambiguous.");
@@ -259,7 +266,8 @@ namespace MainCore.Tasks
                 }
                 else
                 {
-                    await input.FillAsync(value);
+                    var filled = await browser.Input(input, value);
+                    if (filled.IsFailed) return filled;
                 }
             }
 

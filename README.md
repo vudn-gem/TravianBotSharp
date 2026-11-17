@@ -33,6 +33,16 @@
 
 Currently, TBS only runs on Windows.
 
+## Troop input timing
+
+Clear oasis, Hero clear oasis (including the simulator), and Conquest enter
+troop counts sequentially through the standard browser input helper. Typing
+uses a 45-120 ms delay per character, followed by the account's configured
+click-delay range before moving to the next field. Conquest's editable
+coordinates use the same timing; hidden wave coordinates are only verified.
+Higher click delays increase preparation time, so allow enough time before
+a scheduled Conquest send.
+
 ## Conquest waves
 
 In **Conquest**, enter troops in the 11 fields of each wave, following the

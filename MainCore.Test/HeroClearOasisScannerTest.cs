@@ -11,8 +11,10 @@ namespace MainCore.Test
 {
     public sealed class HeroClearOasisScannerTest(PlaywrightFixture fixture) : ParserTestBase(fixture)
     {
-        [Fact]
-        public async Task ClearsOnlyPositiveUnselectedSimulatorTroopFields()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task ClearsOnlyPositiveUnselectedSimulatorTroopFields(bool inputFails)
         {
             await using var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -29,10 +31,26 @@ namespace MainCore.Test
                 </tbody></table></div></div></form>
                 """);
 
-            var result = await HeroOasisParser.FillSimulator(page,
-                new HeroOasisSetting { SteppeRiders = 1, Marksmen = 0, Marauders = 0 });
+            var browser = Substitute.For<IChromeBrowser>();
+            browser.CurrentPage.Returns(page);
+            browser.Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>()).Returns(async call =>
+            {
+                if (inputFails) return Result.Fail("Troop input failed.");
+                await ((ILocator)call[0]).FillAsync((string)call[1]);
+                return Result.Ok();
+            });
+            var result = await HeroOasisParser.FillSimulator(browser,
+                new HeroOasisSetting { SteppeRiders = 1, Marksmen = 0, Marauders = 0 }, CancellationToken.None);
 
+            if (inputFails)
+            {
+                result.IsFailed.ShouldBeTrue();
+                await browser.Received(1).Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>());
+                (await page.Locator(".troopUnits input[name='hero']").IsCheckedAsync()).ShouldBeFalse();
+                return;
+            }
             result.IsSuccess.ShouldBeTrue();
+            await browser.Received(4).Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>());
             var expected = new[] { "0", "", "", "1", "", "0", "00", "", "", "0" };
             for (var i = 0; i < values.Length; i++)
             {
@@ -42,6 +60,23 @@ namespace MainCore.Test
                     i is 2 or 3 or 4 or 7 ? "true" : null);
             }
             (await page.Locator(".troopLevels input").InputValueAsync()).ShouldBe("20");
+        }
+
+        [Fact]
+        public async Task DoesNotSubmitWhenSendTroopInputFails()
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, failSendInput: true);
+            try
+            {
+                outcome.Result.IsFailed.ShouldBeTrue(outcome.Details);
+                outcome.Confirms.ShouldBe(0);
+                outcome.Task.ConfirmationAttempted.ShouldBeFalse();
+                outcome.Details.ShouldContain("Troop input failed.");
+            }
+            finally
+            {
+                await outcome.Context.DisposeAsync();
+            }
         }
 
         [Theory]
@@ -259,7 +294,7 @@ namespace MainCore.Test
             bool switchVillage = false, bool skipFirst = false, bool heroOnly = false, bool blankZeros = false,
             string? actionOverride = null, bool overrideHero = false, int[]? missingActionTroops = null,
             bool duplicateActionInput = false, bool missingConfirmationInput = false, bool missingHeroCell = false,
-            int heroVillage = 2)
+            int heroVillage = 2, bool failSendInput = false)
         {
             var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -435,6 +470,14 @@ namespace MainCore.Test
             var browser = Substitute.For<IChromeBrowser>();
             IPage currentPage = page;
             browser.CurrentPage.Returns(_ => currentPage);
+            browser.Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>()).Returns(async call =>
+            {
+                var input = (ILocator)call[0];
+                if (failSendInput && (await input.GetAttributeAsync("name"))?.StartsWith("troop[", StringComparison.Ordinal) == true)
+                    return Result.Fail("Troop input failed.");
+                await input.FillAsync((string)call[1]);
+                return Result.Ok();
+            });
             browser.OpenNewTab().Returns(async _ =>
             {
                 currentPage = await context.NewPageAsync();

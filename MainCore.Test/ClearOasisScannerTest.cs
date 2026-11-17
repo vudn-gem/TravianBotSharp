@@ -132,9 +132,10 @@ namespace MainCore.Test
         [InlineData(OasisAttackTroop.Marksman, false, 1, 1, 1, 10, true, 1, 1, 1)]
         [InlineData(OasisAttackTroop.Marksman, false, 0, 2, 0, 0, true, 0, 2, 0)]
         [InlineData(OasisAttackTroop.Marksman, false, 2, 0, 0, 0, false, 0, 0, 0)]
+        [InlineData(OasisAttackTroop.SteppeRider, true, 1, 1, 1, 10, false, 0, 0, 0, true)]
         public async Task SendsConfiguredTroopsForOasis(
             OasisAttackTroop attackTroop, bool hasAnimals, int raidSteppe, int raidMarksmen, int raidMarauders,
-            int availableSteppe, bool sends, int steppe, int marksmen, int marauders)
+            int availableSteppe, bool sends, int steppe, int marksmen, int marauders, bool inputFails = false)
         {
             await using var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -185,6 +186,9 @@ namespace MainCore.Test
             var browser = Substitute.For<IChromeBrowser>();
             var currentPage = ConfigureTabLifecycle(context, browser, page);
             browser.Logger.Returns(Substitute.For<Serilog.ILogger>());
+            if (inputFails)
+                browser.Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>())
+                    .Returns(Result.Fail("Troop input failed."));
             browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(async call =>
             {
                 var locator = (ILocator)call[0];
@@ -203,6 +207,12 @@ namespace MainCore.Test
             var result = await new ClearOasisScanner(browser).Scan(new FarmId(6706), settings, 0, 999999, CancellationToken.None);
             result.IsSuccess.ShouldBeTrue();
             result.Value.RaidCount.ShouldBe(sends ? 1 : 0);
+            if (inputFails)
+            {
+                submitted.ShouldBeEmpty();
+                await browser.Received(1).Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>());
+                return;
+            }
             if (!sends)
             {
                 submitted.ShouldBeEmpty();
@@ -210,7 +220,9 @@ namespace MainCore.Test
                 return;
             }
             submitted.ShouldHaveSingleItem();
-            submitted[0].ShouldBe((steppe.ToString(), marksmen.ToString(), marauders.ToString()));
+            submitted[0].ShouldBe((availableSteppe == 0 ? "" : steppe.ToString(), marksmen.ToString(), marauders.ToString()));
+            await browser.Received(availableSteppe == 0 ? 2 : 3)
+                .Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>());
         }
 
         [Theory]
@@ -332,6 +344,11 @@ namespace MainCore.Test
         {
             IPage currentPage = mainPage;
             browser.CurrentPage.Returns(_ => currentPage);
+            browser.Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>()).Returns(async call =>
+            {
+                await ((ILocator)call[0]).FillAsync((string)call[1]);
+                return Result.Ok();
+            });
             browser.OpenNewTab().Returns(async _ =>
             {
                 currentPage = await context.NewPageAsync();
