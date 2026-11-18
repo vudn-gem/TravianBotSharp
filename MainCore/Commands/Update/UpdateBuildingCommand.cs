@@ -43,10 +43,12 @@ namespace MainCore.Commands.Update
 
         private static async Task<List<BuildingDto>> GetBuildings(string url, IPage page)
         {
-            if (url.Contains("dorf1"))
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return [];
+
+            if (uri.AbsolutePath == "/resources")
                 return await BuildingLayoutParser.GetFields(page);
 
-            if (url.Contains("dorf2"))
+            if (uri.AbsolutePath == "/village")
                 return await BuildingLayoutParser.GetInfrastructures(page);
 
             return [];

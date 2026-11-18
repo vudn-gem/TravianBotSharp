@@ -305,7 +305,7 @@ namespace MainCore.Services
                 if (actual.searchParams.get('x') !== expected.searchParams.get('x') ||
                     actual.searchParams.get('y') !== expected.searchParams.get('y')) return false;
                 let raid = tile.querySelector(
-                    '.detailImage .options .option a[href*=""/build.php""][href*=""tt=2""][href*=""eventType=4""]');
+                    '.detailImage .options .option a[href*=""/building""][href*=""tt=2""][href*=""eventType=4""]');
                 if (!raid) {
                     const clean = text => (text || '')
                         .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')

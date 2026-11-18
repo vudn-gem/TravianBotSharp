@@ -31,17 +31,16 @@
                 villageId = new VillageId(firstVillageId);
                 if (await VillagePanelParser.GetCurrentVillageId(page) != villageId)
                 {
-                    var switched = await browser.Click(firstVillage);
+                    var switched = await browser.Click(VillagePanelParser.GetVillageSwitchLink(page, villageId));
                     if (switched.IsFailed) return switched;
-                    switched = await browser.Wait(page.Locator(
-                        $"#sidebarBoxVillageList .listEntry.village.active[data-did='{villageId.Value}']"));
+                    switched = await browser.Wait(VillagePanelParser.GetActiveVillageNode(page, villageId));
                     if (switched.IsFailed) return switched;
                 }
             }
 
             var fallback = new UriBuilder(browser.CurrentPage.Url)
             {
-                Path = "/build.php",
+                Path = "/building",
                 Query = $"gid=16&tt=99&newdid={villageId.Value}",
             };
             var result = await FarmListNavigation.Open(browser, fallback.Uri.AbsoluteUri, villageId);

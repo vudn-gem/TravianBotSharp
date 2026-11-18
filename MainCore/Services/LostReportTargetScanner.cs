@@ -68,7 +68,7 @@ namespace MainCore.Services
         private Task<Result> RestoreOriginalPage(string url, VillageId? owner = null)
         {
             var uri = new Uri(url);
-            return uri.AbsolutePath == "/build.php" && HeroOasisParser.Query(uri, "gid") == "16" &&
+            return uri.AbsolutePath == "/building" && HeroOasisParser.Query(uri, "gid") == "16" &&
                 HeroOasisParser.Query(uri, "tt") == "99"
                 ? FarmListNavigation.Open(browser, url, owner)
                 : browser.Navigate(url);

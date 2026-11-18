@@ -132,13 +132,13 @@ namespace MainCore.Tasks
 
             var builder = new UriBuilder(baseUrl)
             {
-                Path = "/dorf2.php",
+                Path = "/village",
                 Query = $"newdid={task.VillageId.Value}",
             };
             var navigateResult = await browser.Navigate(builder.Uri.AbsoluteUri);
             if (navigateResult.IsFailed) return navigateResult;
 
-            builder.Path = "/build.php";
+            builder.Path = "/building";
             builder.Query = "id=39";
             navigateResult = await browser.Navigate(builder.Uri.AbsoluteUri);
             if (navigateResult.IsFailed) return navigateResult;

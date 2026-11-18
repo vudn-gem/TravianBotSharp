@@ -45,7 +45,7 @@ namespace MainCore.Services
                         var href = await tab.GetAttributeAsync("href");
                         if (Uri.TryCreate(currentUri, href, out var url) &&
                             url.Scheme == currentUri.Scheme && url.Authority == currentUri.Authority &&
-                            url.AbsolutePath == "/build.php" && HeroOasisParser.Query(url, "tt") == "99")
+                            url.AbsolutePath == "/building" && HeroOasisParser.Query(url, "tt") == "99")
                             matches.Add(tab);
                     }
                     if (matches.Count == 1)
@@ -65,7 +65,7 @@ namespace MainCore.Services
                         await page.WaitForURLAsync(url =>
                             Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
                             uri.Scheme == currentUri.Scheme && uri.Authority == currentUri.Authority &&
-                            uri.AbsolutePath == "/build.php" &&
+                            uri.AbsolutePath == "/building" &&
                             HeroOasisParser.Query(uri, "tt") == "99", new() { Timeout = 5000 });
                         await page.Locator("#rallyPointFarmList").WaitForAsync(new() { Timeout = 5000 });
                         if (owner is null || await HasExpectedVillage(page, owner.Value))

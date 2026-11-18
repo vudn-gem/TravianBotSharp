@@ -40,7 +40,7 @@ namespace MainCore.Tasks
 
             if (Uri.TryCreate(browser.CurrentUrl, UriKind.Absolute, out var currentUrl))
             {
-                var destination = currentUrl.AbsolutePath == "/dorf2.php" ? 1 : 2;
+                var destination = currentUrl.AbsolutePath == "/village" ? 1 : 2;
                 try
                 {
                     var navigation = await toDorfCommand.HandleAsync(new(destination), cancellationToken);
