@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace MainCore.Parsers
 {
@@ -26,9 +27,18 @@ namespace MainCore.Parsers
             var text = snapshot.GetProperty("text").GetString();
             if (text is null) return Result.Ok(0);
 
-            if (!int.TryParse(text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var count))
+            var normalized = text.Trim();
+            var match = Regex.Match(normalized, @"^(?<count>\d+)(?<plus>\+)?$");
+            if (!match.Success || !int.TryParse(match.Groups["count"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var count))
             {
                 return Result.Fail("Report badge does not contain a valid non-negative count.");
+            }
+
+            if (match.Groups["plus"].Success)
+            {
+                if (count == int.MaxValue)
+                    return Result.Fail("Report badge does not contain a valid non-negative count.");
+                count++;
             }
 
             return Result.Ok(count);
