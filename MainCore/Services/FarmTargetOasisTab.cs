@@ -108,7 +108,7 @@ namespace MainCore.Services
         {
             if (Uri.TryCreate(current, targetHref, out var resolved) &&
                 resolved.Scheme == current.Scheme && resolved.Authority == current.Authority &&
-                resolved.AbsolutePath == "/karte.php" &&
+                resolved.AbsolutePath == "/map" &&
                 System.Text.RegularExpressions.Regex.IsMatch(resolved.Query, @"(?:^\?|&)x=-?\d+(?:&|$)") &&
                 System.Text.RegularExpressions.Regex.IsMatch(resolved.Query, @"(?:^\?|&)y=-?\d+(?:&|$)"))
                 return Result.Ok(resolved);

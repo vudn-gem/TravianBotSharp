@@ -276,13 +276,13 @@ namespace MainCore.Parsers
             if (composition.IsFailed) return Result.Fail(composition.Errors);
             var destination = await ValidateDestination(form, page.Url, owner, targetHref, true);
             if (destination.IsFailed) return Result.Fail(destination.Errors);
-            var targetLink = form.Locator("#short_info a[href*='/karte.php']");
+            var targetLink = form.Locator("#short_info a[href*='/map']");
             if (await targetLink.CountAsync() != 1)
                 return Result.Fail("Confirmation target link is missing or ambiguous.");
             var target = new Uri(new Uri(page.Url), targetHref);
             var displayed = new Uri(new Uri(page.Url), (await targetLink.GetAttributeAsync("href"))!);
             if (displayed.Scheme != target.Scheme || displayed.Authority != target.Authority ||
-                displayed.AbsolutePath != "/karte.php" || Query(displayed, "x") != Query(target, "x") ||
+                displayed.AbsolutePath != "/map" || Query(displayed, "x") != Query(target, "x") ||
                 Query(displayed, "y") != Query(target, "y"))
                 return Result.Fail("Displayed confirmation target differs from the oasis.");
             if (await form.Locator("input[name='redeployHero']").InputValueAsync() is not ("" or "0"))

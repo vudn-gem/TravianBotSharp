@@ -70,7 +70,7 @@ namespace MainCore.Services
                 }
                 var uri = new Uri(page.Url);
                 if (!Uri.TryCreate(uri, target.Href, out var map) || map.Scheme != uri.Scheme ||
-                    map.Authority != uri.Authority || map.AbsolutePath != "/karte.php" ||
+                    map.Authority != uri.Authority || map.AbsolutePath != "/map" ||
                     !int.TryParse(HeroOasisParser.Query(map, "x"), out _) ||
                     !int.TryParse(HeroOasisParser.Query(map, "y"), out _))
                     return Stop.Error.WithError("Hero oasis target map link is invalid.");
