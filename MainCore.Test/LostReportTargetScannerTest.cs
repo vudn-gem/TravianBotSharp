@@ -37,8 +37,8 @@ namespace MainCore.Test
                 if (uri.AbsolutePath == "/switch") village = int.Parse(uri.Query["?v=".Length..]);
                 var sidebar = $"""
                     <div id="sidebarBoxVillageList">
-                    <div class="listEntry village {(village == 1 ? "active" : "")}" data-did="1" onclick="location.href='/switch?v=1'"><a href="#"><span class="name">0</span></a></div>
-                    <div class="listEntry village {(village == 2 ? "active" : "")}" data-did="2" onclick="location.href='/switch?v=2'"><a href="#"><span class="name">7</span></a></div>
+                    <div class="listEntry village {(village == 1 ? "active" : "")}" data-did="1"><a href="#" onclick="location.href='/switch?v=1'"><span class="name">0</span></a></div>
+                    <div class="listEntry village {(village == 2 ? "active" : "")}" data-did="2"><a href="#" onclick="location.href='/switch?v=2'"><span class="name">7</span></a></div>
                     </div><a class="reports" accesskey="5" href="/report">Reports</a>
                     <a class="tabItem" href="/report/offensive">Offensive</a>
                     """;

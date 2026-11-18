@@ -41,11 +41,12 @@ namespace MainCore.Services
             var village = VillagePanelParser.GetVillageNode(page, owner.Value);
             if (!await VillagePanelParser.IsActive(village))
             {
-                var switched = await browser.Click(village);
+                browser.Logger.Debug("Switching village to {VillageId} for clear oasis list {FarmId}", owner.Value.Value, farmId.Value);
+                var switched = await browser.Click(VillagePanelParser.GetVillageSwitchLink(page, owner.Value));
                 if (switched.IsFailed) return Result.Fail(switched.Errors);
-                switched = await browser.Wait(page.Locator(
-                    $"#sidebarBoxVillageList .listEntry.village.active[data-did='{owner.Value}']"));
+                switched = await browser.Wait(VillagePanelParser.GetActiveVillageNode(page, owner.Value));
                 if (switched.IsFailed) return Result.Fail(switched.Errors);
+                browser.Logger.Debug("Village switch confirmed: {VillageId}", owner.Value.Value);
             }
             if (!await FarmListNavigation.IsOpenForFarmList(page, farmId, owner.Value))
             {

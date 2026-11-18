@@ -34,11 +34,12 @@ namespace MainCore.Services
             var switchedVillage = !await VillagePanelParser.IsActive(village);
             if (switchedVillage)
             {
-                var switched = await browser.Click(village);
+                browser.Logger.Debug("Switching village to {VillageId} for hero clear list {FarmId}", owner.Value.Value, task.FarmId.Value);
+                var switched = await browser.Click(VillagePanelParser.GetVillageSwitchLink(page, owner.Value));
                 if (switched.IsFailed) return switched;
-                switched = await browser.Wait(page.Locator(
-                    $"#sidebarBoxVillageList .listEntry.village.active[data-did='{owner.Value.Value}']"));
+                switched = await browser.Wait(VillagePanelParser.GetActiveVillageNode(page, owner.Value));
                 if (switched.IsFailed) return switched;
+                browser.Logger.Debug("Village switch confirmed: {VillageId}", owner.Value.Value);
             }
             farmUrl.Query = $"gid=16&tt=99&newdid={owner.Value.Value}";
             task.HeroReturnAt = null;
