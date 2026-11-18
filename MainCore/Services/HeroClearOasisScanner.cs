@@ -41,7 +41,7 @@ namespace MainCore.Services
                 if (switched.IsFailed) return switched;
                 browser.Logger.Debug("Village switch confirmed: {VillageId}", owner.Value.Value);
             }
-            farmUrl.Query = $"gid=16&tt=99&newdid={owner.Value.Value}";
+            farmUrl.Query = $"id=16&tt=99&newdid={owner.Value.Value}";
             task.HeroReturnAt = null;
 
             if (!await FarmListNavigation.IsOpenForFarmList(page, task.FarmId, owner.Value))

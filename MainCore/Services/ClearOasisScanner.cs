@@ -333,7 +333,7 @@ namespace MainCore.Services
                     actual.searchParams.get('y') !== expected.searchParams.get('y')) return false;
                 // Prefer the exact oasis raid action to avoid matching simulate raid.
                 let raid = tile.querySelector(
-                    '.detailImage .options .option a[href*=""/building""][href*=""gid=16""][href*=""tt=2""][href*=""eventType=4""]');
+                    '.detailImage .options .option a[href*=""/building""][href*=""id=16""][href*=""tt=2""][href*=""eventType=4""]');
                 if (!raid) {
                     const clean = text => (text || '')
                         .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')

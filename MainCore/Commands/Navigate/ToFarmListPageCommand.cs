@@ -41,7 +41,7 @@
             var fallback = new UriBuilder(browser.CurrentPage.Url)
             {
                 Path = "/building",
-                Query = $"gid=16&tt=99&newdid={villageId.Value}",
+                Query = $"id=16&tt=99&newdid={villageId.Value}",
             };
             var result = await FarmListNavigation.Open(browser, fallback.Uri.AbsoluteUri, villageId);
             if (result.IsFailed) return result;
