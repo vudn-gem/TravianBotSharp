@@ -36,7 +36,16 @@ namespace MainCore.Services
             finally
             {
                 if (browser.CurrentPage != farmPage)
-                    closed = await browser.CloseNewTab();
+                {
+                    try
+                    {
+                        await browser.DelayClick();
+                    }
+                    finally
+                    {
+                        closed = await browser.CloseNewTab();
+                    }
+                }
             }
 
             if (closed.IsFailed)
@@ -78,7 +87,16 @@ namespace MainCore.Services
             finally
             {
                 if (browser.CurrentPage != farmPage)
-                    closed = await browser.CloseNewTab();
+                {
+                    try
+                    {
+                        await browser.DelayClick();
+                    }
+                    finally
+                    {
+                        closed = await browser.CloseNewTab();
+                    }
+                }
             }
 
             if (closed.IsFailed)

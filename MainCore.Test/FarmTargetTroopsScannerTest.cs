@@ -187,7 +187,7 @@ namespace MainCore.Test
             {
                 events.IndexOf("check-target").ShouldBeLessThan(events.IndexOf("close-check-tab"));
                 events.Where(x => x is "check-target" or "click-buffer" or "buffer" or "close-check-tab")
-                    .ShouldBe(new[] { "check-target", "click-buffer", "buffer", "close-check-tab" });
+                    .ShouldBe(new[] { "check-target", "click-buffer", "buffer", "buffer", "close-check-tab" });
                 (await page.Locator("#dialogContent").InnerHTMLAsync()).ShouldBeEmpty();
             }
             var actionName = activate ? "activate" : "deactivate";
