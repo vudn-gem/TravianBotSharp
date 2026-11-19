@@ -68,8 +68,7 @@
                 return settingValue;
             }
 
-            public int ByName(AccountId accountId, AccountSettingEnums settingMin, AccountSettingEnums settingMax,
-                int multiplier = 1, int missingRangeDelay = 1000)
+            public int ByName(AccountId accountId, AccountSettingEnums settingMin, AccountSettingEnums settingMax, int multiplier = 1)
             {
                 var settings = new List<AccountSettingEnums>
                 {
@@ -83,7 +82,7 @@
                        .Select(x => x.Value)
                        .ToList();
 
-                if (settingValues.Count != 2) return missingRangeDelay;
+                if (settingValues.Count != 2) return 1000;
                 var min = settingValues.Min();
                 var max = settingValues.Max();
 

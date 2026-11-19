@@ -82,6 +82,8 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
                 return;
             }
 
+            settings.TryAdd(VillageSettingEnums.UpgradeTaskDelayMin, 0);
+            settings.TryAdd(VillageSettingEnums.UpgradeTaskDelayMax, 0);
             await Signal.Start(() => VillageSettingInput.Set(settings), RxSchedulers.MainThreadScheduler);
             var result = await _villageSettingInputValidator.ValidateAsync(VillageSettingInput);
             if (!result.IsValid)

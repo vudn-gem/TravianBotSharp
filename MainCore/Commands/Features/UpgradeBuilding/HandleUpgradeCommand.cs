@@ -17,7 +17,7 @@ namespace MainCore.Commands.Features.UpgradeBuilding
             LogBuildingInfo(villageId, plan);
 
             Result result;
-            if (CanUseSpecialUpgrade(villageId) && !UnskippableBuildings.Contains(plan.Type))
+            if (!UnskippableBuildings.Contains(plan.Type) && await CanUseSpecialUpgrade(villageId, plan.Type))
             {
                 result = await SpecialUpgrade(plan.Type);
                 if (result.IsFailed) return result;
@@ -63,11 +63,31 @@ namespace MainCore.Commands.Features.UpgradeBuilding
             }
         }
 
-        private bool CanUseSpecialUpgrade(VillageId villageId)
+        private async Task<bool> CanUseSpecialUpgrade(VillageId villageId, BuildingEnums building)
         {
-            using var context = contextFactory.CreateDbContext();
-            var useSpecialUpgrade = context.BooleanByName(villageId, VillageSettingEnums.UseSpecialUpgrade);
-            return useSpecialUpgrade;
+            int minimumMinutes;
+            using (var context = contextFactory.CreateDbContext())
+            {
+                if (!context.BooleanByName(villageId, VillageSettingEnums.UseSpecialUpgrade)) return false;
+                var key = VillageSettingEnums.SpecialUpgradeMinimumMinutes;
+                minimumMinutes = context.ByName(villageId, [key])
+                    .GetValueOrDefault(key, AppDbContext.VillageDefaultSettings[key]);
+            }
+
+            if (minimumMinutes == 0) return true;
+            if (minimumMinutes < 0)
+            {
+                logger.Warning("Invalid special upgrade minimum time {Minutes}; using the normal upgrade button.", minimumMinutes);
+                return false;
+            }
+
+            var duration = await UpgradeParser.ReadUpgradeDuration(browser.CurrentPage, building);
+            if (duration is null)
+            {
+                logger.Warning("Could not read the normal upgrade duration for {Building}; using the normal upgrade button.", building);
+                return false;
+            }
+            return duration.Value > TimeSpan.FromMinutes(minimumMinutes);
         }
 
         private async Task<Result> SpecialUpgrade(BuildingEnums building)

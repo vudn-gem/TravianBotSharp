@@ -9,7 +9,7 @@
 
 - **Click delay**: small wait between browser clicks.
 - **Task delay**: small wait between bot tasks.
-- **Upgrade task delay**: random buffer (milliseconds) added only when **Upgrade building** schedules its next run after waiting for construction or resources. It does not replace **Task delay** or delay the first run. Set both values to `0` to disable the buffer.
+- **Upgrade task delay** is configured per village in **Villages → Settings → Upgrade settings**. It adds a random buffer (milliseconds) only when **Upgrade building** schedules its next run after waiting for construction or resources. It does not replace **Task delay** or delay the first run. Set both values to `0` to disable the buffer. Existing villages inherit their previous account-level range once if they have no village setting yet.
 
 ## feature settings
 

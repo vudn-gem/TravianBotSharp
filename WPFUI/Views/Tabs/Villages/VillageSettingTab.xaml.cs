@@ -27,8 +27,10 @@ namespace WPFUI.Views.Tabs.Villages
                 this.Bind(ViewModel, vm => vm.VillageSettingInput.UseHeroResourceForBuilding, v => v.UseHeroResForBuilding.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.VillageSettingInput.ApplyRomanQueueLogicWhenBuilding, v => v.UseRomanQueueLogic.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.VillageSettingInput.UseSpecialUpgrade, v => v.UseSpecialUpgrade.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.VillageSettingInput.SpecialUpgradeMinimumMinutes, v => v.SpecialUpgradeMinimumMinutes.Text).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.VillageSettingInput.CompleteImmediately, v => v.CompleteImmediately.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.VillageSettingInput.CompleteImmediatelyTime, v => v.CompleteImmediatelyTime.Text).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.VillageSettingInput.UpgradeTaskDelay, v => v.UpgradeTaskDelay.ViewModel).DisposeWith(d);
 
                 this.Bind(ViewModel, vm => vm.VillageSettingInput.TrainTroopEnable, v => v.TrainTroopEnable.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.VillageSettingInput.TrainWhenLowResource, v => v.TrainWhenLowResource.IsChecked).DisposeWith(d);

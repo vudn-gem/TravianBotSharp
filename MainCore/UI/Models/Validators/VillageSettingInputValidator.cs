@@ -8,6 +8,16 @@ namespace MainCore.UI.Models.Validators
     {
         public VillageSettingInputValidator()
         {
+            RuleFor(x => x.SpecialUpgradeMinimumMinutes)
+                .GreaterThanOrEqualTo(0)
+                .WithMessage("Special upgrade minimum time ({PropertyValue}) must be non-negative.");
+
+            RuleFor(x => x.UpgradeTaskDelay.Min)
+                .GreaterThanOrEqualTo(0)
+                .WithMessage("Minimum upgrade task delay ({PropertyValue}) must be non-negative.")
+                .LessThanOrEqualTo(x => x.UpgradeTaskDelay.Max)
+                .WithMessage("Minimum upgrade task delay ({PropertyValue}) must not exceed the maximum ({ComparisonValue}).");
+
             RuleFor(x => x.TrainTroopRepeatTime.Min)
                 .LessThanOrEqualTo(x => x.TrainTroopRepeatTime.Max)
                 .WithMessage("Minimum next train troop ({PropertyValue}) should be less than maximum next train troop ({ComparisonValue})");

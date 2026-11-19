@@ -42,6 +42,7 @@
         ClearTargetsPerPhaseMin,
         ClearTargetsPerPhaseMax,
         EnableSleepNotifications,
+        // Legacy keys retained for migration to village settings.
         UpgradeTaskDelayMin,
         UpgradeTaskDelayMax,
     }

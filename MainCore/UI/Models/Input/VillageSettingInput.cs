@@ -17,7 +17,12 @@ namespace MainCore.UI.Models.Input
         private bool _useSpecialUpgrade;
 
         [Reactive]
+        private int _specialUpgradeMinimumMinutes = 10;
+
+        [Reactive]
         private bool _completeImmediately;
+
+        public RangeInputViewModel UpgradeTaskDelay { get; } = new();
 
         public TribeSelectorViewModel Tribe { get; } = new();
 
@@ -69,6 +74,11 @@ namespace MainCore.UI.Models.Input
             ApplyRomanQueueLogicWhenBuilding = settings.GetValueOrDefault(VillageSettingEnums.ApplyRomanQueueLogicWhenBuilding) == 1;
             CompleteImmediately = settings.GetValueOrDefault(VillageSettingEnums.CompleteImmediately) == 1;
             UseSpecialUpgrade = settings.GetValueOrDefault(VillageSettingEnums.UseSpecialUpgrade) == 1;
+            SpecialUpgradeMinimumMinutes = settings.GetValueOrDefault(VillageSettingEnums.SpecialUpgradeMinimumMinutes,
+                AppDbContext.VillageDefaultSettings[VillageSettingEnums.SpecialUpgradeMinimumMinutes]);
+            UpgradeTaskDelay.Set(
+                settings.GetValueOrDefault(VillageSettingEnums.UpgradeTaskDelayMin),
+                settings.GetValueOrDefault(VillageSettingEnums.UpgradeTaskDelayMax));
 
             TrainTroopEnable = settings.GetValueOrDefault(VillageSettingEnums.TrainTroopEnable) == 1;
             TrainWhenLowResource = settings.GetValueOrDefault(VillageSettingEnums.TrainWhenLowResource) == 1;
@@ -125,6 +135,7 @@ namespace MainCore.UI.Models.Input
             var applyRomanQueueLogicWhenBuilding = ApplyRomanQueueLogicWhenBuilding ? 1 : 0;
             var useSpecialUpgrade = UseSpecialUpgrade ? 1 : 0;
             var completeImmediately = CompleteImmediately ? 1 : 0;
+            var (upgradeTaskDelayMin, upgradeTaskDelayMax) = UpgradeTaskDelay.Get();
 
             var tribe = (int)Tribe.Get();
 
@@ -158,7 +169,10 @@ namespace MainCore.UI.Models.Input
                 { VillageSettingEnums.UseHeroResourceForBuilding, useHeroResourceForBuilding },
                 { VillageSettingEnums.ApplyRomanQueueLogicWhenBuilding, applyRomanQueueLogicWhenBuilding },
                 { VillageSettingEnums.UseSpecialUpgrade, useSpecialUpgrade },
+                { VillageSettingEnums.SpecialUpgradeMinimumMinutes, SpecialUpgradeMinimumMinutes },
                 { VillageSettingEnums.CompleteImmediately, completeImmediately },
+                { VillageSettingEnums.UpgradeTaskDelayMin, upgradeTaskDelayMin },
+                { VillageSettingEnums.UpgradeTaskDelayMax, upgradeTaskDelayMax },
                 { VillageSettingEnums.Tribe, tribe },
                 { VillageSettingEnums.TrainTroopEnable, trainTroopEnable },
                 { VillageSettingEnums.TrainWhenLowResource, trainWhenLowResource },

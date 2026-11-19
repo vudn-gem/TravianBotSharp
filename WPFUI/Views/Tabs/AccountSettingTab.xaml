@@ -89,10 +89,6 @@
                             x:Name="TaskDelay"
                             Text="Task delay"
                             Unit="milliseconds" />
-                        <uc:RangeInputUc
-                            x:Name="UpgradeTaskDelay"
-                            Text="Upgrade task delay"
-                            Unit="milliseconds" />
                     </StackPanel>
                 </Border>
                 <Border Style="{DynamicResource Box}">

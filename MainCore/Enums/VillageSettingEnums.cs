@@ -61,5 +61,8 @@
         AutoClaimQuestEnable,
 
         CompleteImmediatelyTime,
+        UpgradeTaskDelayMin,
+        UpgradeTaskDelayMax,
+        SpecialUpgradeMinimumMinutes,
     }
 }

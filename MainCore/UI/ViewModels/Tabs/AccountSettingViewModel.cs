@@ -94,8 +94,8 @@ namespace MainCore.UI.ViewModels.Tabs
                 return;
             }
             ScheduledMonitoringSettings.ConvertLegacyIntervals(settings);
-            settings.TryAdd(AccountSettingEnums.UpgradeTaskDelayMin, 0);
-            settings.TryAdd(AccountSettingEnums.UpgradeTaskDelayMax, 0);
+            settings.Remove(AccountSettingEnums.UpgradeTaskDelayMin);
+            settings.Remove(AccountSettingEnums.UpgradeTaskDelayMax);
             await Signal.Start(() => AccountSettingInput.Set(settings), RxSchedulers.MainThreadScheduler);
 
             var result = await _accountsettingInputValidator.ValidateAsync(AccountSettingInput);
@@ -127,6 +127,8 @@ namespace MainCore.UI.ViewModels.Tabs
               .Where(x => x.AccountId == AccountId.Value)
               .ToDictionary(x => x.Setting, x => x.Value);
 
+            settings.Remove(AccountSettingEnums.UpgradeTaskDelayMin);
+            settings.Remove(AccountSettingEnums.UpgradeTaskDelayMax);
             var jsonString = JsonSerializer.Serialize(settings);
             await File.WriteAllTextAsync(path, jsonString);
             await _dialogService.SendMessage("Information", "Settings exported.");

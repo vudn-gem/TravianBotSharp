@@ -79,8 +79,8 @@ namespace MainCore.Tasks
         private void ScheduleNextUpgrade(Task task, DateTime earliest)
         {
             using var context = contextFactory.CreateDbContext();
-            var buffer = context.ByName(task.AccountId, AccountSettingEnums.UpgradeTaskDelayMin,
-                AccountSettingEnums.UpgradeTaskDelayMax, missingRangeDelay: 0);
+            var buffer = context.ByName(task.VillageId, VillageSettingEnums.UpgradeTaskDelayMin,
+                VillageSettingEnums.UpgradeTaskDelayMax);
             task.ExecuteAt = earliest.AddMilliseconds(buffer);
         }
     }

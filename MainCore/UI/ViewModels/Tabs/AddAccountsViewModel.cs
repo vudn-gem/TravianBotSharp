@@ -185,7 +185,8 @@ namespace MainCore.UI.ViewModels.Tabs
                 ScheduledMonitoringSettings.ConvertLegacyIntervals(importedSettings);
                 foreach (var (setting, value) in importedSettings)
                 {
-                    if (setting == AccountSettingEnums.Tribe) continue;
+                    if (setting is AccountSettingEnums.Tribe or AccountSettingEnums.UpgradeTaskDelayMin
+                        or AccountSettingEnums.UpgradeTaskDelayMax) continue;
                     settings[setting] = value;
                 }
             }

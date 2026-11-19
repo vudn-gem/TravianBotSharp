@@ -43,7 +43,12 @@
                             <Label Content=" mins" />
                         </StackPanel>
 
-                        <CheckBox x:Name="UseSpecialUpgrade" Content="Use special upgrade method (the right upgrade button)" />
+                        <WrapPanel>
+                            <CheckBox x:Name="UseSpecialUpgrade" Content="Use special upgrade method (the right upgrade button) if upgrade time longer than " />
+                            <TextBox x:Name="SpecialUpgradeMinimumMinutes" MinWidth="40" IsEnabled="{Binding IsChecked, ElementName=UseSpecialUpgrade}" />
+                            <Label Content=" mins" />
+                        </WrapPanel>
+                        <uc:RangeInputUc x:Name="UpgradeTaskDelay" Text="Upgrade task delay" Unit="milliseconds" />
                     </StackPanel>
                 </Border>
                 <Border Style="{DynamicResource Box}">

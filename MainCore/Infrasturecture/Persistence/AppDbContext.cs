@@ -169,8 +169,6 @@ namespace MainCore.Infrasturecture.Persistence
             {AccountSettingEnums.ClickDelayMax, 900 },
             {AccountSettingEnums.TaskDelayMin, 1000 },
             {AccountSettingEnums.TaskDelayMax, 1500 },
-            {AccountSettingEnums.UpgradeTaskDelayMin, 0 },
-            {AccountSettingEnums.UpgradeTaskDelayMax, 0 },
             {AccountSettingEnums.EnableAutoLoadVillageBuilding, 1 },
             {AccountSettingEnums.UseStartAllButton, 0 },
             {AccountSettingEnums.FarmIntervalMin, 540 },
@@ -248,6 +246,7 @@ namespace MainCore.Infrasturecture.Persistence
             {VillageSettingEnums.UseHeroResourceForBuilding, 0 },
             {VillageSettingEnums.ApplyRomanQueueLogicWhenBuilding, 0 },
             {VillageSettingEnums.UseSpecialUpgrade, 0 },
+            {VillageSettingEnums.SpecialUpgradeMinimumMinutes, 10 },
             {VillageSettingEnums.CompleteImmediately, 0 },
             {VillageSettingEnums.Tribe, 0 },
             {VillageSettingEnums.TrainTroopEnable, 0 },
@@ -284,51 +283,45 @@ namespace MainCore.Infrasturecture.Persistence
 
             {VillageSettingEnums.AutoClaimQuestEnable, 0 },
             {VillageSettingEnums.CompleteImmediatelyTime, 20 },
+            {VillageSettingEnums.UpgradeTaskDelayMin, 0 },
+            {VillageSettingEnums.UpgradeTaskDelayMax, 0 },
         }.ToImmutableDictionary();
-
-        private List<VillageSettingEnums> GetMissingVillageSettings()
-        {
-            var defaultSettings = VillageDefaultSettings.Keys
-                .AsEnumerable();
-            var dbSettings = VillagesSetting
-                .Select(x => x.Setting)
-                .Distinct()
-                .AsEnumerable();
-            return defaultSettings.Except(dbSettings).ToList();
-        }
 
         public void FillVillageSettings()
         {
-            var missingSettings = GetMissingVillageSettings();
-            if (missingSettings.Count == 0) return;
-
-            var missingSettingsDict = missingSettings
-                .Select(x => new
-                {
-                    Setting = x,
-                    Value = VillageDefaultSettings[x],
-                })
-                .ToDictionary(x => x.Setting, x => x.Value);
-
-            var ids = Villages
-                .Select(x => x.Id)
-                .AsEnumerable();
+            var existing = VillagesSetting.Select(x => new { x.VillageId, x.Setting })
+                .AsEnumerable().ToLookup(x => x.VillageId, x => x.Setting);
+            var legacyDelay = AccountsSetting
+                .Where(x => x.Setting == AccountSettingEnums.UpgradeTaskDelayMin ||
+                            x.Setting == AccountSettingEnums.UpgradeTaskDelayMax)
+                .Select(x => new { x.AccountId, x.Setting, x.Value })
+                .AsEnumerable().ToDictionary(x => (x.AccountId, x.Setting), x => x.Value);
+            var villages = Villages.Select(x => new { x.Id, x.AccountId }).ToList();
 
             var settings = new List<VillageSetting>();
 
-            foreach (var id in ids)
+            foreach (var village in villages)
             {
-                foreach (var (setting, value) in missingSettingsDict)
+                var existingKeys = existing[village.Id].ToHashSet();
+                foreach (var (setting, value) in VillageDefaultSettings)
                 {
+                    if (existingKeys.Contains(setting)) continue;
+                    var initialValue = setting switch
+                    {
+                        VillageSettingEnums.UpgradeTaskDelayMin => legacyDelay.GetValueOrDefault((village.AccountId, AccountSettingEnums.UpgradeTaskDelayMin), value),
+                        VillageSettingEnums.UpgradeTaskDelayMax => legacyDelay.GetValueOrDefault((village.AccountId, AccountSettingEnums.UpgradeTaskDelayMax), value),
+                        _ => value,
+                    };
                     settings.Add(new VillageSetting
                     {
-                        VillageId = id,
+                        VillageId = village.Id,
                         Setting = setting,
-                        Value = value,
+                        Value = initialValue,
                     });
                 }
             }
 
+            if (settings.Count == 0) return;
             AddRange(settings);
             SaveChanges();
         }
