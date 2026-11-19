@@ -101,7 +101,7 @@ namespace MainCore.Commands.Features.UpgradeBuilding
                 if (result.IsFailed) return result;
             }
             await Task.Delay(20_000);
-            result = await browser.WaitPageChanged("dorf");
+            result = await browser.WaitPageChanged("(resources|village)");
             if (result.IsFailed) return result;
             return Result.Ok();
         }
@@ -112,7 +112,7 @@ namespace MainCore.Commands.Features.UpgradeBuilding
             var result = await browser.Click(button);
             if (result.IsFailed) return result;
 
-            result = await browser.WaitPageChanged("dorf");
+            result = await browser.WaitPageChanged("(resources|village)");
             if (result.IsFailed) return result;
 
             return Result.Ok();

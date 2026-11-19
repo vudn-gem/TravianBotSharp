@@ -51,12 +51,12 @@ namespace MainCore.Services
                 if (originalVillage != VillageId.Empty && await village.CountAsync() == 1 &&
                     !await VillagePanelParser.IsActive(village))
                 {
-                    var switched = await browser.Click(village);
+                    browser.Logger.Debug("Restoring original village {VillageId} after lost report scan", originalVillage.Value);
+                    var switched = await browser.Click(VillagePanelParser.GetVillageSwitchLink(page, originalVillage));
                     if (switched.IsFailed) Warn(switched);
                     else
                     {
-                        var active = await browser.Wait(page.Locator(
-                            $"#sidebarBoxVillageList .listEntry.village.active[data-did='{originalVillage}']"));
+                        var active = await browser.Wait(VillagePanelParser.GetActiveVillageNode(page, originalVillage));
                         if (active.IsFailed) Warn(active);
                         restored = await RestoreOriginalPage(originalUrl, originalVillage);
                         if (restored.IsFailed) Warn(restored);
@@ -68,7 +68,7 @@ namespace MainCore.Services
         private Task<Result> RestoreOriginalPage(string url, VillageId? owner = null)
         {
             var uri = new Uri(url);
-            return uri.AbsolutePath == "/build.php" && HeroOasisParser.Query(uri, "gid") == "16" &&
+            return uri.AbsolutePath == "/building" && HeroOasisParser.Query(uri, "id") == "16" &&
                 HeroOasisParser.Query(uri, "tt") == "99"
                 ? FarmListNavigation.Open(browser, url, owner)
                 : browser.Navigate(url);
@@ -84,10 +84,10 @@ namespace MainCore.Services
             var node = VillagePanelParser.GetVillageNode(page, village.Value);
             if (!await VillagePanelParser.IsActive(node))
             {
-                result = await browser.Click(node);
+                browser.Logger.Debug("Switching to attacker village {VillageId} from lost report", village.Value.Value);
+                result = await browser.Click(VillagePanelParser.GetVillageSwitchLink(page, village.Value));
                 if (result.IsFailed) return result;
-                result = await browser.Wait(page.Locator(
-                    $"#sidebarBoxVillageList .listEntry.village.active[data-did='{village.Value}']"));
+                result = await browser.Wait(VillagePanelParser.GetActiveVillageNode(page, village.Value));
                 if (result.IsFailed) return result;
                 result = await OpenReport(url);
                 if (result.IsFailed) return result;

@@ -10,6 +10,18 @@ namespace MainCore.Parsers
             return node;
         }
 
+        public static ILocator GetVillageSwitchLink(IPage page, VillageId villageId)
+        {
+            var link = GetVillageNode(page, villageId).Locator("a");
+            return link;
+        }
+
+        public static ILocator GetActiveVillageNode(IPage page, VillageId villageId)
+        {
+            var node = page.Locator($"#sidebarBoxVillageList div.listEntry.village.active[data-did='{villageId}']");
+            return node;
+        }
+
         public static async Task<VillageId> GetCurrentVillageId(IPage page)
         {
             var node = page.Locator("#sidebarBoxVillageList div.listEntry.village.active");

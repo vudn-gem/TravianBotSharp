@@ -34,13 +34,14 @@ namespace MainCore.Services
             var switchedVillage = !await VillagePanelParser.IsActive(village);
             if (switchedVillage)
             {
-                var switched = await browser.Click(village);
+                browser.Logger.Debug("Switching village to {VillageId} for hero clear list {FarmId}", owner.Value.Value, task.FarmId.Value);
+                var switched = await browser.Click(VillagePanelParser.GetVillageSwitchLink(page, owner.Value));
                 if (switched.IsFailed) return switched;
-                switched = await browser.Wait(page.Locator(
-                    $"#sidebarBoxVillageList .listEntry.village.active[data-did='{owner.Value.Value}']"));
+                switched = await browser.Wait(VillagePanelParser.GetActiveVillageNode(page, owner.Value));
                 if (switched.IsFailed) return switched;
+                browser.Logger.Debug("Village switch confirmed: {VillageId}", owner.Value.Value);
             }
-            farmUrl.Query = $"gid=16&tt=99&newdid={owner.Value.Value}";
+            farmUrl.Query = $"id=16&tt=99&newdid={owner.Value.Value}";
             task.HeroReturnAt = null;
 
             if (!await FarmListNavigation.IsOpenForFarmList(page, task.FarmId, owner.Value))
@@ -69,7 +70,7 @@ namespace MainCore.Services
                 }
                 var uri = new Uri(page.Url);
                 if (!Uri.TryCreate(uri, target.Href, out var map) || map.Scheme != uri.Scheme ||
-                    map.Authority != uri.Authority || map.AbsolutePath != "/karte.php" ||
+                    map.Authority != uri.Authority || map.AbsolutePath != "/map" ||
                     !int.TryParse(HeroOasisParser.Query(map, "x"), out _) ||
                     !int.TryParse(HeroOasisParser.Query(map, "y"), out _))
                     return Stop.Error.WithError("Hero oasis target map link is invalid.");
@@ -304,7 +305,7 @@ namespace MainCore.Services
                 if (actual.searchParams.get('x') !== expected.searchParams.get('x') ||
                     actual.searchParams.get('y') !== expected.searchParams.get('y')) return false;
                 let raid = tile.querySelector(
-                    '.detailImage .options .option a[href*=""/build.php""][href*=""tt=2""][href*=""eventType=4""]');
+                    '.detailImage .options .option a[href*=""/building""][href*=""tt=2""][href*=""eventType=4""]');
                 if (!raid) {
                     const clean = text => (text || '')
                         .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')

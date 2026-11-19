@@ -28,7 +28,7 @@ namespace MainCore.Commands.Navigate
                 if (result.IsFailed) return result;
             }
 
-            result = await browser.WaitPageChanged("build");
+            result = await browser.WaitPageChanged("slot");
             if (result.IsFailed) return result;
             return Result.Ok();
         }

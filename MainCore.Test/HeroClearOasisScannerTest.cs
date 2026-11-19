@@ -552,7 +552,7 @@ namespace MainCore.Test
                     """;
                 var villages = $"""
                     <div id="sidebarBoxVillageList">
-                    <div class="listEntry village {(switched ? "active" : "")}" data-did="2" onclick="location.href='/dorf1.php?newdid=2'"><span class="name">Home</span></div>
+                    <div class="listEntry village {(switched ? "active" : "")}" data-did="2"><a href="#" onclick="location.href='/dorf1.php?newdid=2'"><span class="name">Home</span></a></div>
                     <div class="listEntry village {(switched ? "" : "active")}" data-did="3"><span class="name">Away</span></div>
                     </div>
                     """;

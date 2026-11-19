@@ -41,11 +41,12 @@ namespace MainCore.Services
             var village = VillagePanelParser.GetVillageNode(page, owner.Value);
             if (!await VillagePanelParser.IsActive(village))
             {
-                var switched = await browser.Click(village);
+                browser.Logger.Debug("Switching village to {VillageId} for clear oasis list {FarmId}", owner.Value.Value, farmId.Value);
+                var switched = await browser.Click(VillagePanelParser.GetVillageSwitchLink(page, owner.Value));
                 if (switched.IsFailed) return Result.Fail(switched.Errors);
-                switched = await browser.Wait(page.Locator(
-                    $"#sidebarBoxVillageList .listEntry.village.active[data-did='{owner.Value}']"));
+                switched = await browser.Wait(VillagePanelParser.GetActiveVillageNode(page, owner.Value));
                 if (switched.IsFailed) return Result.Fail(switched.Errors);
+                browser.Logger.Debug("Village switch confirmed: {VillageId}", owner.Value.Value);
             }
             if (!await FarmListNavigation.IsOpenForFarmList(page, farmId, owner.Value))
             {
@@ -332,7 +333,7 @@ namespace MainCore.Services
                     actual.searchParams.get('y') !== expected.searchParams.get('y')) return false;
                 // Prefer the exact oasis raid action to avoid matching simulate raid.
                 let raid = tile.querySelector(
-                    '.detailImage .options .option a[href*=""/build.php""][href*=""gid=16""][href*=""tt=2""][href*=""eventType=4""]');
+                    '.detailImage .options .option a[href*=""/building""][href*=""id=16""][href*=""tt=2""][href*=""eventType=4""]');
                 if (!raid) {
                     const clean = text => (text || '')
                         .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')

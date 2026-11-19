@@ -26,7 +26,7 @@
             result = await browser.Click(NavigationBarParser.GetDorfButton(browser.CurrentPage, dorf));
             if (result.IsFailed) return result;
 
-            result = await browser.WaitPageChanged($"dorf{dorf}.php");
+            result = await browser.WaitPageChanged(GetDorfPath(dorf));
             if (result.IsFailed) return result;
 
             return Result.Ok();
@@ -37,9 +37,19 @@
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return 0;
             return uri.AbsolutePath switch
             {
-                "/dorf1.php" => 1,
-                "/dorf2.php" => 2,
+                "/resources" => 1,
+                "/village" => 2,
                 _ => 0,
+            };
+        }
+
+        private static string GetDorfPath(int dorf)
+        {
+            return dorf switch
+            {
+                1 => "resources",
+                2 => "village",
+                _ => throw new ArgumentOutOfRangeException(nameof(dorf), dorf, "Dorf must be 1 or 2."),
             };
         }
     }

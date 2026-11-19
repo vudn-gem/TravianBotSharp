@@ -102,7 +102,7 @@ namespace MainCore.Test
                 body = $"""
                     <div id="sidebarBoxVillageList">
                     <div class="listEntry village {(currentVillage == 1 ? "active" : "")}" data-did="1"><span class="name">0</span></div>
-                    <div class="listEntry village {(currentVillage == 2 ? "active" : "")}" data-did="2" onclick="location.href='/switch'"><span class="name">7</span></div>
+                    <div class="listEntry village {(currentVillage == 2 ? "active" : "")}" data-did="2"><a href="#" onclick="location.href='/switch'"><span class="name">7</span></a></div>
                     </div>
                     """ + body.Replace(
                         "<div id=\"rallyPointFarmList\">",

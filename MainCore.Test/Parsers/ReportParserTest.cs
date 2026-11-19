@@ -8,6 +8,7 @@ namespace MainCore.Test.Parsers
         [InlineData("<a class='reports' href='/report' accesskey='5'></a>", 0)]
         [InlineData("<a class='reports' href='/report' accesskey='5'><div class='indicator'>1</div></a>", 1)]
         [InlineData("<a class='reports' href='/report?x=1' accesskey='5'><div class='indicator'> 3 </div></a>", 3)]
+        [InlineData("<a class='reports' href='/report' accesskey='5'><div class='indicator'>99+</div></a>", 100)]
         [InlineData("<a class='reports' accesskey='5'><div class='indicator'>0</div></a>", 0)]
         public async Task ReadsBadgeWithoutNavigating(string html, int expected)
         {
@@ -24,7 +25,6 @@ namespace MainCore.Test.Parsers
         [Theory]
         [InlineData("<div>Login page</div>")]
         [InlineData("<a class='reports' accesskey='5'><div class='indicator'></div></a>")]
-        [InlineData("<a class='reports' accesskey='5'><div class='indicator'>99+</div></a>")]
         [InlineData("<a class='reports' accesskey='5'><div class='indicator'>-1</div></a>")]
         [InlineData("<a class='reports' accesskey='5'><div class='indicator'>2147483648</div></a>")]
         [InlineData("<a class='reports' accesskey='5'></a><a class='reports' accesskey='5'></a>")]

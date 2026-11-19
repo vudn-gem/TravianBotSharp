@@ -24,7 +24,7 @@
             result = await browser.Click(LoginParser.GetLoginButton(browser.CurrentPage));
             if (result.IsFailed) return result;
 
-            result = await browser.WaitPageChanged("dorf");
+            result = await browser.WaitPageChanged("(resources|village)");
             if (result.IsFailed) return result;
 
             return Result.Ok();

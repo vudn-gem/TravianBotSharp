@@ -17,10 +17,12 @@ namespace MainCore.Tasks
 
         private async ValueTask<Result> HandleAsync(Task task, CancellationToken cancellationToken)
         {
-            var url = browser.CurrentUrl;
+            var path = Uri.TryCreate(browser.CurrentUrl, UriKind.Absolute, out var uri)
+                ? uri.AbsolutePath
+                : string.Empty;
             Result result;
 
-            if (url.Contains("dorf1"))
+            if (path == "/resources")
             {
                 result = await updateBuildingCommand.HandleAsync(new(task.VillageId), cancellationToken);
                 if (result.IsFailed) return result;
@@ -31,7 +33,7 @@ namespace MainCore.Tasks
                 result = await updateBuildingCommand.HandleAsync(new(task.VillageId), cancellationToken);
                 if (result.IsFailed) return result;
             }
-            else if (url.Contains("dorf2"))
+            else if (path == "/village")
             {
                 result = await updateBuildingCommand.HandleAsync(new(task.VillageId), cancellationToken);
                 if (result.IsFailed) return result;
