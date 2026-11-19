@@ -479,6 +479,7 @@ namespace MainCore.Test
             page.SetDefaultTimeout(1500);
             var confirms = 0;
             var simulates = 0;
+            var sendInputs = new List<string>();
             var mainTabOpenedSendTroops = false;
             var mainTabFarmListNavigations = 0;
             var settings = new HeroOasisSetting
@@ -660,8 +661,12 @@ namespace MainCore.Test
             browser.Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>()).Returns(async call =>
             {
                 var input = (ILocator)call[0];
-                if (failSendInput && (await input.GetAttributeAsync("name"))?.StartsWith("troop[", StringComparison.Ordinal) == true)
-                    return Result.Fail("Troop input failed.");
+                var name = await input.GetAttributeAsync("name");
+                if (name?.StartsWith("troop[", StringComparison.Ordinal) == true)
+                {
+                    sendInputs.Add(name);
+                    if (failSendInput) return Result.Fail("Troop input failed.");
+                }
                 await input.FillAsync((string)call[1]);
                 return Result.Ok();
             });
@@ -697,6 +702,8 @@ namespace MainCore.Test
                 }
                 if (id == "ok")
                 {
+                    sendInputs.ShouldBe(Enumerable.Range(1, army.Length)
+                        .Where(i => army[i - 1] > 0).Select(i => $"troop[t{i}]"));
                     for (var i = 1; i <= (missingHeroCell ? 10 : 11); i++)
                         (await currentPage.Locator($"#troops input[name='troop[t{i}]']").InputValueAsync())
                             .ShouldBe(army[i - 1] == 0 ? "" : army[i - 1].ToString());

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace MainCore.Parsers
@@ -25,6 +26,16 @@ namespace MainCore.Parsers
 
     public static class FarmTargetTroopsParser
     {
+        internal static async Task<Result> FillSendTroopInput(IChromeBrowser browser, ILocator input, long amount)
+        {
+            if (amount != 0)
+                return await browser.Input(input, amount.ToString(CultureInfo.InvariantCulture));
+
+            var current = await input.InputValueAsync();
+            if (current.Trim() is "" or "0") return Result.Ok();
+            return await browser.Input(input, "");
+        }
+
         public static readonly IReadOnlyDictionary<int, string> OasisAnimalNames = new Dictionary<int, string>
         {
             { 31, "Rat" },

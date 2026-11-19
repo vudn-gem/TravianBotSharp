@@ -40,6 +40,8 @@ troop counts sequentially through the standard browser input helper. Typing
 uses a 45-120 ms delay per character, followed by the account's configured
 click-delay range before moving to the next field. Conquest's editable
 coordinates use the same timing; hidden wave coordinates are only verified.
+On the Send troops tab, both oasis flows skip unused fields that are blank
+or already zero, and clear any prefilled count for an unused troop type.
 Higher click delays increase preparation time, so allow enough time before
 a scheduled Conquest send.
 

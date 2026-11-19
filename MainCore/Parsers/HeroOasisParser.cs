@@ -254,8 +254,7 @@ namespace MainCore.Parsers
                     if (expected[i - 1] != 0) return Result.Ok(false);
                     continue;
                 }
-                var filled = await browser.Input(
-                    input, expected[i - 1] == 0 ? "" : expected[i - 1].ToString(CultureInfo.InvariantCulture));
+                var filled = await FarmTargetTroopsParser.FillSendTroopInput(browser, input, expected[i - 1]);
                 if (filled.IsFailed) return Result.Fail(filled.Errors);
             }
             await form.Locator("input[name='eventType'][value='4']").CheckAsync();

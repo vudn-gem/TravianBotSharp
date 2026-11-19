@@ -400,7 +400,7 @@ namespace MainCore.Services
                     if (amount > 0) return Result.Fail($"Oasis raid troop field t{troop} is disabled.");
                     continue;
                 }
-                var filled = await browser.Input(input, amount.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                var filled = await FarmTargetTroopsParser.FillSendTroopInput(browser, input, amount);
                 if (filled.IsFailed) return Result.Fail(filled.Errors);
             }
 

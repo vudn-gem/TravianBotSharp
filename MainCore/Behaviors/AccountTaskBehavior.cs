@@ -57,7 +57,8 @@ namespace MainCore.Behaviors
             isIngamePage = await LoginParser.IsIngamePage(browser.CurrentPage);
             if (isIngamePage)
             {
-                if (response.IsSuccess && !cancellationToken.IsCancellationRequested)
+                if (response.IsSuccess && !cancellationToken.IsCancellationRequested &&
+                    request is not ScheduledMonitoringTask.Task)
                 {
                     await incomingTroopsScanner.Scan(accountId, cancellationToken);
                 }

@@ -135,10 +135,12 @@ namespace MainCore.Test
         [InlineData(OasisAttackTroop.SteppeRider, false, 0, 0, 0, 10, false, 0, 0, 0)]
         [InlineData(OasisAttackTroop.SteppeRider, false, 0, 0, 0, 0, false, 0, 0, 0)]
         [InlineData(OasisAttackTroop.SteppeRider, true, 0, 0, 0, 10, true, 6, 0, 0)]
+        [InlineData(OasisAttackTroop.SteppeRider, true, 0, 0, 0, 10, true, 6, 0, 0, false, 3)]
         [InlineData(OasisAttackTroop.SteppeRider, true, 1, 1, 1, 10, false, 0, 0, 0, true)]
         public async Task SendsConfiguredTroopsForOasis(
             OasisAttackTroop attackTroop, bool hasAnimals, int raidSteppe, int raidMarksmen, int raidMarauders,
-            int availableSteppe, bool sends, int steppe, int marksmen, int marauders, bool inputFails = false)
+            int availableSteppe, bool sends, int steppe, int marksmen, int marauders,
+            bool inputFails = false, int prefilledMarksmen = 0)
         {
             await using var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -151,7 +153,7 @@ namespace MainCore.Test
                     <table id="troops"><tbody><tr>
                     <td><img class="unit u64"><input name="troop[t4]" {(availableSteppe == 0 ? "disabled" : "")}>
                     {(availableSteppe == 0 ? "<span class='none'>0</span>" : "<a href='#'>10</a>")}</td>
-                    <td><img class="unit u65"><input name="troop[t5]"><a href="#">10</a></td>
+                    <td><img class="unit u65"><input name="troop[t5]" value="{(prefilledMarksmen == 0 ? "" : prefilledMarksmen.ToString())}"><a href="#">10</a></td>
                     <td><img class="unit u66"><input name="troop[t6]"><a href="#">10</a></td>
                     </tr></tbody></table><button id="ok" type="submit"
                     onclick="this.closest('form').remove(); return false;">Send</button>
@@ -226,8 +228,10 @@ namespace MainCore.Test
                 return;
             }
             submitted.ShouldHaveSingleItem();
-            submitted[0].ShouldBe((availableSteppe == 0 ? "" : steppe.ToString(), marksmen.ToString(), marauders.ToString()));
-            await browser.Received(availableSteppe == 0 ? 2 : 3)
+            submitted[0].ShouldBe((steppe == 0 ? "" : steppe.ToString(),
+                marksmen == 0 ? "" : marksmen.ToString(), marauders == 0 ? "" : marauders.ToString()));
+            await browser.Received(new[] { steppe, marksmen, marauders }.Count(amount => amount > 0) +
+                (prefilledMarksmen > 0 && marksmen == 0 ? 1 : 0))
                 .Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>());
         }
 
@@ -316,8 +320,10 @@ namespace MainCore.Test
                 var locator = (ILocator)call[0];
                 if (await locator.GetAttributeAsync("id") == "ok")
                 {
-                    var sentSteppe = int.Parse(await currentPage().Locator("input[name='troop[t4]']").InputValueAsync());
-                    var sentMarksmen = int.Parse(await currentPage().Locator("input[name='troop[t5]']").InputValueAsync());
+                    var steppeValue = await currentPage().Locator("input[name='troop[t4]']").InputValueAsync();
+                    var marksmenValue = await currentPage().Locator("input[name='troop[t5]']").InputValueAsync();
+                    var sentSteppe = steppeValue.Length == 0 ? 0 : int.Parse(steppeValue);
+                    var sentMarksmen = marksmenValue.Length == 0 ? 0 : int.Parse(marksmenValue);
                     submitted.Add((sentSteppe, sentMarksmen));
                     steppe -= sentSteppe;
                     marksmen -= sentMarksmen;

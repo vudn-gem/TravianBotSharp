@@ -24,10 +24,9 @@ namespace MainCore.Services
                     taskManager.Remove<CheckIncomingTroopsTask.Task>(accountId);
                     return;
                 }
-                taskManager.ScheduleIncomingScan(accountId, monitor.GetFallbackExecuteAt(accountId));
                 var session = monitor.TryBeginScan(accountId, scheduled);
-                if (!session.HasValue) return;
                 taskManager.ScheduleIncomingScan(accountId, monitor.GetFallbackExecuteAt(accountId));
+                if (!session.HasValue) return;
                 var result = await IncomingTroopsParser.Read(browser.CurrentPage);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (result.IsFailed)
