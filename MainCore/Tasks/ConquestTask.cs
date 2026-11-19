@@ -277,7 +277,7 @@ namespace MainCore.Tasks
                     return Stop.Error.WithError($"Troop field t{index + 1} is unavailable for this village.");
                 if (count == 1 && await input.IsEnabledAsync())
                 {
-                    var filled = await browser.Input(input, amount.ToString(CultureInfo.InvariantCulture));
+                    var filled = await FarmTargetTroopsParser.FillSendTroopInput(browser, input, amount);
                     if (filled.IsFailed) return filled;
                 }
                 else if (amount > 0)

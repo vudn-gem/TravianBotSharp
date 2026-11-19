@@ -77,7 +77,7 @@ namespace MainCore.Test
                         field(`troops[${index}][villageId]`, '2')).join('');
                     form.innerHTML = previous + '<table id="troops"><tbody><tr><td>' +
                         Array.from({length: additional ? 10 : 11}, (_, i) =>
-                        `<input name="troop[t${i + 1}]" value="0" ${additional && i === 1 ? 'disabled' : ''}>`).join('') +
+                        `<input name="troop[t${i + 1}]" value="${i === 2 ? '3' : i === 3 ? '' : '0'}" ${additional && i === 1 ? 'disabled' : ''}>`).join('') +
                         '</td></tr></tbody></table>' +
                         (additional
                             ? field('x', '-50') + field('y', '50') + field('eventType', '3') +
@@ -139,10 +139,14 @@ namespace MainCore.Test
             browser.OpenNewTab().Returns(Result.Ok());
             browser.CloseNewTab().Returns(Result.Ok());
             browser.Navigate(Arg.Any<string>()).Returns(Result.Ok());
+            var inputs = new List<(string? Name, string Value)>();
             browser.Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>()).Returns(async call =>
             {
                 if (inputFails) return Result.Fail("Troop input failed.");
-                await ((ILocator)call[0]).FillAsync((string)call[1]);
+                var input = (ILocator)call[0];
+                var value = (string)call[1];
+                inputs.Add((await input.GetAttributeAsync("name"), value));
+                await input.FillAsync(value);
                 return Result.Ok();
             });
 
@@ -238,7 +242,10 @@ namespace MainCore.Test
             task.Waves[0].CatapultTarget1.ShouldBe(firstTarget);
             task.Waves[0].CatapultTarget2.ShouldBe(secondTarget);
             (await page.EvaluateAsync<string[]>("waves.map(wave => wave.counts[7])")).ShouldBe(["20", "1"]);
-            await browser.Received(22).Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>());
+            inputs.ShouldBe([
+                ("troop[t1]", "19"), ("troop[t3]", ""), ("troop[t8]", "20"), ("x", "-50"), ("y", "50"),
+                ("troop[t1]", "19"), ("troop[t3]", ""), ("troop[t8]", "1")
+            ]);
         }
     }
 }
