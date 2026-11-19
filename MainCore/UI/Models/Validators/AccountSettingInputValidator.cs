@@ -20,6 +20,11 @@ namespace MainCore.UI.Models.Validators
             RuleFor(x => x.TaskDelay.Min)
                 .GreaterThanOrEqualTo(0)
                 .WithMessage("Minimum task delay ({PropertyValue}) should be positive number");
+            RuleFor(x => x.UpgradeTaskDelay.Min)
+                .GreaterThanOrEqualTo(0)
+                .WithMessage("Minimum upgrade task delay ({PropertyValue}) must be non-negative.")
+                .LessThanOrEqualTo(x => x.UpgradeTaskDelay.Max)
+                .WithMessage("Minimum upgrade task delay ({PropertyValue}) must not exceed the maximum ({ComparisonValue}).");
 
             RuleFor(x => x.FarmInterval.Min)
                 .LessThanOrEqualTo(x => x.FarmInterval.Max)

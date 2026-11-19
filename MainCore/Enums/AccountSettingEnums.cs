@@ -42,5 +42,7 @@
         ClearTargetsPerPhaseMin,
         ClearTargetsPerPhaseMax,
         EnableSleepNotifications,
+        UpgradeTaskDelayMin,
+        UpgradeTaskDelayMax,
     }
 }

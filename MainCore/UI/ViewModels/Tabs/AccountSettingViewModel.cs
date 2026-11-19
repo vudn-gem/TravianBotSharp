@@ -94,6 +94,8 @@ namespace MainCore.UI.ViewModels.Tabs
                 return;
             }
             ScheduledMonitoringSettings.ConvertLegacyIntervals(settings);
+            settings.TryAdd(AccountSettingEnums.UpgradeTaskDelayMin, 0);
+            settings.TryAdd(AccountSettingEnums.UpgradeTaskDelayMax, 0);
             await Signal.Start(() => AccountSettingInput.Set(settings), RxSchedulers.MainThreadScheduler);
 
             var result = await _accountsettingInputValidator.ValidateAsync(AccountSettingInput);

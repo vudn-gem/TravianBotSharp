@@ -1,5 +1,6 @@
 ﻿using MainCore.Commands.Features.UpgradeBuilding;
 using MainCore.Commands.Update;
+using MainCore.Infrasturecture.Extensions;
 using MainCore.Tasks.Base;
 
 namespace MainCore.Tasks
@@ -8,6 +9,7 @@ namespace MainCore.Tasks
     public sealed partial class UpgradeBuildingTask(
         ILogger logger,
         IChromeBrowser browser,
+        IDbContextFactory<AppDbContext> contextFactory,
         GetBuildPlanCommand.Handler getBuildPlanCommand,
         ToBuildPageCommand.Handler toBuildPageCommand,
         HandleResourceCommand.Handler handleResourceCommand,
@@ -33,7 +35,7 @@ namespace MainCore.Tasks
                     var nextExecuteErrors = errors.OfType<NextExecuteError>().OrderBy(x => x.NextExecute).ToList();
                     if (nextExecuteErrors.Count > 0)
                     {
-                        task.ExecuteAt = nextExecuteErrors.Min(x => x.NextExecute);
+                        ScheduleNextUpgrade(task, nextExecuteErrors.Min(x => x.NextExecute));
                     }
 
                     return Skip.Error.WithErrors(errors);
@@ -57,7 +59,7 @@ namespace MainCore.Tasks
                     if (result.HasError<MissingResource>())
                     {
                         var time = await UpgradeParser.GetTimeWhenEnoughResource(browser.CurrentPage, plan.Type);
-                        task.ExecuteAt = DateTime.Now.Add(time);
+                        ScheduleNextUpgrade(task, DateTime.Now.Add(time));
                         return Skip.Error.WithErrors(result.Errors);
                     }
 
@@ -72,6 +74,14 @@ namespace MainCore.Tasks
                 result = await updateBuildingCommand.HandleAsync(new(task.VillageId), cancellationToken);
                 if (result.IsFailed) return result;
             }
+        }
+
+        private void ScheduleNextUpgrade(Task task, DateTime earliest)
+        {
+            using var context = contextFactory.CreateDbContext();
+            var buffer = context.ByName(task.AccountId, AccountSettingEnums.UpgradeTaskDelayMin,
+                AccountSettingEnums.UpgradeTaskDelayMax, missingRangeDelay: 0);
+            task.ExecuteAt = earliest.AddMilliseconds(buffer);
         }
     }
 }
