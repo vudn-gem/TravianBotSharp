@@ -182,7 +182,7 @@ namespace MainCore.Services
                 if (!string.IsNullOrEmpty(content))
                 {
                     var typingDelay = Random.Shared.Next(45, 121);
-                    await locator.TypeAsync(content, new() { Delay = typingDelay });
+                    await locator.PressSequentiallyAsync(content, new() { Delay = typingDelay });
                 }
                 await DelayClick();
                 return Result.Ok();
