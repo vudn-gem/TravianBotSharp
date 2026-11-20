@@ -15,7 +15,7 @@ namespace MainCore.Commands.Misc
             var chromeSetting = new ChromeSetting()
             {
                 UserAgent = access.Useragent,
-                ProfilePath = GetProfilePath(server, username),
+                ProfilePath = GetProfilePath(server, username, access.Id.Value),
                 ProxyHost = access.ProxyHost,
                 ProxyPort = access.ProxyPort,
                 ProxyUsername = access.ProxyUsername,
@@ -29,11 +29,11 @@ namespace MainCore.Commands.Misc
             UpdateLastUsed(access);
         }
 
-        private static string GetProfilePath(string server, string username)
+        private static string GetProfilePath(string server, string username, int accessId)
         {
             var uri = new Uri(server);
             var serverFolderName = uri.Host.Replace(".", "_");
-            return Path.Combine(serverFolderName, username);
+            return Path.Combine(serverFolderName, username, $"access_{accessId}");
         }
 
         private (string Username, string Server, bool headless) GetAccount(AccountId accountId)
