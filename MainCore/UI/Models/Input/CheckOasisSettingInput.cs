@@ -5,6 +5,7 @@ namespace MainCore.UI.Models.Input
 {
     public partial class CheckOasisSettingInput : ViewModelBase
     {
+        [Reactive] private bool _autoActive;
         [Reactive] private bool _allowRat;
         [Reactive] private bool _allowSpider;
         [Reactive] private bool _allowSnake;
@@ -31,6 +32,7 @@ namespace MainCore.UI.Models.Input
             AllowTiger = (mask & (1 << 8)) != 0;
             AllowElephant = (mask & (1 << 9)) != 0;
             SafeAnimal.Set(setting.SafeAnimal);
+            AutoActive = setting.CheckAutoActive;
         }
 
         public int AllowedAnimals =>

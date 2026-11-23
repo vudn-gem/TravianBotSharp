@@ -195,6 +195,14 @@ namespace MainCore.Test
             settings.LimitAnimal.ShouldBe(0);
             settings.CheckAllowedAnimals.ShouldBe(0);
             settings.SafeAnimal.ShouldBe(1);
+            settings.CheckAutoActive.ShouldBeFalse();
+            _context.FarmOasisSettings.Where(x => x.FarmId == 10)
+                .ExecuteUpdate(x => x.SetProperty(y => y.CheckAutoActive, true));
+            _context.InitializeFarmOasisSettings();
+            _context.FarmOasisSettings.AsNoTracking().Single(x => x.FarmId == 10)
+                .CheckAutoActive.ShouldBeTrue();
+            _context.FarmOasisSettings.AsNoTracking().Single(x => x.FarmId == 11)
+                .CheckAutoActive.ShouldBeFalse();
             _context.FarmOasisSettings.Where(x => x.FarmId == 10)
                 .ExecuteUpdate(x => x.SetProperty(y => y.SafetyFactor, 2.5m));
             OasisRaidSettings.Read(_context, new AccountId(1), new FarmId(10))
@@ -381,10 +389,12 @@ namespace MainCore.Test
                     FarmId = 10,
                     CheckAllowedAnimals = mask,
                     SafeAnimal = 1,
+                    CheckAutoActive = mask % 2 == 0,
                 };
                 input.Set(setting);
                 input.AllowedAnimals.ShouldBe(mask);
                 input.SafeAnimal.Get().ShouldBe(1);
+                input.AutoActive.ShouldBe(setting.CheckAutoActive);
             }
         }
 

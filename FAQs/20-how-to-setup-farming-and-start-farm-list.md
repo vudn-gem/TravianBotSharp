@@ -66,6 +66,11 @@ oasis. **Check oasis** combines both: it inspects all targets in the selected
 list, activates safe or empty oasis and deactivates unsafe oasis. Targets already
 in the correct state are not toggled. All three use the selected list's saved
 Check oasis settings. Save changes before queuing a scan.
+Enable **Auto active** in **Check oasis setting** and save to automatically
+activate this list in **Farming -> Farming** after Deactive oasis, Active oasis,
+or Check oasis completes successfully (including scans queued through Telegram).
+Already-active lists are left unchanged. This option is off by default and does
+not queue Start farming or send raids.
 Check oasis, Clear oasis and Hero clear oasis middle-click the target link to
 open a temporary tab without triggering the farm page's map dialog. They use
 the account's configured click delay range after opening the tab, before
@@ -93,7 +98,7 @@ unknown/invalid troop counts, missing dialogs/context menus, and mismatched
 list/coordinates are skipped with warnings; no new targets are added.
 The English game UI is required. Check the account's **Debug** tab for
 per-target results and the final summary. This button does not send raids
-or toggle the local farm-list Active setting.
+or toggle the local farm-list Active setting unless **Auto active** is enabled.
 
 Check oasis, Activate oasis, Deactive oasis, Clear oasis and Hero clear oasis
 task names show the farm list name. Clear oasis and Hero clear oasis

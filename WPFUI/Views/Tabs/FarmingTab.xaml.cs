@@ -69,6 +69,7 @@ namespace WPFUI.Views.Tabs
                 this.OneWayBind(ViewModel, vm => vm.HasOasisSettings, v => v.ActiveOasisButton.IsEnabled).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HasOasisSettings, v => v.CheckOasisButton.IsEnabled).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.CheckOasisSettingInput.SafeAnimal, v => v.SafeAnimal.ViewModel).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.CheckOasisSettingInput.AutoActive, v => v.CheckAutoActive.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.CheckOasisSettingInput.AllowRat, v => v.CheckAllowRat.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.CheckOasisSettingInput.AllowSpider, v => v.CheckAllowSpider.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.CheckOasisSettingInput.AllowSnake, v => v.CheckAllowSnake.IsChecked).DisposeWith(d);

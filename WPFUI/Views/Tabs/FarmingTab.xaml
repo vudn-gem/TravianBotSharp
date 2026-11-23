@@ -140,6 +140,8 @@
                                 <GroupBox x:Name="CheckOasisSettingsGroup" Header="Selected farm list check oasis settings">
                                     <StackPanel Margin="8">
                                         <uc:AmountInputUc x:Name="SafeAnimal" Text="Safe animal (maximum total)" Unit="animals" />
+                                        <CheckBox x:Name="CheckAutoActive" Content="Auto active" Margin="0,8,0,4"
+                                                  ToolTip="Activate this farm list in Farming after Deactive, Active or Check oasis completes" />
                                         <TextBlock Text="Allowed oasis animals" FontWeight="SemiBold" Margin="0,8,0,4" />
                                         <WrapPanel Orientation="Horizontal">
                                             <CheckBox x:Name="CheckAllowRat" Content="Rat" Margin="0,0,12,4" />

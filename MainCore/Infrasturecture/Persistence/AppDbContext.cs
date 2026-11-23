@@ -105,6 +105,7 @@ namespace MainCore.Infrasturecture.Persistence
                     "AllowedAnimals" INTEGER NOT NULL,
                     "CheckAllowedAnimals" INTEGER NOT NULL DEFAULT 0,
                     "SafeAnimal" INTEGER NOT NULL DEFAULT 1,
+                    "CheckAutoActive" INTEGER NOT NULL DEFAULT 0,
                     "SafetyFactor" TEXT NOT NULL,
                     "AttackTroop" INTEGER NOT NULL DEFAULT 0,
                     "RaidSteppeRiders" INTEGER NOT NULL DEFAULT 2,
@@ -132,6 +133,8 @@ namespace MainCore.Infrasturecture.Persistence
                 Database.ExecuteSqlRaw("""ALTER TABLE "FarmOasisSettings" ADD COLUMN "CheckAllowedAnimals" INTEGER NOT NULL DEFAULT 0""");
             if (!columns.Contains("SafeAnimal"))
                 Database.ExecuteSqlRaw("""ALTER TABLE "FarmOasisSettings" ADD COLUMN "SafeAnimal" INTEGER NOT NULL DEFAULT 1""");
+            if (!columns.Contains("CheckAutoActive"))
+                Database.ExecuteSqlRaw("""ALTER TABLE "FarmOasisSettings" ADD COLUMN "CheckAutoActive" INTEGER NOT NULL DEFAULT 0""");
 
             var existing = FarmOasisSettings.Select(x => x.FarmId).ToHashSet();
             var legacyKeys = OasisRaidSettings.LegacyAnimalSettings.Keys

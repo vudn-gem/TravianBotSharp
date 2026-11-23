@@ -7,7 +7,8 @@ namespace MainCore.Tasks
     public sealed partial class CheckFarmTargetOasisTask(
         IHandler<ToFarmListPageCommand.Command, Result> toFarmListPageCommand,
         FarmTargetTroopsScanner scanner,
-        IDbContextFactory<AppDbContext> contextFactory)
+        IDbContextFactory<AppDbContext> contextFactory,
+        RxQueue rxQueue)
     {
         public sealed class Task(AccountId accountId, FarmId farmId, bool activate = false, bool synchronize = false,
             string? farmName = null) : AccountTask(accountId)
@@ -25,6 +26,7 @@ namespace MainCore.Tasks
         {
             HashSet<int> allowedAnimals;
             int safeAnimal;
+            bool autoActive;
             using (var context = contextFactory.CreateDbContext())
             {
                 var setting = context.FarmOasisSettings.AsNoTracking().SingleOrDefault(x =>
@@ -36,10 +38,27 @@ namespace MainCore.Tasks
                     .Where(id => (setting.CheckAllowedAnimals & (1 << (id - 31))) != 0)
                     .ToHashSet();
                 safeAnimal = setting.SafeAnimal;
+                autoActive = setting.CheckAutoActive;
             }
             var result = await toFarmListPageCommand.HandleAsync(new(task.AccountId), cancellationToken);
             if (result.IsFailed) return result;
-            return await scanner.Scan(task.FarmId, task.Activate, allowedAnimals, safeAnimal, cancellationToken, task.Synchronize);
+            result = await scanner.Scan(task.FarmId, task.Activate, allowedAnimals, safeAnimal, cancellationToken, task.Synchronize);
+            if (result.IsFailed || !autoActive) return result;
+
+            cancellationToken.ThrowIfCancellationRequested();
+            using var activationContext = contextFactory.CreateDbContext();
+            var farm = activationContext.FarmLists.Where(x =>
+                x.Id == task.FarmId.Value && x.AccountId == task.AccountId.Value);
+            var updated = await farm.Where(x => !x.IsActive)
+                .ExecuteUpdateAsync(x => x.SetProperty(f => f.IsActive, true), cancellationToken);
+            if (updated == 0)
+            {
+                if (!await farm.AnyAsync(cancellationToken))
+                    return Result.Fail("Farm list no longer belongs to this account.");
+                return Result.Ok();
+            }
+            rxQueue.Enqueue(new FarmsModified(task.AccountId));
+            return Result.Ok();
         }
     }
 }

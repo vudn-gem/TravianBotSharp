@@ -414,6 +414,7 @@ namespace MainCore.UI.ViewModels.Tabs
             }
             var allowedAnimals = CheckOasisSettingInput.AllowedAnimals;
             var safeAnimal = CheckOasisSettingInput.SafeAnimal.Get();
+            var autoActive = CheckOasisSettingInput.AutoActive;
             if (allowedAnimals < 0 || (allowedAnimals & ~1023) != 0)
             {
                 await _dialogService.SendMessage("Warning", "Allowed oasis animal selection is invalid.");
@@ -430,7 +431,8 @@ namespace MainCore.UI.ViewModels.Tabs
                     context.FarmLists.Any(f => f.Id == x.FarmId && f.AccountId == AccountId.Value))
                 .ExecuteUpdate(x => x
                     .SetProperty(y => y.CheckAllowedAnimals, allowedAnimals)
-                    .SetProperty(y => y.SafeAnimal, safeAnimal));
+                    .SetProperty(y => y.SafeAnimal, safeAnimal)
+                    .SetProperty(y => y.CheckAutoActive, autoActive));
             if (updated != 1)
             {
                 await _dialogService.SendMessage("Warning", "Selected farm list or its oasis settings no longer exist.");
