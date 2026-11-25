@@ -4,11 +4,15 @@ using System.Text.RegularExpressions;
 
 namespace MainCore.Parsers
 {
-    public sealed record EvasionIncoming(long MovementId, bool Raid, DateTime Arrival);
+    public sealed record EvasionIncoming(long MovementId, bool Raid, DateTime Arrival)
+    {
+        public TimeOnly? DisplayedArrival { get; init; }
+        public int? ArrivalDifferenceSeconds { get; init; }
+    }
 
     public static class EvasionIncomingParser
     {
-        private sealed record Row(string Id, bool Attack, bool Raid, string Remaining);
+        private sealed record Row(string Id, bool Attack, bool Raid, string Remaining, string DisplayedArrival);
         private sealed record Snapshot(bool Paginated, List<Row> Rows);
 
         public static async Task<Result<List<EvasionIncoming>>> Read(IPage page, DateTime observedAt)
@@ -24,11 +28,13 @@ namespace MainCore.Parsers
                         .map(table => {
                             const ids = table.querySelectorAll('thead img.markAttack[id^=""markSymbol_""]');
                             const timers = table.querySelectorAll('tbody.infos .in span.timer[counting=""down""]');
+                            const arrivals = table.querySelectorAll('tbody.infos .at');
                             return {
                                 Id: ids.length === 1 ? ids[0].id.replace('markSymbol_', '') : '',
                                 Attack: table.classList.contains('inAttack'),
                                 Raid: table.classList.contains('inRaid'),
-                                Remaining: timers.length === 1 ? timers[0].textContent.trim() : ''
+                                Remaining: timers.length === 1 ? timers[0].textContent.trim() : '',
+                                DisplayedArrival: arrivals.length === 1 ? arrivals[0].textContent.trim() : ''
                             };
                         })
                 };
@@ -50,10 +56,31 @@ namespace MainCore.Parsers
                     return Result.Fail("Incoming movement has an invalid/duplicate ID, type or arrival countdown.");
                 if (duration.Value.TotalSeconds > (DateTime.MaxValue - observedAt).TotalSeconds)
                     return Result.Fail("Incoming arrival is outside the supported date range.");
-                movements.Add(new(id, row.Raid, observedAt.Add(duration.Value)));
+                var match = Regex.Match(row.DisplayedArrival ?? "", @"\Aat\s+([0-9]{1,2}:[0-9]{2}:[0-9]{2})\s*\z",
+                    RegexOptions.CultureInvariant);
+                var displayedArrival = match.Success ? ParseClock(match.Groups[1].Value) : null;
+                int? difference = null;
+                if (displayedArrival.HasValue)
+                {
+                    const long secondsPerDay = 24 * 60 * 60;
+                    var expected = (observedAt.TimeOfDay.Ticks / TimeSpan.TicksPerSecond +
+                        (long)duration.Value.TotalSeconds) % secondsPerDay;
+                    var actual = displayedArrival.Value.ToTimeSpan().Ticks / TimeSpan.TicksPerSecond;
+                    difference = (int)((actual - expected + secondsPerDay + secondsPerDay / 2) %
+                        secondsPerDay - secondsPerDay / 2);
+                }
+                movements.Add(new(id, row.Raid, observedAt.Add(duration.Value))
+                {
+                    DisplayedArrival = displayedArrival,
+                    ArrivalDifferenceSeconds = difference,
+                });
             }
             return Result.Ok(movements.OrderBy(x => x.Arrival).ToList());
         }
+
+        private static TimeOnly? ParseClock(string? text) =>
+            TimeOnly.TryParseExact(text, "H:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var time)
+                ? time : null;
 
         public static Result<TimeSpan> ParseRemaining(string text)
         {

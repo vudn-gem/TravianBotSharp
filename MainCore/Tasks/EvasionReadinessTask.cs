@@ -18,18 +18,48 @@ namespace MainCore.Tasks
             bool manualTest = false)
             : VillageTask(accountId, villageId)
         {
-            public EvasionIncoming Incoming { get; } = incoming;
+            private readonly long _keyMovementId = incoming.MovementId;
+            public EvasionIncoming Incoming { get; private set; } = incoming;
+            public IReadOnlyList<long> IncomingCandidates { get; set; } = [incoming.MovementId];
+            internal TaskQueue? PlanningQueue { get; init; }
             public EvasionSettings Settings { get; } = settings;
             public bool ManualTest { get; } = manualTest;
             public bool TrainingAttempted { get; set; }
             public bool PreparationAttempted { get; set; }
-            public override string Key => ManualTest ? $"{AccountId}-{VillageId}-evasion-test" : $"{AccountId}-{VillageId}-{Incoming.MovementId}";
+            public override string Key => ManualTest ? $"{AccountId}-{VillageId}-evasion-test" : $"{AccountId}-{VillageId}-{_keyMovementId}";
             protected override string TaskName => ManualTest ? "Test evasion (LIVE)" : $"Evasion preparation (#{Incoming.MovementId})";
             public override string Description => ManualTest
                 ? $"LIVE evasion test in village {VillageId.Value}; train {Settings.TrainTroop}, raid enabled {Settings.EvadeTroops}, target ({Settings.X}|{Settings.Y})"
                 : $"Evasion preparation for incoming #{Incoming.MovementId}";
             public override bool CanStart(AppDbContext context) =>
                 context.BooleanByName(VillageId, VillageSettingEnums.EvasionEnable);
+
+            internal bool SelectIncoming(EvasionIncoming movement)
+            {
+                if (PlanningQueue is not { } queue) return false;
+                lock (queue)
+                {
+                    if (!queue.Tasks.Contains(this) ||
+                        !queue.EvasionPlannedMovements.TryGetValue(VillageId, out var planned))
+                        return false;
+                    planned.Add(movement.MovementId);
+                    Incoming = movement;
+                    return true;
+                }
+            }
+
+            internal bool RecordPreparation()
+            {
+                if (PlanningQueue is not { } queue) return true;
+                lock (queue)
+                {
+                    if (!queue.Tasks.Contains(this)) return false;
+                    if (!queue.EvasionCompletedArrivals.TryGetValue(VillageId, out var completed))
+                        queue.EvasionCompletedArrivals[VillageId] = completed = [];
+                    completed[Incoming.MovementId] = Incoming.Arrival;
+                    return true;
+                }
+            }
         }
 
         private async ValueTask<Result> HandleAsync(Task task, CancellationToken cancellationToken)
@@ -48,6 +78,32 @@ namespace MainCore.Tasks
                         return Skipped(task, "Saved settings changed after test confirmation; live test canceled.");
                     browser.Logger.Warning("Starting LIVE evasion test in village {VillageId}; no incoming required", task.VillageId.Value);
                 }
+                else if (task.IncomingCandidates.Count > 1)
+                {
+                    var overview = await EvasionIncomingNavigation.Open(browser, task.VillageId, cancellationToken);
+                    if (overview.IsFailed) return Skipped(task, string.Join("; ", overview.Errors.Select(x => x.Message)));
+                    var observedAt = timeProvider.GetLocalNow().DateTime;
+                    var incoming = await EvasionIncomingParser.Read(browser.CurrentPage, observedAt);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (incoming.IsFailed) return Skipped(task, string.Join("; ", incoming.Errors.Select(x => x.Message)));
+                    var movement = incoming.Value.Where(x =>
+                            task.IncomingCandidates.Contains(x.MovementId) && x.Arrival > observedAt)
+                        .OrderBy(x => x.Arrival)
+                        .ThenBy(x => x.MovementId != task.Incoming.MovementId)
+                        .ThenBy(x => x.MovementId)
+                        .FirstOrDefault();
+                    if (movement is null) return Skipped(task, "No incoming movement remains in this evasion group.");
+                    if (movement.MovementId != task.Incoming.MovementId)
+                    {
+                        if (!task.SelectIncoming(movement))
+                            return Skipped(task, "Evasion plan was removed while checking the incoming group.");
+                        browser.Logger.Information(
+                            "Evasion group switched to remaining movement {MovementId} in village {VillageId}",
+                            movement.MovementId, task.VillageId.Value);
+                    }
+                }
+                if (!task.ManualTest && !task.RecordPreparation())
+                    return Skipped(task, "Evasion plan was removed before preparation.");
                 var training = await Train(task, cancellationToken);
                 if (training.IsFailed)
                     browser.Logger.Warning("Evasion training phase skipped/failed; checking troop evasion independently: {Errors}",

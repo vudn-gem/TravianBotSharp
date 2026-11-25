@@ -43,13 +43,16 @@ namespace MainCore.Services
                         var counts = await IncomingTroopsParser.ReadCounts(browser.CurrentPage, village, cancellationToken);
                         if (counts.IsSuccess)
                         {
-                            var changed = monitor.Observe(accountId, session.Value, [counts.Value], dataService.AccountData, notify);
                             var villageId = new VillageId(village.Id);
-                            if (context.BooleanByName(villageId, VillageSettingEnums.EvasionEnable))
+                            var evasionEnabled = context.BooleanByName(villageId, VillageSettingEnums.EvasionEnable);
+                            var increased = monitor.Observe(accountId, session.Value, [counts.Value], dataService.AccountData,
+                                notify, evasionEnabled);
+                            if (evasionEnabled)
                             {
-                                if (counts.Value.Attacks + (long)counts.Value.Raids > 0)
-                                    taskManager.ScheduleEvasionInspection(accountId, villageId, changed);
-                                else taskManager.RemoveEvasion(accountId, villageId, includeManualTests: false);
+                                if (increased)
+                                    taskManager.ScheduleEvasionInspection(accountId, villageId);
+                                else if (counts.Value.Attacks == 0 && counts.Value.Raids == 0)
+                                    taskManager.RemoveEvasion(accountId, villageId, includeManualTests: false);
                             }
                             browser.Logger.Information(
                                 "Incoming troops scanned: {VillageName}, {AttackCount} attacks, {RaidCount} raids",

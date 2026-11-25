@@ -11,6 +11,7 @@ namespace MainCore.Services
         {
             public Guid Id { get; } = Guid.NewGuid();
             public Dictionary<int, (int Attacks, int Raids)> Villages { get; } = [];
+            public Dictionary<int, (int Attacks, int Raids)> EvasionVillages { get; } = [];
         }
 
         public void Reset(AccountId accountId)
@@ -48,27 +49,40 @@ namespace MainCore.Services
             }
         }
 
-        public bool Observe(AccountId accountId, Guid sessionId, List<IncomingVillage> villages, string accountName, bool notify = true)
+        public void ResetEvasion(AccountId accountId, VillageId villageId)
+        {
+            lock (_sync)
+                if (_sessions.TryGetValue(accountId, out var session))
+                    session.EvasionVillages.Remove(villageId.Value);
+        }
+
+        public bool Observe(AccountId accountId, Guid sessionId, List<IncomingVillage> villages, string accountName,
+            bool notify = true, bool trackEvasion = false)
         {
             lock (_sync)
             {
                 if (!_sessions.TryGetValue(accountId, out var session) || session.Id != sessionId) return false;
-                var changed = false;
+                var increased = false;
                 foreach (var village in villages)
                 {
                     ArgumentOutOfRangeException.ThrowIfNegative(village.Attacks);
                     ArgumentOutOfRangeException.ThrowIfNegative(village.Raids);
                     var previous = session.Villages.GetValueOrDefault(village.Id);
-                    changed |= previous != (village.Attacks, village.Raids);
                     if (notify && (village.Attacks > previous.Attacks || village.Raids > previous.Raids))
                     {
                         outbox.Enqueue(accountId,
                             $"[TBS] Incoming attack/raid\nAccount: {Limit(accountName, 200)}\nVillage: {Limit(village.Name, 200)} (ID {village.Id})\nCoordinates: {Limit(village.Coordinates, 60)}\nIncoming attacks: {previous.Attacks} -> {village.Attacks}\nIncoming raids: {previous.Raids} -> {village.Raids}\nDetected: {timeProvider.GetLocalNow():yyyy-MM-dd HH:mm:ss zzz}");
                     }
                     session.Villages[village.Id] = (village.Attacks, village.Raids);
+                    if (trackEvasion)
+                    {
+                        var baseline = session.EvasionVillages.GetValueOrDefault(village.Id);
+                        increased |= village.Attacks > baseline.Attacks || village.Raids > baseline.Raids;
+                        session.EvasionVillages[village.Id] = (village.Attacks, village.Raids);
+                    }
                 }
                 // Missing rows (e.g. collapsed groups) do not mean their incoming has cleared.
-                return changed;
+                return increased;
             }
         }
 

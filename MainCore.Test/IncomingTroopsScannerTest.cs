@@ -114,6 +114,41 @@ namespace MainCore.Test
         }
 
         [Fact]
+        public async Task EvasionInspectsOnlyOnAnIncreaseAndRebaselinesAfterSettingsChange()
+        {
+            using var context = new AppDbContext(_options);
+            context.Villages.Add(new Village { Id = 1, AccountId = 1, Name = "Origin" });
+            context.VillagesSetting.Add(new VillageSetting
+                { VillageId = 1, Setting = VillageSettingEnums.EvasionEnable, Value = 1 });
+            context.SaveChanges();
+            Snapshot("""[{"Id":1,"Name":"Origin","Coordinates":"","Attack":true}]""");
+            _tooltip.JsonValueAsync<string>().Returns("Incoming raids: 8");
+            await _scanner.Scan(new(1), CancellationToken.None);
+            var first = _taskManager.GetTaskList(new(1)).OfType<MainCore.Tasks.InspectEvasionTask.Task>().Single();
+            first.ExpectIncoming.ShouldBeTrue();
+            _taskManager.Remove(new(1), first);
+
+            _clock.Seconds = 60;
+            await _scanner.Scan(new(1), CancellationToken.None);
+            _taskManager.GetTaskList(new(1)).OfType<MainCore.Tasks.InspectEvasionTask.Task>().ShouldBeEmpty();
+
+            _clock.Seconds = 120;
+            _tooltip.JsonValueAsync<string>().Returns("Incoming raids: 7");
+            await _scanner.Scan(new(1), CancellationToken.None);
+            _taskManager.GetTaskList(new(1)).OfType<MainCore.Tasks.InspectEvasionTask.Task>().ShouldBeEmpty();
+
+            _clock.Seconds = 180;
+            _tooltip.JsonValueAsync<string>().Returns("Incoming raids: 8");
+            await _scanner.Scan(new(1), CancellationToken.None);
+            _taskManager.GetTaskList(new(1)).OfType<MainCore.Tasks.InspectEvasionTask.Task>().Count().ShouldBe(1);
+
+            _taskManager.RemoveEvasion(new(1), new(1));
+            _clock.Seconds = 240;
+            await _scanner.Scan(new(1), CancellationToken.None);
+            _taskManager.GetTaskList(new(1)).OfType<MainCore.Tasks.InspectEvasionTask.Task>().Count().ShouldBe(1);
+        }
+
+        [Fact]
         public async Task ThrottlesAttemptsAndPreservesStateAcrossInvalidSnapshot()
         {
             Snapshot("""[{"Id":1,"Name":"v","Coordinates":"","Attack":true}]""");

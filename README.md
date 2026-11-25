@@ -107,18 +107,28 @@ Pressing the button again after a completed test creates a new live attempt.
 
 Enabling any village's evasion also enables incoming scans independently of
 Telegram alerts, with a one-minute fallback while the account is running.
-Incoming counts queue inspection of the affected village; count changes
-expedite it. Inspection switches village through the existing task pipeline,
+An increase in either attack or raid count queues inspection of the affected
+village; unchanged or decreasing counts do not reopen the overview. Inspection
+switches village through the existing task pipeline,
 tries **Incoming Troops** in Link List, then falls back to the current account
 server's `/building?id=16&tt=1&filter=1&subfilters=1&newdid=...`.
-It reads live attack/raid countdowns, including arrivals across midnight,
-and schedules deduplicated readiness tasks by movement ID. Inspections repeat
-every minute while incoming remain, removing plans for canceled movements.
+It schedules deduplicated readiness tasks by movement ID using the live
+attack/raid countdown, including arrivals across midnight. The displayed player
+arrival time is checked against the TBS system clock and countdown modulo one day;
+a mismatch over five seconds or missing clock data is logged without changing
+the countdown-based schedule. The first incoming starts a group; an incoming
+more than the configured lead time after that group's planned arrival starts
+another group. If the first movement is canceled, readiness checks the group
+and uses its earliest remaining movement. A failed inspection
+retries after one minute. Plans are removed when all incoming clear or when a
+later inspection finds that a movement has disappeared; readiness also verifies
+the movement before training or sending.
 If already within the lead window, readiness is queued immediately.
 Disabling evasion or changing its saved settings clears pending plans.
 
-Planning currently requires a single-page incoming overview; additional pages
-or malformed arrival data produce a warning and retry, never a guessed arrival.
+Planning currently requires a single-page incoming overview; additional pages,
+malformed arrival data, or an empty overview after incoming was detected produce
+a warning and retry, never a guessed arrival.
 Plans and training-attempt guards are session-local and rebuilt from incoming
 scans after restart; an incoming still present can train again after restart,
 but a recorded troop evasion is not resent.

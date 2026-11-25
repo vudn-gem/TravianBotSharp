@@ -22,15 +22,17 @@ namespace MainCore.Test
         private readonly string _directory = Path.Combine(Path.GetTempPath(), $"tbs-evasion-{Guid.NewGuid():N}");
         private sealed class Clock : TimeProvider
         {
-            public override DateTimeOffset GetUtcNow() => new(2026, 11, 25, 23, 50, 0, TimeSpan.Zero);
+            public DateTimeOffset Now { get; set; } = new(2026, 11, 25, 23, 50, 0, TimeSpan.Zero);
+            public override DateTimeOffset GetUtcNow() => Now;
+            public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
         }
 
-        private static string Movement(long id, string countdown) => $"""
+        private static string Movement(long id, string countdown, string? serverArrival = null) => $"""
             <table class="troop_details inRaid"><thead><tr><td>
             <img class="markAttack" id="markSymbol_{id}"></td></tr></thead>
             <tbody class="infos"><tr><th>Arrival</th><td><div class="in">
             <span class="timer" counting="down" data-value="99999">{countdown}</span>
-            </div></td></tr></tbody></table>
+            </div><div class="at"><span>at {serverArrival}</span></div></td></tr></tbody></table>
             """;
 
         private static IChromeBrowser Browser(IPage page)
@@ -120,11 +122,12 @@ namespace MainCore.Test
                 new ReportMonitor(outbox, logger), new IncomingTroopsMonitor(outbox, clock));
             await using var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
-            var movements = Movement(101, "00:20:00") + Movement(102, "00:01:00");
+            var movements = Movement(101, "00:20:00", "00:10:00") + Movement(102, "00:01:00", "23:51:09");
             await page.RouteAsync("https://example.com/**", route => route.FulfillAsync(new()
             {
                 ContentType = "text/html",
                 Body = $"""
+                    <span id="servertime">23:50:00</span>
                     <div id="sidebarBoxVillageList"><div class="listEntry village active" data-did="1"></div></div>
                     <div id="content" class="buildRallyPoint"><div class="rallyPointOverviewContainer">
                     {movements}<div class="paginator"><img class="next disabled"></div></div></div>
@@ -135,9 +138,17 @@ namespace MainCore.Test
             var inspection = new InspectEvasionTask.Task(new(1), new(1));
             taskManager.Add(inspection);
             var handler = new InspectEvasionTask.HandleBehavior(new InspectEvasionTask(factory, browser, taskManager, clock));
+            var originalExecuteAt = inspection.ExecuteAt;
             (await handler.HandleAsync(inspection, CancellationToken.None)).IsSuccess.ShouldBeTrue();
+            inspection.ExecuteAt.ShouldBe(originalExecuteAt);
             var plans = taskManager.GetTaskList(new(1)).OfType<EvasionReadinessTask.Task>().ToList();
             plans.Count.ShouldBe(2);
+            browser.Logger.Received(1).Information(
+                "Evasion arrival clock checked for village {VillageId}, movement {MovementId}: local now {ObservedAt}, displayed arrival {DisplayedArrival}, difference {DifferenceSeconds} seconds",
+                1, 101L, clock.GetLocalNow().DateTime, new TimeOnly(0, 10, 0), 0);
+            browser.Logger.Received(1).Warning(
+                "Evasion arrival clock differs by {DifferenceSeconds} seconds for village {VillageId}, movement {MovementId}; countdown remains authoritative (local now {ObservedAt}, displayed arrival {DisplayedArrival})",
+                9, 1, 102L, clock.GetLocalNow().DateTime, new TimeOnly(23, 51, 9));
             plans.Single(x => x.Incoming.MovementId == 101).ExecuteAt.ShouldBe(clock.GetLocalNow().DateTime.AddSeconds(1080));
             var immediate = plans.Single(x => x.Incoming.MovementId == 102);
             immediate.ExecuteAt.ShouldBe(clock.GetLocalNow().DateTime);
@@ -153,10 +164,18 @@ namespace MainCore.Test
             (await readiness.HandleAsync(immediate, CancellationToken.None)).IsSuccess.ShouldBeTrue();
             await browser.DidNotReceive().Click(Arg.Any<ILocator>(), Arg.Any<string>());
             await browser.DidNotReceive().Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>());
+            taskManager.Remove(new(1), immediate);
 
             movements = Movement(101, "00:20:00");
             (await handler.HandleAsync(inspection, CancellationToken.None)).IsSuccess.ShouldBeTrue();
             taskManager.GetTaskList(new(1)).OfType<EvasionReadinessTask.Task>().Single().Incoming.MovementId.ShouldBe(101);
+
+            taskManager.Remove(new(1), inspection);
+            taskManager.Remove(new(1), plans.Single(x => x.Incoming.MovementId == 101));
+            inspection = new InspectEvasionTask.Task(new(1), new(1));
+            taskManager.Add(inspection);
+            (await handler.HandleAsync(inspection, CancellationToken.None)).IsSuccess.ShouldBeTrue();
+            taskManager.GetTaskList(new(1)).OfType<EvasionReadinessTask.Task>().ShouldBeEmpty();
             var liveTest = new EvasionReadinessTask.Task(new(1), new(1), new(-101, false, DateTime.MaxValue),
                 EvasionSettings.Read(database, new(1), new(1)).Value, manualTest: true);
             taskManager.TryAdd(liveTest).ShouldBeTrue();
@@ -170,6 +189,131 @@ namespace MainCore.Test
             database.SaveVillageSetting(new(1), new() { [VillageSettingEnums.EvasionEnable] = 0 });
             database.TriggerTask(taskManager, new(1), new(1), new() { [VillageSettingEnums.EvasionEnable] = 0 });
             taskManager.GetTaskList(new(1)).ShouldBeEmpty();
+        }
+
+        [Fact]
+        public async Task DetectedIncomingWithEmptyOverviewIsRetried()
+        {
+            Directory.CreateDirectory(_directory);
+            var options = new DbContextOptionsBuilder<AppDbContext>()
+                .UseSqlite($"Data Source={Path.Combine(_directory, "account.db")};Pooling=False").Options;
+            using var database = new AppDbContext(options);
+            database.Database.EnsureCreated();
+            database.Accounts.Add(new Account { Id = 1, Username = "test", Server = "https://example.com" });
+            database.Villages.Add(new Village { Id = 1, AccountId = 1, Name = "Origin" });
+            database.SaveChanges();
+            database.FillVillageSettings();
+            database.SaveVillageSetting(new(1), new() { [VillageSettingEnums.EvasionEnable] = 1 });
+            var factory = Substitute.For<IDbContextFactory<AppDbContext>>();
+            factory.CreateDbContext().Returns(_ => new AppDbContext(options));
+            var clock = new Clock();
+            var outbox = new ReportNotificationOutbox(Path.Combine(_directory, "outbox.db"));
+            var logger = Substitute.For<Serilog.ILogger>();
+            var manager = new TaskManager(new RxQueue(factory), factory, logger,
+                new ReportMonitor(outbox, logger), new IncomingTroopsMonitor(outbox, clock));
+            await using var context = await CreateContextAsync();
+            var page = await context.NewPageAsync();
+            await page.RouteAsync("https://example.com/**", route => route.FulfillAsync(new()
+            {
+                ContentType = "text/html",
+                Body = """
+                    <div id="sidebarBoxVillageList"><div class="listEntry village active" data-did="1"></div></div>
+                    <div id="content" class="buildRallyPoint"><div class="rallyPointOverviewContainer"></div></div>
+                    """,
+            }));
+            await page.GotoAsync("https://example.com/resources");
+            var inspection = new InspectEvasionTask.Task(new(1), new(1)) { ExpectIncoming = true };
+            manager.Add(inspection);
+            var handler = new InspectEvasionTask.HandleBehavior(new InspectEvasionTask(factory, Browser(page), manager, clock));
+
+            var result = await handler.HandleAsync(inspection, CancellationToken.None);
+            result.IsFailed.ShouldBeTrue();
+            inspection.ExecuteAt.ShouldBe(clock.GetLocalNow().DateTime.AddMinutes(1));
+            manager.GetTaskList(new(1)).OfType<EvasionReadinessTask.Task>().ShouldBeEmpty();
+        }
+
+        [Fact]
+        public async Task GroupsByLastScheduledArrivalAndUsesRemainingMovementWhenHeadIsCanceled()
+        {
+            Directory.CreateDirectory(_directory);
+            var options = new DbContextOptionsBuilder<AppDbContext>()
+                .UseSqlite($"Data Source={Path.Combine(_directory, "account.db")};Pooling=False").Options;
+            using var database = new AppDbContext(options);
+            database.Database.EnsureCreated();
+            database.Accounts.Add(new Account { Id = 1, Username = "test", Server = "https://example.com" });
+            database.Villages.Add(new Village { Id = 1, AccountId = 1, Name = "Origin" });
+            database.SaveChanges();
+            database.FillVillageSettings();
+            database.SaveVillageSetting(new(1), new() { [VillageSettingEnums.EvasionEnable] = 1 });
+            var factory = Substitute.For<IDbContextFactory<AppDbContext>>();
+            factory.CreateDbContext().Returns(_ => new AppDbContext(options));
+            var clock = new Clock();
+            var outbox = new ReportNotificationOutbox(Path.Combine(_directory, "outbox.db"));
+            var logger = Substitute.For<Serilog.ILogger>();
+            var manager = new TaskManager(new RxQueue(factory), factory, logger,
+                new ReportMonitor(outbox, logger), new IncomingTroopsMonitor(outbox, clock));
+            await using var context = await CreateContextAsync();
+            var page = await context.NewPageAsync();
+            var original = Movement(105, "00:15:21") + Movement(103, "00:13:20") +
+                Movement(101, "00:10:00") + Movement(104, "00:15:20") + Movement(102, "00:11:40");
+            var movements = original;
+            await page.RouteAsync("https://example.com/**", route => route.FulfillAsync(new()
+            {
+                ContentType = "text/html",
+                Body = $"""
+                    <div id="sidebarBoxVillageList"><div class="listEntry village active" data-did="1"></div></div>
+                    <div id="content" class="buildRallyPoint"><div class="rallyPointOverviewContainer">
+                    {movements}<div class="paginator"><img class="next disabled"></div></div></div>
+                    """,
+            }));
+            await page.GotoAsync("https://example.com/resources");
+            var browser = Browser(page);
+            var inspection = new InspectEvasionTask.Task(new(1), new(1));
+            manager.Add(inspection);
+            var handler = new InspectEvasionTask.HandleBehavior(new InspectEvasionTask(factory, browser, manager, clock));
+
+            (await handler.HandleAsync(inspection, CancellationToken.None)).IsSuccess.ShouldBeTrue();
+            var plans = manager.GetTaskList(new(1)).OfType<EvasionReadinessTask.Task>()
+                .OrderBy(x => x.Incoming.Arrival).ToList();
+            plans.Select(x => x.Incoming.MovementId).ShouldBe([101L, 103L, 105L]);
+            plans[0].IncomingCandidates.ShouldBe([101L, 102L]);
+            plans[1].IncomingCandidates.ShouldBe([103L, 104L]);
+            plans[2].IncomingCandidates.ShouldBe([105L]);
+
+            movements = Movement(100, "00:09:10") + original;
+            (await handler.HandleAsync(inspection, CancellationToken.None)).IsSuccess.ShouldBeTrue();
+            plans = manager.GetTaskList(new(1)).OfType<EvasionReadinessTask.Task>()
+                .OrderBy(x => x.Incoming.Arrival).ToList();
+            plans.Select(x => x.Incoming.MovementId).ShouldBe([100L, 102L, 104L]);
+            plans[0].IncomingCandidates.ShouldBe([100L, 101L]);
+            plans[0].ExecuteAt.ShouldBe(clock.GetLocalNow().DateTime.AddSeconds(430));
+
+            movements = original;
+            var readiness = new EvasionReadinessTask.HandleBehavior(new EvasionReadinessTask(browser, clock, factory,
+                Substitute.For<IHandler<ToBuildingByTypeCommand.Command, Result>>(),
+                Substitute.For<IHandler<TrainTroopCommand.Command, Result>>(),
+                Substitute.For<IHandler<EvadeTroopsCommand.Command, Result>>()));
+            (await readiness.HandleAsync(plans[0], CancellationToken.None)).IsSuccess.ShouldBeTrue();
+            plans[0].Incoming.MovementId.ShouldBe(101);
+            plans[0].Incoming.Arrival.ShouldBe(clock.GetLocalNow().DateTime.AddMinutes(10));
+
+            (await handler.HandleAsync(inspection, CancellationToken.None)).IsSuccess.ShouldBeTrue();
+            manager.GetTaskList(new(1)).OfType<EvasionReadinessTask.Task>()
+                .Where(x => !x.PreparationAttempted).OrderBy(x => x.Incoming.Arrival)
+                .Select(x => x.Incoming.MovementId).ShouldBe([103L, 105L]);
+
+            manager.Remove(new(1), plans[0]);
+            clock.Now = clock.Now.AddSeconds(610);
+            movements = Movement(102, "00:01:30") + Movement(103, "00:03:10") +
+                Movement(104, "00:05:10") + Movement(105, "00:05:11");
+            (await handler.HandleAsync(inspection, CancellationToken.None)).IsSuccess.ShouldBeTrue();
+            var remainingPlans = manager.GetTaskList(new(1)).OfType<EvasionReadinessTask.Task>()
+                .OrderBy(x => x.Incoming.Arrival).ToList();
+            remainingPlans.Select(x => x.Incoming.MovementId).ShouldBe([103L, 105L]);
+
+            movements = Movement(105, "00:05:11");
+            (await readiness.HandleAsync(remainingPlans[0], CancellationToken.None))
+                .HasError<Skip>().ShouldBeTrue();
         }
 
         [Fact]

@@ -251,6 +251,8 @@ namespace MainCore.Services
             var queue = GetTaskQueue(accountId);
             lock (queue)
             {
+                queue.EvasionPlannedMovements.Clear();
+                queue.EvasionCompletedArrivals.Clear();
                 foreach (var task in queue.Tasks.OfType<ConquestTask.Task>())
                 {
                     if (task.RequestCancel())
@@ -276,12 +278,9 @@ namespace MainCore.Services
             AddOrUpdate(new CheckIncomingTroopsTask.Task(accountId) { ExecuteAt = executeAt });
         }
 
-        public void ScheduleEvasionInspection(AccountId accountId, VillageId villageId, bool countsChanged)
+        public void ScheduleEvasionInspection(AccountId accountId, VillageId villageId)
         {
-            if (countsChanged)
-                AddOrUpdate(new InspectEvasionTask.Task(accountId, villageId));
-            else if (!IsExist<InspectEvasionTask.Task>(accountId, villageId))
-                TryAdd(new InspectEvasionTask.Task(accountId, villageId));
+            AddOrUpdate(new InspectEvasionTask.Task(accountId, villageId) { ExpectIncoming = true });
         }
 
         public void RemoveEvasion(AccountId accountId, VillageId villageId, bool includeManualTests = true)
@@ -293,7 +292,10 @@ namespace MainCore.Services
                     task is InspectEvasionTask.Task inspection && inspection.VillageId == villageId ||
                     task is EvasionReadinessTask.Task readiness && readiness.VillageId == villageId &&
                         (includeManualTests || !readiness.ManualTest));
+                queue.EvasionPlannedMovements.Remove(villageId);
+                queue.EvasionCompletedArrivals.Remove(villageId);
             }
+            incomingTroopsMonitor.ResetEvasion(accountId, villageId);
             rxQueue.Enqueue(new TasksModified(accountId));
         }
 
@@ -400,5 +402,7 @@ namespace MainCore.Services
         public StatusEnums Status { get; set; } = StatusEnums.Offline;
         public CancellationTokenSource? CancellationTokenSource { get; set; }
         public List<BaseTask> Tasks { get; } = [];
+        internal Dictionary<VillageId, HashSet<long>> EvasionPlannedMovements { get; } = [];
+        internal Dictionary<VillageId, Dictionary<long, DateTime>> EvasionCompletedArrivals { get; } = [];
     }
 }
