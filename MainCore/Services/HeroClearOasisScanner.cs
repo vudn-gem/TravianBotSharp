@@ -79,11 +79,15 @@ namespace MainCore.Services
                 if (await targetLink.CountAsync() != 1 || await targetLink.GetAttributeAsync("href") != target.Href)
                     return Stop.Error.WithError("Hero oasis target changed while opening it.");
                 var continueScanning = false;
+                var activateOasisInRaidLists = false;
                 var result = await FarmTargetOasisTab.Run(browser, target.Href, targetLink, oasisPage =>
                     ProcessTargetInOasisTab(task, settings, troopSettings, target, owner.Value, oasisPage,
-                        cancellationToken, () => continueScanning = true));
+                        cancellationToken, () => continueScanning = true,
+                        () => activateOasisInRaidLists = true));
                 if (result.IsFailed) return result;
                 if (continueScanning) continue;
+                if (activateOasisInRaidLists)
+                    await ActivateOasisInRaidLists(owner.Value, target, cancellationToken);
                 return result;
             }
         }
@@ -96,12 +100,14 @@ namespace MainCore.Services
             VillageId owner,
             IPage page,
             CancellationToken cancellationToken,
-            Action continueScanning)
+            Action continueScanning,
+            Action activateOasisInRaidLists)
         {
             var animals = await FarmTargetTroopsParser.ReadOasisAnimalTroops(page, target.Href);
             if (animals.IsFailed) return Stop.Error.WithErrors(animals.Errors);
             var animalCount = animals.Value.Sum(x => x.Count);
             var troopOnly = settings.UseTroop && (animalCount == 0 || animalCount < settings.MinAnimal);
+            var safeHeroClear = !troopOnly && HeroOasisSettings.AllowsSafeClear(settings, animals.Value);
             int[]? troopArmy = null;
             var simulationPrepared = false;
             if (troopOnly)
@@ -137,7 +143,7 @@ namespace MainCore.Services
                 continueScanning();
                 return Result.Ok();
             }
-            if (troopOnly || HeroOasisSettings.AllowsSafeClear(settings, animals.Value))
+            if (troopOnly || safeHeroClear)
             {
                 var opened = await OpenRaidUnoccupiedOasisFromDialog(target.Href);
                 if (opened.IsFailed) return Stop.Error.WithErrors(opened.Errors);
@@ -248,10 +254,97 @@ namespace MainCore.Services
                 .AddMilliseconds(task.TaskBufferMilliseconds <= 0 ? 1000 : task.TaskBufferMilliseconds);
             task.ConfirmationAttempted = false;
             task.SentRaidThisRun = true;
+            if (settings.ActivateOasisInRaidLists && (safeHeroClear || troopOnly))
+                activateOasisInRaidLists();
             browser.Logger.Information(
                 "{RaidType} raid sent to oasis ({Coordinates}); next target scheduled at {ExecuteAt:yyyy-MM-dd HH:mm:ss}",
                 troopOnly ? "Troop-only" : "Hero", target.Coordinates, task.ExecuteAt);
             return Result.Ok();
+        }
+
+        private async Task ActivateOasisInRaidLists(
+            VillageId owner, FarmTargetSlot target, CancellationToken cancellationToken)
+        {
+            var page = browser.CurrentPage;
+            List<FarmDto> farmLists;
+            try
+            {
+                farmLists = await FarmListParser.GetFarmInfo(page);
+            }
+            catch (PlaywrightException ex)
+            {
+                browser.Logger.Warning("Unable to read Raid/Hard farm lists after sending oasis ({Coordinates}): {ErrorType}",
+                    target.Coordinates, ex.GetType().Name);
+                return;
+            }
+
+            foreach (var farm in farmLists.Where(x => IsRaidOrHardList(x.Name) && x.Id.Value > 0))
+            {
+                try
+                {
+                    var listOwner = await FarmTargetTroopsParser.ReadOwnerVillage(page, farm.Id);
+                    if (listOwner.IsFailed || listOwner.Value != owner) continue;
+
+                    var prepared = await FarmListPreparation.Prepare(browser, farm.Id, owner);
+                    if (prepared.IsFailed)
+                    {
+                        browser.Logger.Warning("Unable to inspect farm list {FarmListId} after sending oasis ({Coordinates}): {Reason}",
+                            farm.Id.Value, target.Coordinates, prepared.Errors[0].Message);
+                        continue;
+                    }
+
+                    var targets = await FarmTargetTroopsParser.ReadTargets(page, farm.Id);
+                    if (targets.IsFailed)
+                    {
+                        browser.Logger.Warning("Unable to read targets in farm list {FarmListId} after sending oasis ({Coordinates}): {Reason}",
+                            farm.Id.Value, target.Coordinates, targets.Errors[0].Message);
+                        continue;
+                    }
+
+                    var matchingTarget = targets.Value.FirstOrDefault(x =>
+                        x.Disabled && SameCoordinates(x.Href, target.Href));
+                    if (matchingTarget is null) continue;
+
+                    var activated = await FarmTargetDeactivator.ActivateFromFarmList(
+                        browser, farm.Id, matchingTarget, cancellationToken);
+                    if (activated.IsFailed)
+                    {
+                        browser.Logger.Warning("Unable to activate oasis ({Coordinates}) in farm list {FarmListId}: {Reason}",
+                            target.Coordinates, farm.Id.Value, activated.Errors[0].Message);
+                        continue;
+                    }
+
+                    prepared = await FarmListPreparation.Prepare(browser, farm.Id, owner);
+                    if (prepared.IsFailed ||
+                        !await FarmTargetDeactivator.IsConfirmed(page, farm.Id, matchingTarget, activate: true))
+                    {
+                        browser.Logger.Warning("Activation of oasis ({Coordinates}) in farm list {FarmListId} was not confirmed",
+                            target.Coordinates, farm.Id.Value);
+                        continue;
+                    }
+
+                    browser.Logger.Information("Oasis ({Coordinates}) activated in farm list {FarmListId}",
+                        target.Coordinates, farm.Id.Value);
+                }
+                catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+                {
+                    browser.Logger.Warning("Unable to activate oasis ({Coordinates}) in farm list {FarmListId} ({ErrorType})",
+                        target.Coordinates, farm.Id.Value, ex.GetType().Name);
+                }
+            }
+        }
+
+        private static bool IsRaidOrHardList(string name) =>
+            name.EndsWith("Raid", StringComparison.OrdinalIgnoreCase) ||
+            name.EndsWith("Hard", StringComparison.OrdinalIgnoreCase);
+
+        private static bool SameCoordinates(string firstHref, string secondHref)
+        {
+            if (!Uri.TryCreate(new Uri("https://example.com"), firstHref, out var first) ||
+                !Uri.TryCreate(new Uri("https://example.com"), secondHref, out var second))
+                return false;
+            return HeroOasisParser.Query(first, "x") == HeroOasisParser.Query(second, "x") &&
+                HeroOasisParser.Query(first, "y") == HeroOasisParser.Query(second, "y");
         }
 
         private void SkipTarget(HeroClearFarmOasisTask.Task task, FarmTargetSlot target, string reason)

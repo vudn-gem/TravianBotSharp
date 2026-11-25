@@ -74,7 +74,7 @@ namespace MainCore.Test
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
-        public void RoundTripsUseTroopWithoutChangingHeroArmy(bool useTroop)
+        public void RoundTripsHeroOasisFlagsWithoutChangingHeroArmy(bool useTroop)
         {
             RxAppBuilder.CreateReactiveUIBuilder().WithCoreServices().BuildApp();
             var setting = new HeroOasisSetting
@@ -87,6 +87,9 @@ namespace MainCore.Test
             var saved = input.Get(11);
             saved.FarmId.ShouldBe(11);
             saved.UseTroop.ShouldBe(useTroop);
+            saved.ActivateOasisInRaidLists.ShouldBeTrue();
+            input.ActivateOasisInRaidLists = false;
+            input.Get(11).ActivateOasisInRaidLists.ShouldBeFalse();
             HeroOasisSettings.Troops(saved).ShouldBe([0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1]);
         }
 

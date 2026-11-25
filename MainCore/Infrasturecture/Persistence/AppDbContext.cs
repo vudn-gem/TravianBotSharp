@@ -81,6 +81,7 @@ namespace MainCore.Infrasturecture.Persistence
                     "Marksmen" INTEGER NOT NULL DEFAULT 1,
                     "Marauders" INTEGER NOT NULL DEFAULT 1,
                     "UseTroop" INTEGER NOT NULL DEFAULT 0,
+                    "ActivateOasisInRaidLists" INTEGER NOT NULL DEFAULT 1,
                     "MinHeroHealth" INTEGER NOT NULL DEFAULT 50,
                     "MaxHeroHealthLost" INTEGER NOT NULL DEFAULT 10,
                     "MaxSubTroopLost" INTEGER NOT NULL DEFAULT 0,
@@ -93,6 +94,8 @@ namespace MainCore.Infrasturecture.Persistence
                 Database.ExecuteSqlRaw("""ALTER TABLE "HeroOasisSettings" ADD COLUMN "SafeAnimal" INTEGER NOT NULL DEFAULT 0""");
             if (!heroColumns.Contains("UseTroop"))
                 Database.ExecuteSqlRaw("""ALTER TABLE "HeroOasisSettings" ADD COLUMN "UseTroop" INTEGER NOT NULL DEFAULT 0""");
+            if (!heroColumns.Contains("ActivateOasisInRaidLists"))
+                Database.ExecuteSqlRaw("""ALTER TABLE "HeroOasisSettings" ADD COLUMN "ActivateOasisInRaidLists" INTEGER NOT NULL DEFAULT 1""");
             var heroSettingsFarms = HeroOasisSettings.Select(x => x.FarmId).ToHashSet();
             foreach (var farmId in FarmLists.Select(x => x.Id).ToList())
             {

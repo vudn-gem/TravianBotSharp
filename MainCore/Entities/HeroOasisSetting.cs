@@ -15,6 +15,7 @@ namespace MainCore.Entities
         public int Marksmen { get; set; } = 1;
         public int Marauders { get; set; } = 1;
         public bool UseTroop { get; set; }
+        public bool ActivateOasisInRaidLists { get; set; } = true;
         public int MinHeroHealth { get; set; } = 50;
         public int MaxHeroHealthLost { get; set; } = 10;
         public int MaxSubTroopLost { get; set; }

@@ -105,6 +105,8 @@
                             </WrapPanel>
                             <CheckBox x:Name="HeroUseTroop" Content="Use troop to clear weak oasis" Margin="0,8,0,4" />
                             <TextBlock Text="Use saved Clear oasis settings for empty oasis or animal counts below Min animal (no hero). When off, skip counts at or below Min animal." TextWrapping="Wrap" />
+                            <CheckBox x:Name="HeroActivateOasisInRaidLists" Content="Activate cleared oasis in Raid/Hard farm lists" Margin="0,8,0,4"
+                                      ToolTip="After a safe hero clear or troop-only raid, activate the matching oasis in same-village farm lists ending in Raid or Hard" />
                             <TextBlock Text="Allowed oasis animals" FontWeight="SemiBold" Margin="0,8,0,4" />
                             <WrapPanel>
                                 <CheckBox x:Name="HeroAllowRat" Content="Rat" Margin="0,0,12,4" />

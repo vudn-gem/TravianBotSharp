@@ -121,6 +121,82 @@ namespace MainCore.Test
         }
 
         [Theory]
+        [InlineData(true, 2)]
+        [InlineData(false, 0)]
+        public async Task ActivatesSafeHeroClearOasisInRaidAndHardListsAfterClosingSendTab(
+            bool matchingTargetExists, int expectedActivations)
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, safeAnimal: 10,
+                includeRaidLists: true, relatedListMatchesTarget: matchingTargetExists);
+            try
+            {
+                outcome.Result.IsSuccess.ShouldBeTrue(outcome.Details);
+                outcome.Confirms.ShouldBe(1);
+                outcome.Simulates.ShouldBe(0);
+                outcome.FlowEvents.Count(x => x.StartsWith("activate-", StringComparison.Ordinal))
+                    .ShouldBe(expectedActivations);
+                if (expectedActivations > 0)
+                {
+                    outcome.FlowEvents.IndexOf("confirm").ShouldBeLessThan(outcome.FlowEvents.IndexOf("close-send-tab"));
+                    outcome.FlowEvents.IndexOf("close-send-tab").ShouldBeLessThan(outcome.FlowEvents.IndexOf("activate-11"));
+                    outcome.FlowEvents.IndexOf("close-send-tab").ShouldBeLessThan(outcome.FlowEvents.IndexOf("activate-12"));
+                    outcome.FlowEvents.ShouldNotContain("activate-13");
+                }
+                foreach (var farmId in new[] { 11, 12 })
+                    (await FarmTargetTroopsParser.GetList(outcome.Context.Pages[0], new FarmId(farmId))
+                        .Locator("tr.slot").EvaluateAsync<bool>("node => node.classList.contains('disabled')"))
+                        .ShouldBe(matchingTargetExists ? false : true);
+                (await FarmTargetTroopsParser.GetList(outcome.Context.Pages[0], new FarmId(13))
+                    .Locator("tr.slot").EvaluateAsync<bool>("node => node.classList.contains('disabled')"))
+                    .ShouldBeTrue();
+            }
+            finally
+            {
+                await outcome.Context.DisposeAsync();
+            }
+        }
+
+        [Fact]
+        public async Task DoesNotActivateRelatedFarmListsWhenSettingIsDisabled()
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, safeAnimal: 10,
+                includeRaidLists: true, activateOasisInRaidLists: false);
+            try
+            {
+                outcome.Result.IsSuccess.ShouldBeTrue(outcome.Details);
+                outcome.Confirms.ShouldBe(1);
+                outcome.FlowEvents.ShouldNotContain("activate-11");
+                outcome.FlowEvents.ShouldNotContain("activate-12");
+            }
+            finally
+            {
+                await outcome.Context.DisposeAsync();
+            }
+        }
+
+        [Fact]
+        public async Task ActivatesRelatedFarmListsForTroopOnlyRaidAfterClosingSendTab()
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, animalCount: 0,
+                minAnimal: 1, raidSteppe: 1, safeAnimal: 10, includeRaidLists: true);
+            try
+            {
+                outcome.Result.IsSuccess.ShouldBeTrue(outcome.Details);
+                outcome.Confirms.ShouldBe(1);
+                outcome.Simulates.ShouldBe(0);
+                outcome.FlowEvents.IndexOf("confirm").ShouldBeLessThan(outcome.FlowEvents.IndexOf("close-send-tab"));
+                outcome.FlowEvents.IndexOf("close-send-tab").ShouldBeLessThan(outcome.FlowEvents.IndexOf("activate-11"));
+                outcome.FlowEvents.IndexOf("close-send-tab").ShouldBeLessThan(outcome.FlowEvents.IndexOf("activate-12"));
+                outcome.FlowEvents.Count(x => x.StartsWith("activate-", StringComparison.Ordinal))
+                    .ShouldBe(2);
+            }
+            finally
+            {
+                await outcome.Context.DisposeAsync();
+            }
+        }
+
+        [Theory]
         [InlineData(false, 1, 0)]
         [InlineData(true, 0, 0)]
         public async Task DoesNotSendWithoutHeroOrEnoughSubTroops(bool hero, int availableMarauders, int expected)
@@ -478,7 +554,8 @@ namespace MainCore.Test
         private sealed record Outcome(
             Result Result, HeroClearFarmOasisTask.Task Task, HeroOasisSetting Settings,
             HeroClearOasisScanner Scanner, IBrowserContext Context, int Confirms, int Simulates,
-            string Details, bool MainTabOpenedSendTroops, int MainTabFarmListNavigations, OasisRaidSettings TroopSettings);
+            string Details, bool MainTabOpenedSendTroops, int MainTabFarmListNavigations,
+            OasisRaidSettings TroopSettings, List<string> FlowEvents);
 
         private async Task<Outcome> Run(
             int health, int after, int minimum, int maxHealthLost, int lost, int maxTroopLost,
@@ -489,7 +566,9 @@ namespace MainCore.Test
             int heroVillage = 2, bool failSendInput = false, int animalCount = 8, int minAnimal = 1,
             int raidSteppe = 0, bool allowAnimals = true, bool unexpectedRaidHero = false,
             int raidMarksmen = 0, int raidMarauders = 0, bool useTroop = true,
-            bool? clearAllowsAnimals = null, int clearLimit = 0, bool wrongPrefilledTroops = false)
+            bool? clearAllowsAnimals = null, int clearLimit = 0, bool wrongPrefilledTroops = false,
+            int safeAnimal = 0, bool includeRaidLists = false, bool relatedListMatchesTarget = true,
+            bool activateOasisInRaidLists = true)
         {
             var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
@@ -498,13 +577,15 @@ namespace MainCore.Test
             var simulates = 0;
             var simulatorSent = false;
             var sendInputs = new List<string>();
+            var flowEvents = new List<string>();
             var mainTabOpenedSendTroops = false;
             var mainTabFarmListNavigations = 0;
             var settings = new HeroOasisSetting
             {
                 FarmId = 10, AllowedAnimals = 1, MinHeroHealth = minimum,
                 MaxHeroHealthLost = maxHealthLost, MaxSubTroopLost = maxTroopLost,
-                MinAnimal = minAnimal, UseTroop = useTroop,
+                MinAnimal = minAnimal, SafeAnimal = safeAnimal, UseTroop = useTroop,
+                ActivateOasisInRaidLists = activateOasisInRaidLists,
             };
             if (!allowAnimals) settings.AllowedAnimals = 0;
             if (heroOnly)
@@ -549,6 +630,25 @@ namespace MainCore.Test
                 confirmationInputs = confirmationInputs.Replace("<input type='hidden' name='troops[0][t1]' value='0'>", "");
             var returnUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds();
             var switched = !switchVillage;
+            var relatedFarmLists = includeRaidLists
+                ? string.Concat(new[]
+                {
+                    (Id: 11, Name: "Candidate Raid"),
+                    (Id: 12, Name: "Candidate Hard"),
+                    (Id: 13, Name: "Candidate Normal"),
+                }.Select(farm => $$"""
+                    <div class="farmListWrapper expanded"><div class="farmListHeader">
+                    <div class="dragAndDrop" data-list="{{farm.Id}}"></div>
+                    <div class="farmListName"><div class="name">{{farm.Name}}</div></div></div>
+                    <table class="slots"><tbody><tr class="slot disabled">
+                    <td><input name="selectOne" data-slot-id="{{farm.Id}}"></td>
+                    <td class="target"><a href="/karte.php?x={{(relatedListMatchesTarget ? "-125" : "-126")}}&amp;y=-6">Oasis</a></td>
+                    <td class="actions"><button class="menuButton" onclick="this.nextElementSibling.hidden=false">Menu</button>
+                    <div class="menu" hidden><button data-action="activate"
+                    onclick="this.closest('tr.slot').classList.remove('disabled');this.closest('.menu').hidden=true">Activate</button></div></td>
+                    </tr></tbody></table></div>
+                    """))
+                : "";
             await context.RouteAsync("https://example.com/**", async route =>
             {
                 var uri = new Uri(route.Request.Url);
@@ -651,7 +751,9 @@ namespace MainCore.Test
                 else
                     body = $"""
                         <div id="rallyPointFarmList"><div class="villageWrapper"><div class="villageHeader"><div class="villageName">Home</div></div>
-                        <div class="farmListWrapper expanded"><div class="farmListHeader"><div data-list="10"></div></div>
+                        <div class="farmListWrapper expanded"><div class="farmListHeader">
+                        <div class="dragAndDrop" data-list="10"></div>
+                        <div class="farmListName"><div class="name">Clear list</div></div></div>
                         <table class="slots"><tbody>
                         {(skipFirst ? """
                             <tr class="slot"><td><input name="selectOne" data-slot-id="0"></td>
@@ -659,7 +761,7 @@ namespace MainCore.Test
                             """ : "")}
                         <tr class="slot"><td><input name="selectOne" data-slot-id="1"></td>
                         <td class="target"><a href="/karte.php?x=-125&amp;y=-6" onclick="document.querySelector('#dialogContent').innerHTML=document.querySelector('#tileTemplate').innerHTML;return false">Oasis</a></td>
-                        </tr></tbody></table></div></div></div><div id="dialogContent"></div>
+                        </tr></tbody></table></div>{relatedFarmLists}</div></div><div id="dialogContent"></div>
                         <template id="tileTemplate"><div id="tileDetails" class="oasis">
                         <a data-centermap href="/karte.php?x=-125&amp;y=-6">Center</a>
                         <a href="/build.php?tt=2&amp;targetMapId=82682">Raid</a>
@@ -699,7 +801,11 @@ namespace MainCore.Test
             });
             browser.CloseNewTab().Returns(async _ =>
             {
-                if (currentPage != page) await currentPage.CloseAsync();
+                if (currentPage != page)
+                {
+                    flowEvents.Add("close-send-tab");
+                    await currentPage.CloseAsync();
+                }
                 currentPage = page;
                 return Result.Ok();
             });
@@ -709,6 +815,13 @@ namespace MainCore.Test
             {
                 var locator = (ILocator)call[0];
                 var id = await locator.GetAttributeAsync("id");
+                var action = await locator.GetAttributeAsync("data-action");
+                if (action == "activate")
+                {
+                    var farmId = await locator.EvaluateAsync<string>(
+                        "node => node.closest('.farmListWrapper')?.querySelector('[data-list]')?.getAttribute('data-list') ?? ''");
+                    flowEvents.Add($"activate-{farmId}");
+                }
                 if (id == "simulate")
                 {
                     simulates++;
@@ -733,7 +846,11 @@ namespace MainCore.Test
                                 ? (wrongPrefilledTroops && i == 1 ? army[i - 1] + 1 : army[i - 1]).ToString()
                                 : army[i - 1] == 0 ? "" : army[i - 1].ToString());
                 }
-                if (id == "confirmSendTroops") confirms++;
+                if (id == "confirmSendTroops")
+                {
+                    confirms++;
+                    flowEvents.Add("confirm");
+                }
                 await locator.ClickAsync();
                 await currentPage.WaitForLoadStateAsync();
                 return Result.Ok();
@@ -767,7 +884,7 @@ namespace MainCore.Test
             var details = string.Join("; ", result.Errors.Select(x => x.Message)) + " " +
                 string.Join("; ", logger.ReceivedCalls().Select(call => string.Join(" ", call.GetArguments())));
             return new(result, task, settings, scanner, context, confirms, simulates, details,
-                mainTabOpenedSendTroops, mainTabFarmListNavigations, troopSettings);
+                mainTabOpenedSendTroops, mainTabFarmListNavigations, troopSettings, flowEvents);
         }
 
         private static string HiddenArmy(string prefix, int[] army, bool blankZeros = false) =>

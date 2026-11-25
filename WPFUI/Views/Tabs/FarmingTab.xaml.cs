@@ -44,6 +44,7 @@ namespace WPFUI.Views.Tabs
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.Marksmen, v => v.HeroMarksmen.ViewModel).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.Marauders, v => v.HeroMarauders.ViewModel).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.HeroOasisSettingInput.UseTroop, v => v.HeroUseTroop.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.HeroOasisSettingInput.ActivateOasisInRaidLists, v => v.HeroActivateOasisInRaidLists.IsChecked).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.MinHeroHealth, v => v.HeroMinHealth.ViewModel).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.MaxHeroHealthLost, v => v.HeroMaxHealthLost.ViewModel).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.HeroOasisSettingInput.MaxSubTroopLost, v => v.HeroMaxSubTroopLost.ViewModel).DisposeWith(d);

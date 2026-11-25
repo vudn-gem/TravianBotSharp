@@ -142,11 +142,19 @@ villages if needed; it does not open Send troops just to check hero availability
 For each target, TBS opens the oasis in a temporary tab, checks its animals, and
 simulates or prepares the raid in that tab. The main tab stays on the farm list.
 Hero availability is checked again on the send form before a hero dispatch. After
-sending, the temporary tab closes and the task waits until the hero returns and
-the task delay buffer elapses. On resumption TBS reopens the Farm List to refresh
-the hero state before continuing, even if the main tab was already on that page.
-Each eligible hero raid is simulated with the configured army. TBS checks
-real troop availability and requires the
+sending, the temporary tab closes.
+When an allowed oasis is within the configured **Safe animal** range and the
+hero raid is sent without simulation, TBS also checks same-village farm lists
+whose names end in **Raid** or **Hard**. After closing the send tab, it activates
+the matching oasis `(x|y)` in those lists when present; missing matches are left
+alone. Simulated hero raids do not trigger this activation. Troop-only hero-clear
+raids also activate a matching oasis after sending. The task then waits until the
+hero returns and the task delay buffer elapses. On resumption TBS reopens the
+Farm List to refresh the hero state before continuing, even if the main tab was
+already on that page. **Activate cleared oasis in Raid/Hard farm lists** controls
+this behavior and is on by default.
+Hero raids outside the safe range are simulated with the configured army. TBS
+checks real troop availability and requires the
 confirmation army, village, coordinates and raid type to match the simulation
 exactly. Missing or reduced troops are never silently accepted.
 Troop-only raids also validate the exact army (including no hero), village,

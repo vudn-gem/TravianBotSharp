@@ -319,7 +319,7 @@ namespace MainCore.Test
         }
 
         [Fact]
-        public void UpgradesHeroUseTroopWithDisabledDefaultAndPreservesSavedValues()
+        public void UpgradesHeroOasisFlagsWithDefaultsAndPreservesSavedValues()
         {
             _context.Database.ExecuteSqlRaw("DROP TABLE \"HeroOasisSettings\"");
             _context.Database.ExecuteSqlRaw("""
@@ -342,13 +342,16 @@ namespace MainCore.Test
             var setting = _context.HeroOasisSettings.Single(x => x.FarmId == 10);
             setting.MinAnimal.ShouldBe(5);
             setting.UseTroop.ShouldBeFalse();
+            setting.ActivateOasisInRaidLists.ShouldBeTrue();
             setting.AllowedAnimals.ShouldBe(0);
             setting.UseTroop = true;
+            setting.ActivateOasisInRaidLists = false;
             _context.SaveChanges();
             _context.InitializeFarmOasisSettings();
             _context.ChangeTracker.Clear();
             setting = _context.HeroOasisSettings.Single(x => x.FarmId == 10);
             setting.UseTroop.ShouldBeTrue();
+            setting.ActivateOasisInRaidLists.ShouldBeFalse();
             _context.HeroOasisSettings.Single(x => x.FarmId == 11).UseTroop.ShouldBeFalse();
         }
 

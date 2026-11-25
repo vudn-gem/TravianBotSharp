@@ -13,6 +13,7 @@ namespace MainCore.UI.Models.Input
         public AmountInputViewModel Marksmen { get; } = new();
         public AmountInputViewModel Marauders { get; } = new();
         [Reactive] private bool _useTroop;
+        [Reactive] private bool _activateOasisInRaidLists = true;
         public AmountInputViewModel MinHeroHealth { get; } = new();
         public AmountInputViewModel MaxHeroHealthLost { get; } = new();
         public AmountInputViewModel MaxSubTroopLost { get; } = new();
@@ -27,6 +28,7 @@ namespace MainCore.UI.Models.Input
             Marksmen.Set(setting.Marksmen);
             Marauders.Set(setting.Marauders);
             UseTroop = setting.UseTroop;
+            ActivateOasisInRaidLists = setting.ActivateOasisInRaidLists;
             MinHeroHealth.Set(setting.MinHeroHealth);
             MaxHeroHealthLost.Set(setting.MaxHeroHealthLost);
             MaxSubTroopLost.Set(setting.MaxSubTroopLost);
@@ -43,6 +45,7 @@ namespace MainCore.UI.Models.Input
             Marksmen = Marksmen.Get(),
             Marauders = Marauders.Get(),
             UseTroop = UseTroop,
+            ActivateOasisInRaidLists = ActivateOasisInRaidLists,
             MinHeroHealth = MinHeroHealth.Get(),
             MaxHeroHealthLost = MaxHeroHealthLost.Get(),
             MaxSubTroopLost = MaxSubTroopLost.Get(),
