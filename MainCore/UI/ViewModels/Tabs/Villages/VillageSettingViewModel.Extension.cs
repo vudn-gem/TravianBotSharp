@@ -4,6 +4,18 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
     {
         public static void TriggerTask(this AppDbContext context, TaskManager taskManager, AccountId accountId, VillageId villageId, Dictionary<VillageSettingEnums, int> settings)
         {
+            if (settings.Keys.Any(key => key is VillageSettingEnums.EvasionEnable or
+                VillageSettingEnums.EvasionTrainTroop or VillageSettingEnums.EvasionResourceVillage or
+                VillageSettingEnums.EvasionTroopEnable or VillageSettingEnums.EvasionX or
+                VillageSettingEnums.EvasionY or VillageSettingEnums.EvasionLeadSeconds))
+            {
+                taskManager.RemoveEvasion(accountId, villageId);
+                if (new CheckIncomingTroopsTask.Task(accountId).CanStart(context))
+                    taskManager.ScheduleIncomingScan(accountId, DateTime.Now);
+                else taskManager.Remove<CheckIncomingTroopsTask.Task>(accountId);
+                taskManager.UpdateScheduledMonitoring(accountId, context);
+            }
+
             if (settings.ContainsKey(VillageSettingEnums.CompleteImmediately))
             {
                 if (settings[VillageSettingEnums.CompleteImmediately] == 1)

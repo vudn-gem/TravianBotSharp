@@ -35,11 +35,11 @@ namespace MainCore.Services
             }
         }
 
-        public DateTime GetFallbackExecuteAt(AccountId accountId)
+        public DateTime GetFallbackExecuteAt(AccountId accountId, bool evasion = false)
         {
             lock (_sync)
             {
-                var remaining = TimeSpan.FromMinutes(10);
+                var remaining = TimeSpan.FromMinutes(evasion ? 1 : 10);
                 if (_lastScans.TryGetValue(accountId, out var last))
                 {
                     remaining -= timeProvider.GetElapsedTime(last, timeProvider.GetTimestamp());
@@ -48,17 +48,19 @@ namespace MainCore.Services
             }
         }
 
-        public void Observe(AccountId accountId, Guid sessionId, List<IncomingVillage> villages, string accountName)
+        public bool Observe(AccountId accountId, Guid sessionId, List<IncomingVillage> villages, string accountName, bool notify = true)
         {
             lock (_sync)
             {
-                if (!_sessions.TryGetValue(accountId, out var session) || session.Id != sessionId) return;
+                if (!_sessions.TryGetValue(accountId, out var session) || session.Id != sessionId) return false;
+                var changed = false;
                 foreach (var village in villages)
                 {
                     ArgumentOutOfRangeException.ThrowIfNegative(village.Attacks);
                     ArgumentOutOfRangeException.ThrowIfNegative(village.Raids);
                     var previous = session.Villages.GetValueOrDefault(village.Id);
-                    if (village.Attacks > previous.Attacks || village.Raids > previous.Raids)
+                    changed |= previous != (village.Attacks, village.Raids);
+                    if (notify && (village.Attacks > previous.Attacks || village.Raids > previous.Raids))
                     {
                         outbox.Enqueue(accountId,
                             $"[TBS] Incoming attack/raid\nAccount: {Limit(accountName, 200)}\nVillage: {Limit(village.Name, 200)} (ID {village.Id})\nCoordinates: {Limit(village.Coordinates, 60)}\nIncoming attacks: {previous.Attacks} -> {village.Attacks}\nIncoming raids: {previous.Raids} -> {village.Raids}\nDetected: {timeProvider.GetLocalNow():yyyy-MM-dd HH:mm:ss zzz}");
@@ -66,6 +68,7 @@ namespace MainCore.Services
                     session.Villages[village.Id] = (village.Attacks, village.Raids);
                 }
                 // Missing rows (e.g. collapsed groups) do not mean their incoming has cleared.
+                return changed;
             }
         }
 

@@ -205,7 +205,7 @@ namespace MainCore.Parsers
             return Result.Ok(new RallyPointDraft(steppe, marksman, marauder, sendTroopsUrl));
         }
 
-        private static bool TryParseTroopCount(string text, out long count)
+        internal static bool TryParseTroopCount(string text, out long count)
         {
             var cleaned = new string(text.Where(c =>
                 !char.IsWhiteSpace(c) && c is not '\u200e' and not '\u200f' &&

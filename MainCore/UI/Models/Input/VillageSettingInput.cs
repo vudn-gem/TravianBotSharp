@@ -65,6 +65,26 @@ namespace MainCore.UI.Models.Input
         [Reactive]
         private int _completeImmediatelyTime;
 
+        [Reactive]
+        private bool _evasionEnable;
+
+        public TroopSelectorViewModel EvasionTrainTroop { get; } = new();
+
+        [Reactive]
+        private int _evasionResourceVillage;
+
+        [Reactive]
+        private bool _evasionTroopEnable;
+
+        [Reactive]
+        private int _evasionX;
+
+        [Reactive]
+        private int _evasionY;
+
+        [Reactive]
+        private int _evasionLeadSeconds = 120;
+
         public void Set(Dictionary<VillageSettingEnums, int> settings)
         {
             var tribe = (TribeEnums)settings.GetValueOrDefault(VillageSettingEnums.Tribe);
@@ -127,6 +147,13 @@ namespace MainCore.UI.Models.Input
 
             AutoClaimQuestEnable = settings.GetValueOrDefault(VillageSettingEnums.AutoClaimQuestEnable) == 1;
             CompleteImmediatelyTime = settings.GetValueOrDefault(VillageSettingEnums.CompleteImmediatelyTime);
+            EvasionEnable = settings.GetValueOrDefault(VillageSettingEnums.EvasionEnable) == 1;
+            EvasionTrainTroop.Set((TroopEnums)settings.GetValueOrDefault(VillageSettingEnums.EvasionTrainTroop), null, tribe);
+            EvasionResourceVillage = settings.GetValueOrDefault(VillageSettingEnums.EvasionResourceVillage);
+            EvasionTroopEnable = settings.GetValueOrDefault(VillageSettingEnums.EvasionTroopEnable) == 1;
+            EvasionX = settings.GetValueOrDefault(VillageSettingEnums.EvasionX);
+            EvasionY = settings.GetValueOrDefault(VillageSettingEnums.EvasionY);
+            EvasionLeadSeconds = settings.GetValueOrDefault(VillageSettingEnums.EvasionLeadSeconds, 120);
         }
 
         public Dictionary<VillageSettingEnums, int> Get()
@@ -205,6 +232,13 @@ namespace MainCore.UI.Models.Input
                 { VillageSettingEnums.AutoRefreshMax, autoRefreshMax },
                 { VillageSettingEnums.AutoClaimQuestEnable, autoClaimQuestEnable },
                 { VillageSettingEnums.CompleteImmediatelyTime, completeImmediatelyTime },
+                { VillageSettingEnums.EvasionEnable, EvasionEnable ? 1 : 0 },
+                { VillageSettingEnums.EvasionTrainTroop, (int)EvasionTrainTroop.Get() },
+                { VillageSettingEnums.EvasionResourceVillage, EvasionResourceVillage },
+                { VillageSettingEnums.EvasionTroopEnable, EvasionTroopEnable ? 1 : 0 },
+                { VillageSettingEnums.EvasionX, EvasionX },
+                { VillageSettingEnums.EvasionY, EvasionY },
+                { VillageSettingEnums.EvasionLeadSeconds, EvasionLeadSeconds },
             };
             return settings;
         }
@@ -220,6 +254,7 @@ namespace MainCore.UI.Models.Input
                     GreatBarrackTroop.ChangeTribe(BuildingEnums.GreatBarracks, tribe);
                     GreatStableTroop.ChangeTribe(BuildingEnums.GreatStable, tribe);
                     WorkshopTroop.ChangeTribe(BuildingEnums.Workshop, tribe);
+                    EvasionTrainTroop.ChangeTribe(null, tribe);
                 });
         }
     }

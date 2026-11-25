@@ -73,6 +73,12 @@ namespace MainCore.Services
                 case CheckIncomingTroopsTask.Task incomingTask:
                     return await scope.GetHandler<CheckIncomingTroopsTask.Task>().HandleAsync(incomingTask, cancellationToken);
 
+                case InspectEvasionTask.Task inspectEvasionTask:
+                    return await scope.GetHandler<InspectEvasionTask.Task>().HandleAsync(inspectEvasionTask, cancellationToken);
+
+                case EvasionReadinessTask.Task evasionReadinessTask:
+                    return await scope.GetHandler<EvasionReadinessTask.Task>().HandleAsync(evasionReadinessTask, cancellationToken);
+
                 case ScheduledMonitoringTask.Task monitoringTask:
                     return await scope.GetHandler<ScheduledMonitoringTask.Task>().HandleAsync(monitoringTask, cancellationToken);
 

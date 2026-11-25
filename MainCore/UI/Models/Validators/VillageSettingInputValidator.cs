@@ -8,6 +8,10 @@ namespace MainCore.UI.Models.Validators
     {
         public VillageSettingInputValidator()
         {
+            RuleFor(x => x.EvasionLeadSeconds).InclusiveBetween(1, 3600);
+            RuleFor(x => x.EvasionX).InclusiveBetween(-400, 400).When(x => x.EvasionTroopEnable);
+            RuleFor(x => x.EvasionY).InclusiveBetween(-400, 400).When(x => x.EvasionTroopEnable);
+
             RuleFor(x => x.SpecialUpgradeMinimumMinutes)
                 .GreaterThanOrEqualTo(0)
                 .WithMessage("Special upgrade minimum time ({PropertyValue}) must be non-negative.");

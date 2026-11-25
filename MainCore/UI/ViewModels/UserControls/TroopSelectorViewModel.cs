@@ -17,7 +17,7 @@ namespace MainCore.UI.ViewModels.UserControls
             return SelectedItem?.Troop ?? TroopEnums.None;
         }
 
-        public void ChangeTribe(BuildingEnums building, TribeEnums tribe)
+        public void ChangeTribe(BuildingEnums? building, TribeEnums tribe)
         {
             Items.Clear();
             Items.Add(new(TroopEnums.None));
@@ -30,7 +30,7 @@ namespace MainCore.UI.ViewModels.UserControls
             SelectedItem = Items.FirstOrDefault(x => x.Troop == SelectedItem?.Troop) ?? Items[0];
         }
 
-        public void Set(TroopEnums selectedTroop, BuildingEnums building, TribeEnums tribe)
+        public void Set(TroopEnums selectedTroop, BuildingEnums? building, TribeEnums tribe)
         {
             Items.Clear();
             Items.Add(new(TroopEnums.None));
@@ -42,7 +42,7 @@ namespace MainCore.UI.ViewModels.UserControls
             SelectedItem = Items.FirstOrDefault(x => x.Troop == selectedTroop) ?? Items[0];
         }
 
-        private static List<TroopEnums> GetTroops(BuildingEnums building, TribeEnums tribe)
+        private static List<TroopEnums> GetTroops(BuildingEnums? building, TribeEnums tribe)
         {
             return building switch
             {
@@ -51,6 +51,7 @@ namespace MainCore.UI.ViewModels.UserControls
                 BuildingEnums.GreatBarracks => tribe.GetInfantryTroops(),
                 BuildingEnums.GreatStable => tribe.GetCavalryTroops(),
                 BuildingEnums.Workshop => tribe.GetSiegeTroops(),
+                null => [.. tribe.GetInfantryTroops(), .. tribe.GetCavalryTroops(), .. tribe.GetSiegeTroops()],
                 _ => new List<TroopEnums>(),
             };
         }

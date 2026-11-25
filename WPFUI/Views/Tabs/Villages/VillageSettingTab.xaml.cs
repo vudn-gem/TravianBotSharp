@@ -23,6 +23,7 @@ namespace WPFUI.Views.Tabs.Villages
                 this.BindCommand(ViewModel, vm => vm.ExportCommand, v => v.ExportButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.ImportCommand, v => v.ImportButton).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.SaveCommand, v => v.SaveButton).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.TestEvasionCommand, v => v.TestEvasionButton).DisposeWith(d);
 
                 this.Bind(ViewModel, vm => vm.VillageSettingInput.UseHeroResourceForBuilding, v => v.UseHeroResForBuilding.IsChecked).DisposeWith(d);
                 this.Bind(ViewModel, vm => vm.VillageSettingInput.ApplyRomanQueueLogicWhenBuilding, v => v.UseRomanQueueLogic.IsChecked).DisposeWith(d);
@@ -55,6 +56,14 @@ namespace WPFUI.Views.Tabs.Villages
                 this.OneWayBind(ViewModel, vm => vm.VillageSettingInput.AutoRefreshTime, v => v.AutoRefreshTime.ViewModel).DisposeWith(d);
 
                 this.Bind(ViewModel, vm => vm.VillageSettingInput.AutoClaimQuestEnable, v => v.AutoClaimQuestEnable.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.VillageSettingInput.EvasionEnable, v => v.EvasionEnable.IsChecked).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.VillageSettingInput.EvasionTrainTroop, v => v.EvasionTrainTroop.ViewModel).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.EvasionDestinations, v => v.EvasionResourceVillage.ItemsSource).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.VillageSettingInput.EvasionResourceVillage, v => v.EvasionResourceVillage.SelectedValue).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.VillageSettingInput.EvasionTroopEnable, v => v.EvasionTroopEnable.IsChecked).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.VillageSettingInput.EvasionX, v => v.EvasionX.Text).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.VillageSettingInput.EvasionY, v => v.EvasionY.Text).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.VillageSettingInput.EvasionLeadSeconds, v => v.EvasionLeadSeconds.Text).DisposeWith(d);
             });
         }
     }

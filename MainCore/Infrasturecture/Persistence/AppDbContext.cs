@@ -29,6 +29,22 @@ namespace MainCore.Infrasturecture.Persistence
         public DbSet<FarmOasisSetting> FarmOasisSettings { get; set; }
         public DbSet<HeroOasisSetting> HeroOasisSettings { get; set; }
         public DbSet<ConquestPlan> ConquestPlans { get; set; }
+        public DbSet<EvasionTroopAttempt> EvasionTroopAttempts { get; set; }
+
+        public void InitializeEvasionTroopAttempts()
+        {
+            Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "EvasionTroopAttempts" (
+                    "AccountId" INTEGER NOT NULL,
+                    "VillageId" INTEGER NOT NULL,
+                    "MovementId" INTEGER NOT NULL,
+                    "TargetX" INTEGER NOT NULL,
+                    "TargetY" INTEGER NOT NULL,
+                    "Status" TEXT NOT NULL,
+                    PRIMARY KEY ("AccountId", "VillageId", "MovementId")
+                )
+                """);
+        }
 
         public void InitializeConquestPlans()
         {
@@ -58,6 +74,8 @@ namespace MainCore.Infrasturecture.Persistence
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.Entity<EvasionTroopAttempt>()
+                .HasKey(x => new { x.AccountId, x.VillageId, x.MovementId });
             modelBuilder.Entity<FarmOasisSetting>()
                 .HasOne<Farm>().WithOne()
                 .HasForeignKey<FarmOasisSetting>(x => x.FarmId)
@@ -291,6 +309,13 @@ namespace MainCore.Infrasturecture.Persistence
             {VillageSettingEnums.CompleteImmediatelyTime, 20 },
             {VillageSettingEnums.UpgradeTaskDelayMin, 0 },
             {VillageSettingEnums.UpgradeTaskDelayMax, 0 },
+            {VillageSettingEnums.EvasionEnable, 0 },
+            {VillageSettingEnums.EvasionTrainTroop, 0 },
+            {VillageSettingEnums.EvasionResourceVillage, 0 },
+            {VillageSettingEnums.EvasionTroopEnable, 0 },
+            {VillageSettingEnums.EvasionX, 0 },
+            {VillageSettingEnums.EvasionY, 0 },
+            {VillageSettingEnums.EvasionLeadSeconds, 120 },
         }.ToImmutableDictionary();
 
         public void FillVillageSettings()

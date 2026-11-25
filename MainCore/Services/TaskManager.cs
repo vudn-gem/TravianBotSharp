@@ -276,6 +276,27 @@ namespace MainCore.Services
             AddOrUpdate(new CheckIncomingTroopsTask.Task(accountId) { ExecuteAt = executeAt });
         }
 
+        public void ScheduleEvasionInspection(AccountId accountId, VillageId villageId, bool countsChanged)
+        {
+            if (countsChanged)
+                AddOrUpdate(new InspectEvasionTask.Task(accountId, villageId));
+            else if (!IsExist<InspectEvasionTask.Task>(accountId, villageId))
+                TryAdd(new InspectEvasionTask.Task(accountId, villageId));
+        }
+
+        public void RemoveEvasion(AccountId accountId, VillageId villageId, bool includeManualTests = true)
+        {
+            var queue = GetTaskQueue(accountId);
+            lock (queue)
+            {
+                queue.Tasks.RemoveAll(task =>
+                    task is InspectEvasionTask.Task inspection && inspection.VillageId == villageId ||
+                    task is EvasionReadinessTask.Task readiness && readiness.VillageId == villageId &&
+                        (includeManualTests || !readiness.ManualTest));
+            }
+            rxQueue.Enqueue(new TasksModified(accountId));
+        }
+
         public void UpdateScheduledMonitoring(AccountId accountId, AppDbContext context, bool reschedule = false)
         {
             var enabled = new ScheduledMonitoringTask.Task(accountId).CanStart(context);

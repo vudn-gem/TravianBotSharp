@@ -33,14 +33,23 @@ namespace MainCore.Test
             string timingScenario = "")
         {
             await using var context = await CreateContextAsync();
+            await context.RouteAsync("https://example.com/**", route => route.FulfillAsync(new()
+            {
+                ContentType = "text/html",
+                Body = """
+                    <div id="sidebarBoxVillageList"><div class="listEntry village active" data-did="2"></div>
+                    <div class="quickLinks"><a data-load-tooltip="quickLink" href="/building?id=16&amp;tt=2">
+                    <svg class="RallyPointSendTroops"></svg></a></div></div>
+                    """,
+            }));
+            var mainPage = await context.NewPageAsync();
+            await mainPage.GotoAsync("https://example.com/resources");
             var page = await context.NewPageAsync();
+            await page.GotoAsync("https://example.com/building?id=16&tt=2");
             page.SetDefaultTimeout(3000);
             await page.SetContentAsync("""
-                <div class="contentNavi subNavi">
-                    <a class="tabItem" href="/build.php?id=39&amp;tt=2"
-                       onclick="event.preventDefault(); window.sendTabOpened = true; document.querySelector('#build').hidden = false">Send troops</a>
-                </div>
-                <div id="build" hidden><div class="a2b"><form action="/build.php?id=39&amp;tt=2"></form></div></div>
+                <div id="sidebarBoxVillageList"><div class="listEntry village active" data-did="2"></div></div>
+                <div id="build"><div class="a2b"><form action="/building?id=16&amp;tt=2"></form></div></div>
                 <script>
                 window.waves = [];
                 window.confirmed = false;
@@ -61,7 +70,6 @@ namespace MainCore.Test
                     if (additional) form.id = 'troopSendForm';
                     form.onsubmit = event => {
                         event.preventDefault();
-                        if (!window.sendTabOpened) throw new Error('Send troops tab was not opened');
                         const attackType = additional
                             ? form.querySelector('input[type="hidden"][name="eventType"]')
                             : form.querySelector('input[name="eventType"]:checked');
@@ -134,11 +142,18 @@ namespace MainCore.Test
             var browser = Substitute.For<IChromeBrowser>();
             browser.Logger.Returns(Substitute.For<Serilog.ILogger>());
             browser.IsInitialized.Returns(true);
-            browser.CurrentPage.Returns(page);
-            browser.CurrentUrl.Returns("https://example.com/dorf1.php");
-            browser.OpenNewTab().Returns(Result.Ok());
-            browser.CloseNewTab().Returns(Result.Ok());
-            browser.Navigate(Arg.Any<string>()).Returns(Result.Ok());
+            var currentPage = mainPage;
+            browser.CurrentPage.Returns(_ => currentPage);
+            browser.Click(Arg.Any<ILocator>(), true, Arg.Any<string>()).Returns(_ =>
+            {
+                currentPage = page;
+                return Result.Ok();
+            });
+            browser.CloseNewTab().Returns(_ =>
+            {
+                currentPage = mainPage;
+                return Result.Ok();
+            });
             var inputs = new List<(string? Name, string Value)>();
             browser.Input(Arg.Any<ILocator>(), Arg.Any<string>(), Arg.Any<string>()).Returns(async call =>
             {
@@ -210,11 +225,11 @@ namespace MainCore.Test
                 await browser.Received(1).CloseNewTab();
                 return;
             }
-            Received.InOrder(() =>
-            {
-                browser.Navigate("https://example.com/dorf2.php?newdid=2");
-                browser.Navigate("https://example.com/build.php?id=39");
-            });
+            await browser.Received(1).Click(Arg.Any<ILocator>(), true, Arg.Any<string>());
+            await browser.DidNotReceive().OpenNewTab();
+            await browser.DidNotReceive().Navigate(Arg.Any<string>());
+            browser.CurrentPage.ShouldBe(mainPage);
+            mainPage.Url.ShouldBe("https://example.com/resources");
             var randomUnavailable = unavailable && firstTarget == 99;
             result.IsSuccess.ShouldBe(!randomUnavailable);
             (await page.EvaluateAsync<bool>("window.confirmed")).ShouldBe(!randomUnavailable);
@@ -243,7 +258,7 @@ namespace MainCore.Test
             task.Waves[0].CatapultTarget2.ShouldBe(secondTarget);
             (await page.EvaluateAsync<string[]>("waves.map(wave => wave.counts[7])")).ShouldBe(["20", "1"]);
             inputs.ShouldBe([
-                ("troop[t1]", "19"), ("troop[t3]", ""), ("troop[t8]", "20"), ("x", "-50"), ("y", "50"),
+                ("x", "-50"), ("y", "50"), ("troop[t1]", "19"), ("troop[t3]", ""), ("troop[t8]", "20"),
                 ("troop[t1]", "19"), ("troop[t3]", ""), ("troop[t8]", "1")
             ]);
         }

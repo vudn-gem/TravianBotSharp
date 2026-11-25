@@ -97,6 +97,33 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
+                <Border Style="{DynamicResource Box}">
+                    <StackPanel>
+                        <TextBlock Text="Evasion Settings" FontWeight="Bold" />
+                        <TextBlock Text="Trains the selected troop at maximum, then evades all available troops and Hero by Raid. Resource transfer is not yet executed."
+                                   TextWrapping="Wrap" />
+                        <CheckBox x:Name="EvasionEnable" Content="Enable evasion preparation" />
+                        <StackPanel IsEnabled="{Binding IsChecked, ElementName=EvasionEnable}">
+                            <uc:TroopSelectorUc x:Name="EvasionTrainTroop" Text="Train maximum (one troop type)" />
+                            <TextBlock Text="Send resources to village (None = disabled)" />
+                            <ComboBox x:Name="EvasionResourceVillage" DisplayMemberPath="Display" SelectedValuePath="VillageId" />
+                            <CheckBox x:Name="EvasionTroopEnable" Content="Evade troops (Attack: Raid)" />
+                            <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsChecked, ElementName=EvasionTroopEnable}">
+                                <Label Content="X:" />
+                                <TextBox x:Name="EvasionX" MinWidth="55" />
+                                <Label Content="Y:" />
+                                <TextBox x:Name="EvasionY" MinWidth="55" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Label Content="Prepare before arrival:" />
+                                <TextBox x:Name="EvasionLeadSeconds" MinWidth="55" />
+                                <Label Content="seconds" />
+                            </StackPanel>
+                        </StackPanel>
+                        <Button x:Name="TestEvasionButton" Content="Test Evasion (LIVE)"
+                                ToolTip="Uses saved settings. Trains and sends a real Raid without an incoming attack." />
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </ScrollViewer>
     </Grid>

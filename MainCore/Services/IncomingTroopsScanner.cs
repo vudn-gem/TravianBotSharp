@@ -18,14 +18,15 @@ namespace MainCore.Services
             {
                 using var context = contextFactory.CreateDbContext();
                 var notify = context.BooleanByName(accountId, AccountSettingEnums.EnableIncomingTroopsNotifications);
-                if (!notify)
+                var evasion = EvasionSettings.IsEnabled(context, accountId);
+                if (!notify && !evasion)
                 {
                     monitor.Reset(accountId);
                     taskManager.Remove<CheckIncomingTroopsTask.Task>(accountId);
                     return;
                 }
                 var session = monitor.TryBeginScan(accountId, scheduled);
-                taskManager.ScheduleIncomingScan(accountId, monitor.GetFallbackExecuteAt(accountId));
+                taskManager.ScheduleIncomingScan(accountId, monitor.GetFallbackExecuteAt(accountId, evasion));
                 if (!session.HasValue) return;
                 var result = await IncomingTroopsParser.Read(browser.CurrentPage);
                 cancellationToken.ThrowIfCancellationRequested();
@@ -42,7 +43,14 @@ namespace MainCore.Services
                         var counts = await IncomingTroopsParser.ReadCounts(browser.CurrentPage, village, cancellationToken);
                         if (counts.IsSuccess)
                         {
-                            monitor.Observe(accountId, session.Value, [counts.Value], dataService.AccountData);
+                            var changed = monitor.Observe(accountId, session.Value, [counts.Value], dataService.AccountData, notify);
+                            var villageId = new VillageId(village.Id);
+                            if (context.BooleanByName(villageId, VillageSettingEnums.EvasionEnable))
+                            {
+                                if (counts.Value.Attacks + (long)counts.Value.Raids > 0)
+                                    taskManager.ScheduleEvasionInspection(accountId, villageId, changed);
+                                else taskManager.RemoveEvasion(accountId, villageId, includeManualTests: false);
+                            }
                             browser.Logger.Information(
                                 "Incoming troops scanned: {VillageName}, {AttackCount} attacks, {RaidCount} raids",
                                 counts.Value.Name, counts.Value.Attacks, counts.Value.Raids);

@@ -19,7 +19,8 @@ namespace MainCore.Tasks
             public override bool CanStart(AppDbContext context) =>
                 context.BooleanByName(AccountId, AccountSettingEnums.EnableScheduledMonitoring) &&
                 (context.BooleanByName(AccountId, AccountSettingEnums.EnableReportNotifications) ||
-                 context.BooleanByName(AccountId, AccountSettingEnums.EnableIncomingTroopsNotifications));
+                 context.BooleanByName(AccountId, AccountSettingEnums.EnableIncomingTroopsNotifications) ||
+                 EvasionSettings.IsEnabled(context, AccountId));
         }
 
         public static DateTime NextRun(AppDbContext context, AccountId accountId)

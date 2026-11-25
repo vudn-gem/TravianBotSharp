@@ -64,5 +64,13 @@
         UpgradeTaskDelayMin,
         UpgradeTaskDelayMax,
         SpecialUpgradeMinimumMinutes,
+
+        EvasionEnable,
+        EvasionTrainTroop,
+        EvasionResourceVillage,
+        EvasionTroopEnable,
+        EvasionX,
+        EvasionY,
+        EvasionLeadSeconds,
     }
 }

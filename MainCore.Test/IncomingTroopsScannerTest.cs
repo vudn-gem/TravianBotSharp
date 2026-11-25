@@ -88,6 +88,32 @@ namespace MainCore.Test
         }
 
         [Fact]
+        public async Task EvasionScansWithoutNotificationsAndDeduplicatesVillageInspection()
+        {
+            using var context = new AppDbContext(_options);
+            context.AccountsSetting.Single().Value = 0;
+            context.Villages.Add(new Village { Id = 1, AccountId = 1, Name = "Origin" });
+            context.VillagesSetting.Add(new VillageSetting
+                { VillageId = 1, Setting = VillageSettingEnums.EvasionEnable, Value = 1 });
+            context.SaveChanges();
+            Snapshot("""[{"Id":1,"Name":"Origin","Coordinates":"","Attack":true}]""");
+            await _scanner.Scan(new(1), CancellationToken.None);
+            _outbox.GetNext(DateTime.UtcNow).ShouldBeNull();
+            _taskManager.GetTaskList(new(1)).OfType<MainCore.Tasks.InspectEvasionTask.Task>().Count().ShouldBe(1);
+            _taskManager.GetTaskList(new(1)).OfType<MainCore.Tasks.CheckIncomingTroopsTask.Task>()
+                .Single().ExecuteAt.ShouldBeInRange(DateTime.Now.AddSeconds(59), DateTime.Now.AddSeconds(61));
+
+            _clock.Seconds = 60;
+            await _scanner.Scan(new(1), CancellationToken.None);
+            _taskManager.GetTaskList(new(1)).OfType<MainCore.Tasks.InspectEvasionTask.Task>().Count().ShouldBe(1);
+
+            _clock.Seconds = 120;
+            Snapshot("""[{"Id":1,"Name":"Origin","Coordinates":"","Attack":false}]""");
+            await _scanner.Scan(new(1), CancellationToken.None);
+            _taskManager.GetTaskList(new(1)).OfType<MainCore.Tasks.InspectEvasionTask.Task>().ShouldBeEmpty();
+        }
+
+        [Fact]
         public async Task ThrottlesAttemptsAndPreservesStateAcrossInvalidSnapshot()
         {
             Snapshot("""[{"Id":1,"Name":"v","Coordinates":"","Attack":true}]""");

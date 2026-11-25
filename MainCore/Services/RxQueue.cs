@@ -46,7 +46,7 @@ namespace MainCore.Services
             var incomingTask = new CheckIncomingTroopsTask.Task(accountId);
             if (incomingTask.CanStart(context))
             {
-                taskManager.ScheduleIncomingScan(accountId, DateTime.Now.AddMinutes(10));
+                taskManager.ScheduleIncomingScan(accountId, DateTime.Now.AddMinutes(EvasionSettings.IsEnabled(context, accountId) ? 1 : 10));
             }
 
             var workTime = context.ByName(accountId, AccountSettingEnums.WorkTimeMin, AccountSettingEnums.WorkTimeMax);

@@ -11,7 +11,8 @@ namespace MainCore.Tasks
             protected override string TaskName => "Check incoming attack/raid";
 
             public override bool CanStart(AppDbContext context) =>
-                context.BooleanByName(AccountId, AccountSettingEnums.EnableIncomingTroopsNotifications);
+                context.BooleanByName(AccountId, AccountSettingEnums.EnableIncomingTroopsNotifications) ||
+                EvasionSettings.IsEnabled(context, AccountId);
         }
 
         // AccountTaskBehavior performs the scan after this task, just like other tasks.

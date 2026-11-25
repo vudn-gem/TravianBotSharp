@@ -45,6 +45,7 @@ namespace MainCore.UI.ViewModels
                 }
                 context.InitializeFarmOasisSettings();
                 context.InitializeConquestPlans();
+                context.InitializeEvasionTroopAttempts();
                 taskManager.RestoreConquests();
             }, RxSchedulers.TaskpoolScheduler);
 

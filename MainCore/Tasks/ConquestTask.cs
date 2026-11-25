@@ -85,42 +85,15 @@ namespace MainCore.Tasks
             if (!browser.IsInitialized || browser.CurrentPage.IsClosed)
                 return Stop.Error.WithError("Browser is not ready for the conquest attack.");
 
-            var baseUrl = browser.CurrentUrl;
-            var openResult = await browser.OpenNewTab();
-            if (openResult.IsFailed) return openResult;
-
-            var result = Result.Ok();
-            System.Threading.Tasks.Task<Result>? preparation = null;
-            try
+            return await RallyPointSendTroopsTab.Run(browser, task.VillageId, async _ =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 task.Status = "Preparing";
-                preparation = PrepareAndSend(task, baseUrl, cancellationToken);
-                result = await preparation.WaitAsync(cancellationToken);
-            }
-            finally
-            {
-                var closeResult = await browser.CloseNewTab();
-                if (closeResult.IsFailed)
-                {
-                    browser.Logger.Error("Could not close the conquest tab: {Errors}",
-                        string.Join(Environment.NewLine, closeResult.Errors.Select(x => x.Message)));
-                    if (result.IsSuccess) result = closeResult;
-                }
-                if (cancellationToken.IsCancellationRequested && preparation is not null)
-                {
-                    try { await preparation; }
-                    catch (Exception ex)
-                    {
-                        browser.Logger.Information("Conquest preparation ended after cancellation: {Message}", ex.Message);
-                    }
-                }
-            }
-
-            return result;
+                return await PrepareAndSend(task, cancellationToken);
+            }, cancellationToken);
         }
 
-        private async System.Threading.Tasks.Task<Result> PrepareAndSend(Task task, string baseUrl, CancellationToken cancellationToken)
+        private async System.Threading.Tasks.Task<Result> PrepareAndSend(Task task, CancellationToken cancellationToken)
         {
             if (task.Waves.Count is < 1 or > ConquestWave.MaxWaves)
                 return Stop.Error.WithError($"Wave Builder supports 1 to {ConquestWave.MaxWaves} waves.");
@@ -130,27 +103,8 @@ namespace MainCore.Tasks
                 if (validation.IsFailed) return Stop.Error.WithErrors(validation.Errors);
             }
 
-            var builder = new UriBuilder(baseUrl)
-            {
-                Path = "/village",
-                Query = $"newdid={task.VillageId.Value}",
-            };
-            var navigateResult = await browser.Navigate(builder.Uri.AbsoluteUri);
-            if (navigateResult.IsFailed) return navigateResult;
-
-            builder.Path = "/building";
-            builder.Query = "id=39";
-            navigateResult = await browser.Navigate(builder.Uri.AbsoluteUri);
-            if (navigateResult.IsFailed) return navigateResult;
-
             var page = browser.CurrentPage;
-            var sendTroopsTab = page.Locator(".contentNavi.subNavi a.tabItem[href*='tt=2']");
-            await sendTroopsTab.WaitForAsync();
-            if (await sendTroopsTab.CountAsync() != 1)
-                return Stop.Error.WithError("Rally Point Send troops tab is missing or ambiguous.");
-            await sendTroopsTab.ClickAsync();
             var preparedWaves = task.Waves.ToArray();
-            await page.Locator("#build .a2b form[action*='tt=2']:has(#troops)").WaitForAsync();
             for (var waveIndex = 0; waveIndex < task.Waves.Count; waveIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -167,13 +121,20 @@ namespace MainCore.Tasks
                 var fillResult = await FillWave(page, wave.Troops, task, waveIndex > 0, cancellationToken);
                 if (fillResult.IsFailed) return fillResult;
 
-                var sendButton = waveIndex > 0
-                    ? page.Locator("#troopSendForm #addAsWaveBtn")
-                    : page.Locator("#build .a2b form[action*='tt=2']:has(#troops) button[type='submit']");
-                if (await sendButton.CountAsync() != 1)
-                    return Stop.Error.WithError("The Rally Point troop form submit button is missing or ambiguous.");
-                await sendButton.ClickAsync();
-                await page.Locator("#troopSendForm #confirmSendTroops").WaitForAsync();
+                cancellationToken.ThrowIfCancellationRequested();
+                if (waveIndex == 0)
+                {
+                    var submitted = await RallyPointSendTroopsTab.Submit(page);
+                    if (submitted.IsFailed) return submitted;
+                }
+                else
+                {
+                    var sendButton = page.Locator("#troopSendForm #addAsWaveBtn");
+                    if (await sendButton.CountAsync() != 1)
+                        return Stop.Error.WithError("The Rally Point troop form submit button is missing or ambiguous.");
+                    await sendButton.ClickAsync();
+                    await page.Locator("#troopSendForm #confirmSendTroops").WaitForAsync();
+                }
                 var targetsResult = await SetCatapultTargets(page, waveIndex, wave);
                 if (targetsResult.IsFailed) return Stop.Error.WithErrors(targetsResult.Errors);
                 preparedWaves[waveIndex] = targetsResult.Value;
@@ -264,25 +225,9 @@ namespace MainCore.Tasks
         {
             var form = additionalWave
                 ? page.Locator("#troopSendForm")
-                : page.Locator("#build .a2b form[action*='tt=2']:has(#troops)");
+                : RallyPointSendTroopsTab.SendForm(page);
             if (await form.CountAsync() != 1)
                 return Stop.Error.WithError("Rally Point send-troops form is missing or ambiguous.");
-
-            foreach (var (amount, index) in troops.Select((amount, index) => (amount, index)))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var input = form.Locator($"input[name='troop[t{index + 1}]']");
-                var count = await input.CountAsync();
-                if (amount > 0 && count != 1)
-                    return Stop.Error.WithError($"Troop field t{index + 1} is unavailable for this village.");
-                if (count == 1 && await input.IsEnabledAsync())
-                {
-                    var filled = await FarmTargetTroopsParser.FillSendTroopInput(browser, input, amount);
-                    if (filled.IsFailed) return filled;
-                }
-                else if (amount > 0)
-                    return Stop.Error.WithError($"Troop field t{index + 1} is disabled for this village.");
-            }
 
             foreach (var (coordinate, name) in new[] { (task.TargetX, "x"), (task.TargetY, "y") })
             {
@@ -301,6 +246,22 @@ namespace MainCore.Tasks
                     var filled = await browser.Input(input, value);
                     if (filled.IsFailed) return filled;
                 }
+            }
+
+            foreach (var (amount, index) in troops.Select((amount, index) => (amount, index)))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var input = form.Locator($"input[name='troop[t{index + 1}]']");
+                var count = await input.CountAsync();
+                if (amount > 0 && count != 1)
+                    return Stop.Error.WithError($"Troop field t{index + 1} is unavailable for this village.");
+                if (count == 1 && await input.IsEnabledAsync())
+                {
+                    var filled = await FarmTargetTroopsParser.FillSendTroopInput(browser, input, amount);
+                    if (filled.IsFailed) return filled;
+                }
+                else if (amount > 0)
+                    return Stop.Error.WithError($"Troop field t{index + 1} is disabled for this village.");
             }
 
             if (additionalWave)
