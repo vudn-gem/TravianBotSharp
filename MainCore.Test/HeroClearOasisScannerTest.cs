@@ -65,7 +65,8 @@ namespace MainCore.Test
         [Fact]
         public async Task DoesNotSubmitWhenSendTroopInputFails()
         {
-            var outcome = await Run(90, 61, 50, 40, 0, 0, failSendInput: true);
+            var outcome = await Run(90, 61, 50, 40, 0, 0, failSendInput: true,
+                animalCount: 0, minAnimal: 1, raidSteppe: 1);
             try
             {
                 outcome.Result.IsFailed.ShouldBeTrue(outcome.Details);
@@ -211,6 +212,22 @@ namespace MainCore.Test
             outcome.Result.HasError<Stop>().ShouldBeTrue();
             outcome.Task.HeroReturnAt.ShouldBeNull();
             await outcome.Context.DisposeAsync();
+        }
+
+        [Fact]
+        public async Task DoesNotRewriteTroopsPrefilledBySimulation()
+        {
+            var outcome = await Run(90, 61, 50, 40, 0, 0, wrongPrefilledTroops: true);
+            try
+            {
+                outcome.Confirms.ShouldBe(0);
+                outcome.Result.HasError<Stop>().ShouldBeTrue(outcome.Details);
+                outcome.Details.ShouldContain("Army differs from simulation at t1");
+            }
+            finally
+            {
+                await outcome.Context.DisposeAsync();
+            }
         }
 
         [Fact]
@@ -472,13 +489,14 @@ namespace MainCore.Test
             int heroVillage = 2, bool failSendInput = false, int animalCount = 8, int minAnimal = 1,
             int raidSteppe = 0, bool allowAnimals = true, bool unexpectedRaidHero = false,
             int raidMarksmen = 0, int raidMarauders = 0, bool useTroop = true,
-            bool? clearAllowsAnimals = null, int clearLimit = 0)
+            bool? clearAllowsAnimals = null, int clearLimit = 0, bool wrongPrefilledTroops = false)
         {
             var context = await CreateContextAsync();
             var page = await context.NewPageAsync();
             page.SetDefaultTimeout(1500);
             var confirms = 0;
             var simulates = 0;
+            var simulatorSent = false;
             var sendInputs = new List<string>();
             var mainTabOpenedSendTroops = false;
             var mainTabFarmListNavigations = 0;
@@ -577,7 +595,9 @@ namespace MainCore.Test
                         <table id="troops"><tbody><tr>
                         {string.Concat(Enumerable.Range(1, missingHeroCell ? 10 : 11).Select(i => $"""
                             <td><img class="unit u{(i == 11 ? "hero" : (60 + i).ToString())}">
-                            <input name="troop[t{i}]" value="" {(heroOnly && i is 4 or 6 ? "disabled" : "")}>
+                            <input name="troop[t{i}]" value="{(simulatorSent
+                                ? (wrongPrefilledTroops && i == 1 ? army[i - 1] + 1 : army[i - 1]).ToString()
+                                : "")}" {(heroOnly && i is 4 or 6 ? "disabled" : "")}>
                             {(heroOnly && i is 4 or 6 ? "<span class='none'>0</span>" :
                                 $"<a>{(i == 11 ? (hero ? 1 : 0) : i == 6 ? availableMarauders : 10)}</a>")}</td>
                             """))}
@@ -700,13 +720,18 @@ namespace MainCore.Test
                         (await attacker.Locator($".troopUnits input[data-t='t{i}']").InputValueAsync())
                             .ShouldBe(army[i - 1] == 0 ? "" : army[i - 1].ToString());
                 }
+                if (id == "sendTroops") simulatorSent = true;
                 if (id == "ok")
                 {
-                    sendInputs.ShouldBe(Enumerable.Range(1, army.Length)
-                        .Where(i => army[i - 1] > 0).Select(i => $"troop[t{i}]"));
+                    sendInputs.ShouldBe(simulatorSent
+                        ? Enumerable.Empty<string>()
+                        : Enumerable.Range(1, army.Length)
+                            .Where(i => army[i - 1] > 0).Select(i => $"troop[t{i}]"));
                     for (var i = 1; i <= (missingHeroCell ? 10 : 11); i++)
                         (await currentPage.Locator($"#troops input[name='troop[t{i}]']").InputValueAsync())
-                            .ShouldBe(army[i - 1] == 0 ? "" : army[i - 1].ToString());
+                            .ShouldBe(simulatorSent
+                                ? (wrongPrefilledTroops && i == 1 ? army[i - 1] + 1 : army[i - 1]).ToString()
+                                : army[i - 1] == 0 ? "" : army[i - 1].ToString());
                 }
                 if (id == "confirmSendTroops") confirms++;
                 await locator.ClickAsync();

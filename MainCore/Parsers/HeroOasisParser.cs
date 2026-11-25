@@ -216,7 +216,8 @@ namespace MainCore.Parsers
 
         public static async Task<Result<bool>> PrepareSend(
             IChromeBrowser browser, HeroOasisSetting settings, VillageId owner,
-            string targetHref, CancellationToken cancellationToken, int[]? troopArmy = null)
+            string targetHref, CancellationToken cancellationToken, int[]? troopArmy = null,
+            bool simulationPrepared = false)
         {
             var troopOnly = troopArmy is not null;
             var page = browser.CurrentPage;
@@ -243,19 +244,27 @@ namespace MainCore.Parsers
             if (draft.Value.AvailableSteppeRiders < expected[3] ||
                 draft.Value.AvailableMarksmen < expected[4] || draft.Value.AvailableMarauders < expected[5])
                 return Result.Ok(false);
-            for (var i = 1; i <= 11; i++)
+            if (simulationPrepared)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var input = form.Locator($"#troops input[name='troop[t{i}]']");
-                if (troopOnly && i == 11 && await input.CountAsync() == 0) continue;
-                if (await input.CountAsync() != 1) return Result.Fail("Send troop input is missing.");
-                if (await input.IsDisabledAsync())
+                var composition = await ValidateComposition(form, "troop", expected);
+                if (composition.IsFailed) return Result.Fail(composition.Errors);
+            }
+            else
+            {
+                for (var i = 1; i <= 11; i++)
                 {
-                    if (expected[i - 1] != 0) return Result.Ok(false);
-                    continue;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var input = form.Locator($"#troops input[name='troop[t{i}]']");
+                    if (troopOnly && i == 11 && await input.CountAsync() == 0) continue;
+                    if (await input.CountAsync() != 1) return Result.Fail("Send troop input is missing.");
+                    if (await input.IsDisabledAsync())
+                    {
+                        if (expected[i - 1] != 0) return Result.Ok(false);
+                        continue;
+                    }
+                    var filled = await FarmTargetTroopsParser.FillSendTroopInput(browser, input, expected[i - 1]);
+                    if (filled.IsFailed) return Result.Fail(filled.Errors);
                 }
-                var filled = await FarmTargetTroopsParser.FillSendTroopInput(browser, input, expected[i - 1]);
-                if (filled.IsFailed) return Result.Fail(filled.Errors);
             }
             await form.Locator("input[name='eventType'][value='4']").CheckAsync();
             var redeploy = form.Locator("input[name='redeployHero']");

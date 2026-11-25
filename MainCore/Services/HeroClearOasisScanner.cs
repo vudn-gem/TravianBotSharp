@@ -103,6 +103,7 @@ namespace MainCore.Services
             var animalCount = animals.Value.Sum(x => x.Count);
             var troopOnly = settings.UseTroop && (animalCount == 0 || animalCount < settings.MinAnimal);
             int[]? troopArmy = null;
+            var simulationPrepared = false;
             if (troopOnly)
             {
                 if (troopSettings is null)
@@ -203,6 +204,7 @@ namespace MainCore.Services
 
                 opened = await browser.Click(page.Locator("#combatSimulator .resultActionWrapper #sendTroops"));
                 if (opened.IsFailed) return opened;
+                simulationPrepared = true;
                 ready = await browser.Wait(page.Locator("#build .a2b form[action*='tt=2'] #troops"));
                 if (ready.IsFailed) return ready;
             }
@@ -213,7 +215,8 @@ namespace MainCore.Services
                 if (!availableHero.Value)
                     return await HandleHeroUnavailable(task, target, "Hero is no longer in the village.");
             }
-            var send = await HeroOasisParser.PrepareSend(browser, settings, owner, target.Href, cancellationToken, troopArmy);
+            var send = await HeroOasisParser.PrepareSend(
+                browser, settings, owner, target.Href, cancellationToken, troopArmy, simulationPrepared);
             if (send.IsFailed)
             {
                 if (IsHeroUnavailable(send.Errors))
