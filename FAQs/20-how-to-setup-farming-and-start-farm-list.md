@@ -78,7 +78,7 @@ reading its information, before closing it, and after returning focus to the
 previous tab before processing another target.
 TBS applies changes through each target's context menu, rescans the farm-list
 element and confirms the changed state without reloading the farm page.
-Telegram `/check-oasis <account-id> <farm-list-id>` queues the same combined scan.
+Telegram `/check_oasis <account-id> <farm-list-id>` queues the same combined scan.
 
 Clear oasis also opens each target in a temporary tab to inspect animals and
 send the raid, then closes it before continuing on the farm list tab. Targets

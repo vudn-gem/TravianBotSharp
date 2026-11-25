@@ -62,45 +62,61 @@ namespace MainCore.Test
         [Fact]
         public async Task HelpAndQueriesExposeSavedIdsWithoutChangingQueue()
         {
-            var help = await Execute("/tbs-command");
-            foreach (var command in new[] { "/accounts", "/status", "/farm-lists", "/hero-farm", "/pause",
-                "/resume", "/start-farm", "/stop-farm" })
+            var help = await Execute("/tbs_command");
+            foreach (var command in new[] { "/tbs_command", "/accounts", "/status", "/farm_lists", "/hero_farm", "/pause",
+                "/resume", "/start_farm", "/stop_farm" })
                 help.ShouldContain(command);
             foreach (var command in new[] { "/active <account-id> <farm-list-id>", "/deactive <account-id> <farm-list-id>",
-                "/active-oasis <account-id> <farm-list-id>", "/deactive-oasis <account-id> <farm-list-id>",
-                "/check-oasis <account-id> <farm-list-id>" })
+                "/active_oasis <account-id> <farm-list-id>", "/deactive_oasis <account-id> <farm-list-id>",
+                "/check_oasis <account-id> <farm-list-id>" })
                 help.ShouldContain(command);
-            (await Execute("/tbs_command")).ShouldBe(help);
+            (await Execute("/tbs-command")).ShouldBe(help);
+            help.ShouldNotContain("/check-oasis");
             (await Execute("/accounts")).ShouldContain("1: one - Offline");
-            (await Execute("/farm-lists 1")).ShouldContain("10: home - Active");
-            (await Execute("/farm-lists 1")).ShouldNotContain("20: other");
+            (await Execute("/farm_lists 1")).ShouldContain("10: home - Active");
+            (await Execute("/farm_lists 1")).ShouldNotContain("20: other");
             (await Execute("/status 1")).ShouldContain("Tasks: 0");
             _manager.GetTaskList(new(1)).ShouldBeEmpty();
         }
 
         [Theory]
-        [InlineData("/hero-farm 1", "Usage:")]
-        [InlineData("/hero-farm 1 10 extra", "Usage:")]
+        [InlineData("/farm-lists", "/farm_lists")]
+        [InlineData("/active-oasis", "/active_oasis")]
+        [InlineData("/deactive-oasis", "/deactive_oasis")]
+        [InlineData("/check-oasis", "/check_oasis")]
+        [InlineData("/hero-farm", "/hero_farm")]
+        [InlineData("/start-farm", "/start_farm")]
+        [InlineData("/stop-farm", "/stop_farm")]
+        public async Task LegacyCommandsShowUnderscoreUsage(string legacy, string canonical)
+        {
+            var usage = await Execute(legacy);
+            usage.ShouldBe(await Execute(canonical));
+            usage.ShouldStartWith($"Usage: {canonical} ");
+        }
+
+        [Theory]
+        [InlineData("/hero_farm 1", "Usage:")]
+        [InlineData("/hero_farm 1 10 extra", "Usage:")]
         [InlineData("/pause nope", "positive integers")]
         [InlineData("/status -1", "positive integers")]
         [InlineData("/status 2147483648", "positive integers")]
         [InlineData("/status 999", "Account not found")]
-        [InlineData("/hero-farm 1 20", "does not belong")]
+        [InlineData("/hero_farm 1 20", "does not belong")]
         [InlineData("/restart 1", "Unknown command")]
         [InlineData("/active", "Usage:")]
         [InlineData("/deactive 1 10 extra", "Usage:")]
         [InlineData("/active 10", "Usage:")]
         [InlineData("/deactive 10", "Usage:")]
-        [InlineData("/active-oasis 10", "Usage:")]
-        [InlineData("/deactive-oasis 10", "Usage:")]
-        [InlineData("/active-oasis 1 -10", "positive integers")]
-        [InlineData("/deactive-oasis 1 2147483648", "positive integers")]
+        [InlineData("/active_oasis 10", "Usage:")]
+        [InlineData("/deactive_oasis 10", "Usage:")]
+        [InlineData("/active_oasis 1 -10", "positive integers")]
+        [InlineData("/deactive_oasis 1 2147483648", "positive integers")]
         [InlineData("/active nope 10", "positive integers")]
         [InlineData("/deactive 1 999", "Farm list not found")]
-        [InlineData("/active-oasis 1 999", "Farm list not found")]
+        [InlineData("/active_oasis 1 999", "Farm list not found")]
         [InlineData("/active 999 10", "Account not found")]
-        [InlineData("/check-oasis 1", "Usage:")]
-        [InlineData("/check-oasis 1 nope", "positive integers")]
+        [InlineData("/check_oasis 1", "Usage:")]
+        [InlineData("/check_oasis 1 nope", "positive integers")]
         public async Task RejectsInvalidCommandsWithoutQueueing(string command, string expected)
         {
             (await Execute(command)).ShouldContain(expected);
@@ -111,15 +127,15 @@ namespace MainCore.Test
         [Fact]
         public async Task HeroUsesSavedSettingsAndRejectsDuplicateAndInvalidSettings()
         {
-            (await Execute("/hero-farm 1 10")).ShouldContain("Queued Hero clear oasis");
+            (await Execute("/hero_farm 1 10")).ShouldContain("Queued Hero clear oasis");
             _manager.GetTaskList(new(1)).OfType<HeroClearFarmOasisTask.Task>().Single().FarmId.ShouldBe(new FarmId(10));
-            (await Execute("/hero_farm 1 10")).ShouldContain("already exists");
+            (await Execute("/hero-farm 1 10")).ShouldContain("already exists");
             _manager.GetTaskList(new(1)).Count.ShouldBe(1);
             _manager.Remove<HeroClearFarmOasisTask.Task>(new(1));
             using var context = new AppDbContext(_options);
             context.HeroOasisSettings.Single().MinHeroHealth = 101;
             context.SaveChanges();
-            (await Execute("/hero-farm 1 10")).ShouldContain("Invalid saved hero settings");
+            (await Execute("/hero_farm 1 10")).ShouldContain("Invalid saved hero settings");
             _manager.GetTaskList(new(1)).ShouldBeEmpty();
         }
 
@@ -130,16 +146,16 @@ namespace MainCore.Test
             context.HeroOasisSettings.Single().UseTroop = true;
             context.FarmOasisSettings.Add(new FarmOasisSetting { FarmId = 20 });
             context.SaveChanges();
-            (await Execute("/hero-farm 1 10")).ShouldContain("Invalid saved Clear oasis settings");
+            (await Execute("/hero_farm 1 10")).ShouldContain("Invalid saved Clear oasis settings");
             _manager.GetTaskList(new(1)).ShouldBeEmpty();
             var clear = new FarmOasisSetting { FarmId = 10, SafetyFactor = 0 };
             context.FarmOasisSettings.Add(clear);
             context.SaveChanges();
-            (await Execute("/hero-farm 1 10")).ShouldContain("Invalid saved Clear oasis settings");
+            (await Execute("/hero_farm 1 10")).ShouldContain("Invalid saved Clear oasis settings");
             _manager.GetTaskList(new(1)).ShouldBeEmpty();
             clear.SafetyFactor = 2.5m;
             context.SaveChanges();
-            (await Execute("/hero-farm 1 10")).ShouldContain("Queued Hero clear oasis");
+            (await Execute("/hero_farm 1 10")).ShouldContain("Queued Hero clear oasis");
         }
 
         [Fact]
@@ -186,7 +202,7 @@ namespace MainCore.Test
             task.AccountId.ShouldBe(new AccountId(2));
             task.FarmId.ShouldBe(new FarmId(20));
             task.Activate.ShouldBe(activate);
-            task.Synchronize.ShouldBe(command.Replace('_', '-') == "/check-oasis");
+            task.Synchronize.ShouldBe(command.Replace('-', '_') == "/check_oasis");
             var scheduled = task.ExecuteAt = DateTime.Now.AddHours(1);
             (await Execute($"{command} 2 20")).ShouldContain("already queued");
             task.ExecuteAt.ShouldBe(scheduled);
@@ -199,9 +215,9 @@ namespace MainCore.Test
         }
 
         [Theory]
-        [InlineData("/active-oasis")]
-        [InlineData("/deactive-oasis")]
-        [InlineData("/check-oasis")]
+        [InlineData("/active_oasis")]
+        [InlineData("/deactive_oasis")]
+        [InlineData("/check_oasis")]
         public async Task OasisCommandsRejectMissingSettingsAndTransitionStates(string command)
         {
             (await Execute($"{command} 1 10")).ShouldContain("Save Check oasis settings");
@@ -216,9 +232,9 @@ namespace MainCore.Test
         [Theory]
         [InlineData("/active")]
         [InlineData("/deactive")]
-        [InlineData("/active-oasis")]
-        [InlineData("/deactive-oasis")]
-        [InlineData("/check-oasis")]
+        [InlineData("/active_oasis")]
+        [InlineData("/deactive_oasis")]
+        [InlineData("/check_oasis")]
         public async Task FarmCommandsRejectAnotherAccountsFarmList(string command)
         {
             (await Execute($"{command} 1 20")).ShouldContain("Farm list not found for this account");
@@ -231,15 +247,15 @@ namespace MainCore.Test
         [Fact]
         public async Task FarmStartIsIdempotentAndStopDoesNotRemoveOtherTasks()
         {
-            (await Execute("/start-farm 1")).ShouldContain("Queued Start farm list");
+            (await Execute("/start_farm 1")).ShouldContain("Queued Start farm list");
             var farm = _manager.GetTaskList(new(1)).OfType<StartFarmListTask.Task>().Single();
             farm.ExecuteAt = DateTime.Now.AddHours(1);
             var scheduled = farm.ExecuteAt;
-            (await Execute("/start-farm 1")).ShouldContain("already queued");
+            (await Execute("/start_farm 1")).ShouldContain("already queued");
             farm.ExecuteAt.ShouldBe(scheduled);
             _manager.Add(new StartAdventureTask.Task(new(1)));
             _manager.Add(new StartFarmListTask.Task(new(2)));
-            (await Execute("/stop-farm 1")).ShouldContain("Removed Start farm list");
+            (await Execute("/stop_farm 1")).ShouldContain("Removed Start farm list");
             _manager.GetTaskList(new(1)).Single().ShouldBeOfType<StartAdventureTask.Task>();
             _manager.GetTaskList(new(2)).Single().ShouldBeOfType<StartFarmListTask.Task>();
         }
@@ -249,13 +265,13 @@ namespace MainCore.Test
         {
             using var context = new AppDbContext(_options);
             context.FarmLists.Where(x => x.AccountId == 1).ExecuteUpdate(x => x.SetProperty(f => f.IsActive, false));
-            (await Execute("/start-farm 1")).ShouldContain("No active farm lists");
+            (await Execute("/start_farm 1")).ShouldContain("No active farm lists");
             context.AccountsSetting.Add(new AccountSetting
             {
                 AccountId = 1, Setting = AccountSettingEnums.UseStartAllButton, Value = 1,
             });
             context.SaveChanges();
-            (await Execute("/start-farm 1")).ShouldContain("Queued Start farm list");
+            (await Execute("/start_farm 1")).ShouldContain("Queued Start farm list");
         }
 
         [Fact]
@@ -272,7 +288,7 @@ namespace MainCore.Test
             _manager.GetTaskList(id).Count.ShouldBe(1);
             _manager.SetStatus(id, StatusEnums.Stopping);
             (await Execute("/resume 1")).ShouldContain("Wait and try again");
-            (await Execute("/start-farm 1")).ShouldContain("Wait and try again");
+            (await Execute("/start_farm 1")).ShouldContain("Wait and try again");
         }
 
         [Fact]
@@ -304,7 +320,7 @@ namespace MainCore.Test
         [InlineData("edited")]
         public async Task IgnoresUnauthorizedOrUnsupportedMessages(string scenario)
         {
-            var update = Update(1, "/start-farm 1");
+            var update = Update(1, "/start_farm 1");
             var credentials = Credentials;
             switch (scenario)
             {
@@ -325,13 +341,13 @@ namespace MainCore.Test
         [Fact]
         public async Task CursorSurvivesRestartAndPreventsCommandReplay()
         {
-            await _receiver.Process(Credentials, Update(1, "/start-farm 1"), CancellationToken.None);
-            await Execute("/stop-farm 1");
+            await _receiver.Process(Credentials, Update(1, "/start_farm 1"), CancellationToken.None);
+            await Execute("/stop_farm 1");
             var restored = new TelegramCommandCursorStore(Path.Combine(_directory, "cursor.json"));
             restored.Load(Credentials).ShouldBe(2);
             var receiver = new TelegramCommandReceiver(restored, _dispatcher, _sender, TimeProvider.System,
                 Substitute.For<Serilog.ILogger>());
-            await receiver.Process(Credentials, Update(1, "/start-farm 1"), CancellationToken.None);
+            await receiver.Process(Credentials, Update(1, "/start_farm 1"), CancellationToken.None);
             _manager.GetTaskList(new(1)).ShouldBeEmpty();
             _http.Bodies.Count.ShouldBe(1);
         }
@@ -340,9 +356,9 @@ namespace MainCore.Test
         public async Task ClaimsCommandBeforeExecutionAndDoesNotReplayWhenReplyFails()
         {
             _http.Fail = true;
-            await _receiver.Process(Credentials, Update(1, "/start-farm 1"), CancellationToken.None);
-            await Execute("/stop-farm 1");
-            await _receiver.Process(Credentials, Update(1, "/start-farm 1"), CancellationToken.None);
+            await _receiver.Process(Credentials, Update(1, "/start_farm 1"), CancellationToken.None);
+            await Execute("/stop_farm 1");
+            await _receiver.Process(Credentials, Update(1, "/start_farm 1"), CancellationToken.None);
             _manager.GetTaskList(new(1)).ShouldBeEmpty();
             _cursors.Load(Credentials).ShouldBe(2);
         }
@@ -350,7 +366,7 @@ namespace MainCore.Test
         [Fact]
         public async Task OldCommandsAreRejectedWithReply()
         {
-            var update = Update(1, "/start-farm 1");
+            var update = Update(1, "/start_farm 1");
             update.Message!.Date -= 121;
             await _receiver.Process(Credentials, update, CancellationToken.None);
             _manager.GetTaskList(new(1)).ShouldBeEmpty();
@@ -363,7 +379,7 @@ namespace MainCore.Test
             var path = Path.Combine(_directory, "cursor.json.tmp");
             Directory.CreateDirectory(path);
             await Should.ThrowAsync<UnauthorizedAccessException>(() =>
-                _receiver.Process(Credentials, Update(1, "/start-farm 1"), CancellationToken.None));
+                _receiver.Process(Credentials, Update(1, "/start_farm 1"), CancellationToken.None));
             _manager.GetTaskList(new(1)).ShouldBeEmpty();
         }
 
@@ -390,10 +406,10 @@ namespace MainCore.Test
         [Fact]
         public async Task NewSessionDiscardsPendingCommandsAndAcceptsOnlyNewUpdates()
         {
-            _receiver.BeginSession(Credentials, [Update(99, "/start-farm 1")]);
-            await _receiver.Process(Credentials, Update(99, "/start-farm 1"), CancellationToken.None);
+            _receiver.BeginSession(Credentials, [Update(99, "/start_farm 1")]);
+            await _receiver.Process(Credentials, Update(99, "/start_farm 1"), CancellationToken.None);
             _manager.GetTaskList(new(1)).ShouldBeEmpty();
-            await _receiver.Process(Credentials, Update(100, "/start-farm 1"), CancellationToken.None);
+            await _receiver.Process(Credentials, Update(100, "/start_farm 1"), CancellationToken.None);
             _manager.GetTaskList(new(1)).Single().ShouldBeOfType<StartFarmListTask.Task>();
             _cursors.Load(Credentials).ShouldBe(101);
         }
@@ -403,7 +419,7 @@ namespace MainCore.Test
         {
             File.WriteAllText(Path.Combine(_directory, "cursor.json"), "invalid json");
             await Should.ThrowAsync<JsonException>(() =>
-                _receiver.Process(Credentials, Update(1, "/start-farm 1"), CancellationToken.None));
+                _receiver.Process(Credentials, Update(1, "/start_farm 1"), CancellationToken.None));
             _manager.GetTaskList(new(1)).ShouldBeEmpty();
         }
 

@@ -17,9 +17,9 @@ namespace MainCore.Test
         {
             var handler = new StubHandler("""
                 {"ok":true,"result":[
-                    {"update_id":42,"message":{"date":1794902400,"text":"/hero-farm 1 10",
+                    {"update_id":42,"message":{"date":1794902400,"text":"/hero_farm 1 10",
                     "chat":{"id":456,"type":"private"},"from":{"id":456,"is_bot":false}}},
-                    {"update_id":43,"edited_message":{"text":"/start-farm 1"}}
+                    {"update_id":43,"edited_message":{"text":"/start_farm 1"}}
                 ]}
                 """);
             using var client = new TelegramCommandClient(new HttpClient(handler));
@@ -29,7 +29,7 @@ namespace MainCore.Test
             batch.Updates.Count.ShouldBe(2);
             batch.Updates[0].Id.ShouldBe(42);
             batch.Updates[0].Message!.IsAuthorized(Credentials).ShouldBeTrue();
-            batch.Updates[0].Message!.Text.ShouldBe("/hero-farm 1 10");
+            batch.Updates[0].Message!.Text.ShouldBe("/hero_farm 1 10");
             batch.Updates[1].Message.ShouldBeNull();
             handler.Path.ShouldEndWith("/getUpdates");
             using var body = JsonDocument.Parse(handler.Body);
@@ -74,7 +74,7 @@ namespace MainCore.Test
 
         [Theory]
         [InlineData("""{"ok":true,"result":[null]}""")]
-        [InlineData("""{"ok":true,"result":[{"message":{"text":"/start-farm 1"}}]}""")]
+        [InlineData("""{"ok":true,"result":[{"message":{"text":"/start_farm 1"}}]}""")]
         [InlineData("""{"ok":true}""")]
         [InlineData("null")]
         public async Task RejectsMalformedUpdates(string json)

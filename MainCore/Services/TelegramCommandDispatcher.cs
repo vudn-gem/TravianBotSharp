@@ -12,45 +12,45 @@ namespace MainCore.Services
 
         private static readonly Command[] Commands =
         [
-            new("tbs-command", 0, "/tbs-command", "Show available commands."),
+            new("tbs_command", 0, "/tbs_command", "Show available commands."),
             new("accounts", 0, "/accounts", "List account IDs and status."),
             new("status", 1, "/status <account-id>", "Show status and queued tasks."),
-            new("farm-lists", 1, "/farm-lists <account-id>", "List saved farm list IDs and Active settings."),
+            new("farm_lists", 1, "/farm_lists <account-id>", "List saved farm list IDs and Active settings."),
             new("active", 2, "/active <account-id> <farm-list-id>", "Set the saved farm list Active (does not start farming)."),
             new("deactive", 2, "/deactive <account-id> <farm-list-id>", "Set the saved farm list Inactive."),
-            new("active-oasis", 2, "/active-oasis <account-id> <farm-list-id>", "Queue activation of safe disabled oasis targets using saved Check oasis settings."),
-            new("deactive-oasis", 2, "/deactive-oasis <account-id> <farm-list-id>", "Queue deactivation of unsafe active oasis targets using saved Check oasis settings."),
-            new("check-oasis", 2, "/check-oasis <account-id> <farm-list-id>", "Check all oasis targets: activate safe or empty targets and deactivate unsafe targets."),
-            new("hero-farm", 2, "/hero-farm <account-id> <farm-list-id>", "Queue Hero clear oasis using saved settings."),
+            new("active_oasis", 2, "/active_oasis <account-id> <farm-list-id>", "Queue activation of safe disabled oasis targets using saved Check oasis settings."),
+            new("deactive_oasis", 2, "/deactive_oasis <account-id> <farm-list-id>", "Queue deactivation of unsafe active oasis targets using saved Check oasis settings."),
+            new("check_oasis", 2, "/check_oasis <account-id> <farm-list-id>", "Check all oasis targets: activate safe or empty targets and deactivate unsafe targets."),
+            new("hero_farm", 2, "/hero_farm <account-id> <farm-list-id>", "Queue Hero clear oasis using saved settings."),
             new("pause", 1, "/pause <account-id>", "Pause an online account."),
             new("resume", 1, "/resume <account-id>", "Resume a paused account; does not log in an offline account."),
-            new("start-farm", 1, "/start-farm <account-id>", "Queue Start farm list using saved settings."),
-            new("stop-farm", 1, "/stop-farm <account-id>", "Remove Start farm list; an in-progress send may finish."),
+            new("start_farm", 1, "/start_farm <account-id>", "Queue Start farm list using saved settings."),
+            new("stop_farm", 1, "/stop_farm <account-id>", "Remove Start farm list; an in-progress send may finish."),
         ];
 
         public async Task<string> Execute(string text, CancellationToken cancellationToken)
         {
             var parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 0) return "Send /tbs-command for available commands.";
-            var name = parts[0].TrimStart('/').Replace('_', '-').ToLowerInvariant();
+            if (parts.Length == 0) return "Send /tbs_command for available commands.";
+            var name = parts[0].TrimStart('/').Replace('-', '_').ToLowerInvariant();
             var command = Commands.SingleOrDefault(x => x.Name == name);
             if (!parts[0].StartsWith('/') || command is null)
-                return "Unknown command. Send /tbs-command for available commands.";
+                return "Unknown command. Send /tbs_command for available commands.";
             if (parts.Length != command.Arguments + 1) return $"Usage: {command.Usage}";
-            if (command.Arguments == 0 && name == "tbs-command")
+            if (command.Arguments == 0 && name == "tbs_command")
                 return "[TBS] Commands\n" + string.Join("\n", Commands.Select(x => $"{x.Usage} - {x.Description}")) +
-                    "\nSend commands as plain text. Underscore aliases (such as /hero_farm) are also supported." +
-                    "\nUse /accounts, then /farm-lists <account-id> to find IDs. Queued tasks wait while paused/offline.";
+                    "\nSend commands as plain text." +
+                    "\nUse /accounts, then /farm_lists <account-id> to find IDs. Queued tasks wait while paused/offline.";
 
             using var context = contextFactory.CreateDbContext();
-            if (name is "active" or "deactive" or "active-oasis" or "deactive-oasis" or "check-oasis")
+            if (name is "active" or "deactive" or "active_oasis" or "deactive_oasis" or "check_oasis")
             {
                 if (!TryId(parts[1], out var ownerValue) || !TryId(parts[2], out var farmValue))
                     return $"Usage: {command.Usage}. IDs must be positive integers.";
                 if (!context.Accounts.Any(x => x.Id == ownerValue))
                     return "Account not found. Send /accounts.";
                 var farm = context.FarmLists.AsNoTracking().SingleOrDefault(x => x.Id == farmValue && x.AccountId == ownerValue);
-                if (farm is null) return "Farm list not found for this account. Send /farm-lists <account-id>.";
+                if (farm is null) return "Farm list not found for this account. Send /farm_lists <account-id>.";
                 cancellationToken.ThrowIfCancellationRequested();
                 var ownerId = new AccountId(farm.AccountId);
                 if (name is "active" or "deactive")
@@ -70,8 +70,8 @@ namespace MainCore.Services
                         return $"Account is {ownerQueue.Status}. Wait and try again.";
                     if (!context.FarmOasisSettings.Any(x => x.FarmId == farmValue))
                         return "Save Check oasis settings for this farm list in TBS first.";
-                    var activate = name == "active-oasis";
-                    var synchronize = name == "check-oasis";
+                    var activate = name == "active_oasis";
+                    var synchronize = name == "check_oasis";
                     var action = synchronize ? "synchronize all" : activate ? "activate safe disabled" : "deactivate unsafe active";
                     if (!taskManager.TryAdd(new CheckFarmTargetOasisTask.Task(ownerId, new FarmId(farmValue), activate, synchronize, farm.Name)))
                         return $"The {action} oasis check is already queued for farm list {farmValue}. Its schedule was not changed.";
@@ -91,7 +91,7 @@ namespace MainCore.Services
             if (!context.Accounts.Any(x => x.Id == accountValue)) return "Account not found. Send /accounts.";
             cancellationToken.ThrowIfCancellationRequested();
             var queue = taskManager.GetTaskQueue(accountId);
-            if (name == "farm-lists")
+            if (name == "farm_lists")
             {
                 var farms = context.FarmLists.AsNoTracking().Where(x => x.AccountId == accountValue).OrderBy(x => x.Id).ToList();
                 return farms.Count == 0 ? "No saved farm lists. Load farm lists in TBS first." :
@@ -122,22 +122,22 @@ namespace MainCore.Services
                         if (queue.Status != StatusEnums.Paused) return $"Cannot resume: account is {queue.Status}. Log in using TBS if offline.";
                         taskManager.SetStatus(accountId, StatusEnums.Online);
                         return $"Account {accountValue} resumed.";
-                    case "start-farm":
+                    case "start_farm":
                         if (!context.BooleanByName(accountId, AccountSettingEnums.UseStartAllButton) &&
                             !context.FarmLists.Any(x => x.AccountId == accountValue && x.IsActive))
                             return "No active farm lists and Start all is disabled. Save farming settings in TBS first.";
                         if (!taskManager.TryAdd(new StartFarmListTask.Task(accountId)))
                             return "Start farm list is already queued. Its schedule was not changed.";
                         return $"Queued Start farm list for account {accountValue}. Current status: {queue.Status}.";
-                    case "stop-farm":
+                    case "stop_farm":
                         var removed = queue.Tasks.RemoveAll(x => x is StartFarmListTask.Task);
                         rxQueue.Enqueue(new TasksModified(accountId));
                         return removed == 0 ? "No Start farm list task queued." :
                             "Removed Start farm list. A send already in progress may finish; raids already sent are not canceled.";
-                    case "hero-farm":
+                    case "hero_farm":
                         if (!TryId(parts[2], out var farmValue)) return $"Usage: {command.Usage}. IDs must be positive integers.";
                         if (!context.FarmLists.Any(x => x.Id == farmValue && x.AccountId == accountValue))
-                            return "Farm list does not belong to this account. Send /farm-lists <account-id>.";
+                            return "Farm list does not belong to this account. Send /farm_lists <account-id>.";
                         var settings = context.HeroOasisSettings.AsNoTracking().SingleOrDefault(x => x.FarmId == farmValue);
                         if (settings is null) return "Save Hero clear oasis settings for this farm list in TBS first.";
                         var validation = HeroOasisSettings.Validate(settings);
@@ -153,7 +153,7 @@ namespace MainCore.Services
                             ? $"Queued Hero clear oasis for account {accountValue}, farm list {farmValue}. Current status: {queue.Status}."
                             : "A Hero clear oasis task already exists for this account, or the farm list no longer exists.";
                     default:
-                        return "Unknown command. Send /tbs-command.";
+                        return "Unknown command. Send /tbs_command.";
                 }
             }
         }

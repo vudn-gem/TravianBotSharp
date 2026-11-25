@@ -36,7 +36,7 @@ namespace MainCore.Services
                             {
                                 receiver.BeginSession(credentials, batch.Updates);
                                 active = credentials;
-                                logger.Information("Telegram command receiver ready; pending messages were discarded. Send /tbs-command for help.");
+                                logger.Information("Telegram command receiver ready; pending messages were discarded. Send /tbs_command for help.");
                             }
                             else
                             {

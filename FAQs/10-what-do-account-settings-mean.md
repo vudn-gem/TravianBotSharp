@@ -189,26 +189,26 @@ receiver for each bot token and disable any webhook configured for that bot
 before enabling this feature. Polling conflicts and configuration errors appear
 in the TBS logs; TBS does not automatically delete an existing webhook.
 After enabling or restarting, allow a few seconds for the receiver to become
-ready, then send `/tbs-command` as plain text to see the available commands.
+ready, then send `/tbs_command` as plain text to see the available commands.
 
 | Command | Behavior |
 |---|---|
-| `/tbs-command` | Show this command list and argument syntax. |
+| `/tbs_command` | Show this command list and argument syntax. |
 | `/accounts` | List saved account IDs, names and statuses. |
 | `/status <account-id>` | Show account status, queue size and up to 20 queued tasks. |
-| `/farm-lists <account-id>` | List saved farm list IDs, names and Active flags. Load lists in TBS first. |
+| `/farm_lists <account-id>` | List saved farm list IDs, names and Active flags. Load lists in TBS first. |
 | `/active <account-id> <farm-list-id>` | Set the local farm list Active; does not start farming. |
 | `/deactive <account-id> <farm-list-id>` | Set the local farm list Inactive. |
-| `/active-oasis <account-id> <farm-list-id>` | Queue Check oasis to activate safe disabled oasis targets using saved Check oasis settings. |
-| `/deactive-oasis <account-id> <farm-list-id>` | Queue Check oasis to deactivate unsafe active oasis targets using saved Check oasis settings. |
-| `/check-oasis <account-id> <farm-list-id>` | Check all targets; activate safe or empty oasis and deactivate unsafe oasis using saved Check oasis settings. |
-| `/hero-farm <account-id> <farm-list-id>` | Queue Hero clear oasis with validated, saved settings. Only one hero-clear task per account is allowed. |
+| `/active_oasis <account-id> <farm-list-id>` | Queue Check oasis to activate safe disabled oasis targets using saved Check oasis settings. |
+| `/deactive_oasis <account-id> <farm-list-id>` | Queue Check oasis to deactivate unsafe active oasis targets using saved Check oasis settings. |
+| `/check_oasis <account-id> <farm-list-id>` | Check all targets; activate safe or empty oasis and deactivate unsafe oasis using saved Check oasis settings. |
+| `/hero_farm <account-id> <farm-list-id>` | Queue Hero clear oasis with validated, saved settings. Only one hero-clear task per account is allowed. |
 | `/pause <account-id>` | Pause an online account, requesting cancellation of its current task. |
 | `/resume <account-id>` | Resume a paused account. This does not open or log in an offline account. |
-| `/start-farm <account-id>` | Queue Start farm list. Requires an active list or Start all. Existing farm schedules are not changed. |
-| `/stop-farm <account-id>` | Remove Start farm list. A send in progress may finish; raids already sent continue in game. |
+| `/start_farm <account-id>` | Queue Start farm list. Requires an active list or Start all. Existing farm schedules are not changed. |
+| `/stop_farm <account-id>` | Remove Start farm list. A send in progress may finish; raids already sent continue in game. |
 
-Example: send `/accounts`, then `/farm-lists 1`, then `/hero-farm 1 10`.
+Example: send `/accounts`, then `/farm_lists 1`, then `/hero_farm 1 10`.
 The Active/Deactive and Check oasis commands require both account ID and farm list ID;
 TBS rejects lists not owned by that account. `/active` and `/deactive` set a fixed state rather
 than blindly toggling it and refresh the Farming list in the UI. They do not
@@ -218,9 +218,9 @@ Active oasis / Deactive oasis, including the saved allowed-animal and Safe anima
 rules. They do not blindly toggle every target or change the list's local Active
 flag. Repeating the same oasis command while its task is queued/running does
 not add another task or change its schedule.
-`/check-oasis` combines both oasis actions in one scan, regardless of each target's
-initial state. Empty oasis are safe and can be activated by both `/active-oasis`
-and `/check-oasis`. Non-empty oasis must contain only allowed animal types and
+`/check_oasis` combines both oasis actions in one scan, regardless of each target's
+initial state. Empty oasis are safe and can be activated by both `/active_oasis`
+and `/check_oasis`. Non-empty oasis must contain only allowed animal types and
 have a total animal count at or below Safe animal. Unknown or invalid data
 leaves the target unchanged and is logged.
 Task commands use the normal sequential account queue, not a second browser
@@ -229,9 +229,8 @@ Telegram replies distinguish queue acceptance from actual execution; they do not
 announce task completion. Account transition states reject control commands.
 The existing removal of Start farm list on sleep, logout and Restart is unchanged.
 
-Hyphenated commands are plain-text shortcuts. Telegram's native command menu
-does not support hyphens; underscore aliases such as `/tbs_command`,
-`/farm_lists` and `/hero_farm` are also accepted.
+Use underscores in command names, as shown above. The previous hyphenated
+forms are still accepted as plain-text shortcuts for compatibility.
 
 Commands pending at startup, re-enabling or a bot/chat change are discarded.
 Commands older than two minutes are rejected; send a fresh command after the
