@@ -4,6 +4,9 @@ using MainCore.Entities;
 using MainCore.Enums;
 using MainCore.Infrasturecture.Persistence;
 using MainCore.Services;
+using MainCore.Tasks;
+using MainCore.UI.ViewModels.Tabs;
+using MainCore.UI.ViewModels.Tabs.Villages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 
@@ -25,6 +28,7 @@ namespace MainCore.Test
         private readonly IJSHandle _tooltip = Substitute.For<IJSHandle>();
         private readonly Serilog.ILogger _logger = Substitute.For<Serilog.ILogger>();
         private readonly ReportNotificationOutbox _outbox;
+        private readonly IncomingTroopsMonitor _monitor;
         private readonly IncomingTroopsScanner _scanner;
         private readonly TaskManager _taskManager;
 
@@ -50,11 +54,11 @@ namespace MainCore.Test
                 .Returns(_tooltip);
             _tooltip.JsonValueAsync<string>().Returns("Incoming attacks: 1");
             _outbox = new ReportNotificationOutbox(Path.Combine(_directory, "outbox.db"));
-            var monitor = new IncomingTroopsMonitor(_outbox, _clock);
+            _monitor = new IncomingTroopsMonitor(_outbox, _clock);
             _taskManager = new TaskManager(new RxQueue(factory), factory, Substitute.For<Serilog.ILogger>(),
-                new ReportMonitor(_outbox, Substitute.For<Serilog.ILogger>()), monitor);
+                new ReportMonitor(_outbox, Substitute.For<Serilog.ILogger>()), _monitor);
             _scanner = new IncomingTroopsScanner(browser,
-                monitor, new DataService { AccountData = "test" }, factory, _taskManager);
+                _monitor, new DataService { AccountData = "test" }, factory, _taskManager);
         }
 
         private void Snapshot(string json) =>
@@ -101,7 +105,7 @@ namespace MainCore.Test
             _outbox.GetNext(DateTime.UtcNow).ShouldBeNull();
             _taskManager.GetTaskList(new(1)).OfType<MainCore.Tasks.InspectEvasionTask.Task>().Count().ShouldBe(1);
             _taskManager.GetTaskList(new(1)).OfType<MainCore.Tasks.CheckIncomingTroopsTask.Task>()
-                .Single().ExecuteAt.ShouldBeInRange(DateTime.Now.AddSeconds(59), DateTime.Now.AddSeconds(61));
+                .Single().ExecuteAt.ShouldBeInRange(DateTime.Now.AddSeconds(599), DateTime.Now.AddSeconds(601));
 
             _clock.Seconds = 60;
             await _scanner.Scan(new(1), CancellationToken.None);
@@ -111,6 +115,137 @@ namespace MainCore.Test
             Snapshot("""[{"Id":1,"Name":"Origin","Coordinates":"","Attack":false}]""");
             await _scanner.Scan(new(1), CancellationToken.None);
             _taskManager.GetTaskList(new(1)).OfType<MainCore.Tasks.InspectEvasionTask.Task>().ShouldBeEmpty();
+        }
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public async Task FeaturesShareScanAndFallbackButActIndependently(bool notify, bool evasion)
+        {
+            using var context = new AppDbContext(_options);
+            context.AccountsSetting.Single().Value = notify ? 1 : 0;
+            context.Villages.Add(new Village { Id = 1, AccountId = 1, Name = "Origin" });
+            context.VillagesSetting.Add(new VillageSetting
+                { VillageId = 1, Setting = VillageSettingEnums.EvasionEnable, Value = evasion ? 1 : 0 });
+            context.SaveChanges();
+            Snapshot("""[{"Id":1,"Name":"Origin","Coordinates":"","Attack":true}]""");
+
+            await _scanner.Scan(new(1), CancellationToken.None);
+            await _page.Received(notify || evasion ? 1 : 0)
+                .EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>());
+            (_outbox.GetNext(DateTime.UtcNow) is not null).ShouldBe(notify);
+            _taskManager.GetTaskList(new(1)).OfType<InspectEvasionTask.Task>().Count().ShouldBe(evasion ? 1 : 0);
+            var fallback = _taskManager.GetTaskList(new(1)).OfType<CheckIncomingTroopsTask.Task>().SingleOrDefault();
+            if (!notify && !evasion)
+            {
+                fallback.ShouldBeNull();
+                return;
+            }
+
+            fallback.ShouldNotBeNull();
+            fallback.ExecuteAt.ShouldBeInRange(DateTime.Now.AddSeconds(599), DateTime.Now.AddSeconds(601));
+            _clock.Seconds = 59;
+            await _scanner.Scan(new(1), CancellationToken.None);
+            await _page.Received(1).EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>());
+            fallback.ExecuteAt.ShouldBeInRange(DateTime.Now.AddSeconds(540), DateTime.Now.AddSeconds(542));
+            _clock.Seconds = 60;
+            await _scanner.Scan(new(1), CancellationToken.None);
+            await _page.Received(2).EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>());
+            fallback.ExecuteAt.ShouldBeInRange(DateTime.Now.AddSeconds(599), DateTime.Now.AddSeconds(601));
+            _clock.Seconds = 660;
+            var handler = new CheckIncomingTroopsTask.HandleBehavior();
+            (await handler.HandleAsync(fallback, CancellationToken.None)).IsSuccess.ShouldBeTrue();
+            await _scanner.Scan(new(1), CancellationToken.None);
+            await _page.Received(3).EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>());
+            _taskManager.GetTaskList(new(1)).OfType<CheckIncomingTroopsTask.Task>().Single().ShouldBeSameAs(fallback);
+            fallback.ExecuteAt.ShouldBeInRange(DateTime.Now.AddSeconds(599), DateTime.Now.AddSeconds(601));
+        }
+
+        [Fact]
+        public async Task ChangingNotificationSwitchPreservesEvasionBaseline()
+        {
+            using var context = new AppDbContext(_options);
+            context.Villages.Add(new Village { Id = 1, AccountId = 1, Name = "Origin" });
+            context.VillagesSetting.Add(new VillageSetting
+                { VillageId = 1, Setting = VillageSettingEnums.EvasionEnable, Value = 1 });
+            context.SaveChanges();
+            Snapshot("""[{"Id":1,"Name":"Origin","Coordinates":"","Attack":true}]""");
+            await _scanner.Scan(new(1), CancellationToken.None);
+            _outbox.Complete(_outbox.GetNext(DateTime.UtcNow)!.Id);
+            _taskManager.Remove(new(1), _taskManager.GetTaskList(new(1)).OfType<InspectEvasionTask.Task>().Single());
+
+            var reportMonitor = new ReportMonitor(_outbox, _logger);
+            var fallback = _taskManager.GetTaskList(new(1)).OfType<CheckIncomingTroopsTask.Task>().Single();
+            var executeAt = fallback.ExecuteAt;
+            context.AccountsSetting.Single().Value = 0;
+            context.SaveChanges();
+            context.TriggerTask(_taskManager, new(1),
+                new() { [AccountSettingEnums.EnableIncomingTroopsNotifications] = 0 }, reportMonitor, _monitor);
+            _clock.Seconds = 60;
+            await _scanner.Scan(new(1), CancellationToken.None);
+            _outbox.GetNext(DateTime.UtcNow).ShouldBeNull();
+            _taskManager.GetTaskList(new(1)).OfType<InspectEvasionTask.Task>().ShouldBeEmpty();
+
+            context.AccountsSetting.Single().Value = 1;
+            context.SaveChanges();
+            context.TriggerTask(_taskManager, new(1),
+                new() { [AccountSettingEnums.EnableIncomingTroopsNotifications] = 1 }, reportMonitor, _monitor);
+            fallback.ExecuteAt.ShouldBeInRange(executeAt.AddSeconds(-1), executeAt.AddSeconds(1));
+            _clock.Seconds = 120;
+            await _scanner.Scan(new(1), CancellationToken.None);
+            _outbox.GetNext(DateTime.UtcNow)!.Text.ShouldContain("Incoming attacks: 0 -> 1");
+            _taskManager.GetTaskList(new(1)).OfType<InspectEvasionTask.Task>().ShouldBeEmpty();
+        }
+
+        [Fact]
+        public async Task EnablingEvasionKeepsExistingFallbackAndAddsInspectionOnNextScan()
+        {
+            using var context = new AppDbContext(_options);
+            context.Villages.Add(new Village { Id = 1, AccountId = 1, Name = "Origin" });
+            context.VillagesSetting.Add(new VillageSetting
+                { VillageId = 1, Setting = VillageSettingEnums.EvasionEnable, Value = 0 });
+            context.SaveChanges();
+            Snapshot("""[{"Id":1,"Name":"Origin","Coordinates":"","Attack":true}]""");
+            await _scanner.Scan(new(1), CancellationToken.None);
+            _outbox.Complete(_outbox.GetNext(DateTime.UtcNow)!.Id);
+            var fallback = _taskManager.GetTaskList(new(1)).OfType<CheckIncomingTroopsTask.Task>().Single();
+            var executeAt = fallback.ExecuteAt;
+            context.VillagesSetting.Single().Value = 1;
+            context.SaveChanges();
+            context.TriggerTask(_taskManager, new(1), new(1),
+                new() { [VillageSettingEnums.EvasionEnable] = 1 });
+            fallback.ExecuteAt.ShouldBe(executeAt);
+
+            _clock.Seconds = 60;
+            await _scanner.Scan(new(1), CancellationToken.None);
+            _outbox.GetNext(DateTime.UtcNow).ShouldBeNull();
+            _taskManager.GetTaskList(new(1)).OfType<InspectEvasionTask.Task>().Count().ShouldBe(1);
+
+            var nextRun = fallback.ExecuteAt;
+            context.VillagesSetting.Single().Value = 0;
+            context.SaveChanges();
+            context.TriggerTask(_taskManager, new(1), new(1),
+                new() { [VillageSettingEnums.EvasionEnable] = 0 });
+            _taskManager.GetTaskList(new(1)).OfType<InspectEvasionTask.Task>().ShouldBeEmpty();
+            _taskManager.GetTaskList(new(1)).OfType<CheckIncomingTroopsTask.Task>().Single().ShouldBeSameAs(fallback);
+            fallback.ExecuteAt.ShouldBe(nextRun);
+        }
+
+        [Fact]
+        public void EnablingEvasionWithoutFallbackUsesNotificationTiming()
+        {
+            using var context = new AppDbContext(_options);
+            context.AccountsSetting.Single().Value = 0;
+            context.Villages.Add(new Village { Id = 1, AccountId = 1, Name = "Origin" });
+            context.VillagesSetting.Add(new VillageSetting
+                { VillageId = 1, Setting = VillageSettingEnums.EvasionEnable, Value = 1 });
+            context.SaveChanges();
+            context.TriggerTask(_taskManager, new(1), new(1),
+                new() { [VillageSettingEnums.EvasionEnable] = 1 });
+            _taskManager.GetTaskList(new(1)).OfType<CheckIncomingTroopsTask.Task>().Single().ExecuteAt
+                .ShouldBeInRange(DateTime.Now.AddSeconds(599), DateTime.Now.AddSeconds(601));
         }
 
         [Fact]

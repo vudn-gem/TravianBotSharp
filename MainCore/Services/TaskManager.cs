@@ -278,6 +278,16 @@ namespace MainCore.Services
             AddOrUpdate(new CheckIncomingTroopsTask.Task(accountId) { ExecuteAt = executeAt });
         }
 
+        public void EnsureIncomingScan(AccountId accountId)
+        {
+            var queue = GetTaskQueue(accountId);
+            lock (queue)
+            {
+                if (!queue.Tasks.OfType<CheckIncomingTroopsTask.Task>().Any())
+                    ScheduleIncomingScan(accountId, incomingTroopsMonitor.GetFallbackExecuteAt(accountId));
+            }
+        }
+
         public void ScheduleEvasionInspection(AccountId accountId, VillageId villageId)
         {
             AddOrUpdate(new InspectEvasionTask.Task(accountId, villageId) { ExpectIncoming = true });

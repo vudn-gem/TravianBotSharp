@@ -23,7 +23,7 @@ namespace MainCore.Test
                 if (HeroOasisParser.Query(uri, "newdid") == "2")
                     activeVillage = 2;
                 var shortcut = activeVillage == 2 ? """
-                    <a data-load-tooltip="quickLink" data-kind="shortcut" href="/build.php?gid=16&amp;tt=99">
+                    <a data-load-tooltip="quickLink" data-kind="shortcut" href="/building?id=16&amp;tt=99">
                     <svg class="RallyPointFarmList" width="20" height="20"></svg></a>
                     """ : "";
                 await route.FulfillAsync(new()
@@ -31,15 +31,15 @@ namespace MainCore.Test
                     ContentType = "text/html",
                     Body = $"""
                         <div id="sidebarBoxVillageList">
-                        <div class="listEntry village {(activeVillage == 2 ? "active" : "")}" data-did="2"
-                        onclick="location.href='/dorf2.php?newdid=2'">First village</div>
+                        <div class="listEntry village {(activeVillage == 2 ? "active" : "")}" data-did="2">
+                        <a data-kind="2" href="/village?newdid=2">First village</a></div>
                         <div class="listEntry village {(activeVillage == 3 ? "active" : "")}" data-did="3">Current village</div>
                         <div class="quickLinks">{shortcut}</div></div>
-                        {(uri.AbsolutePath == "/build.php" ? "<div id='rallyPointFarmList'><button class='startAllFarmLists'></button></div>" : "")}
+                        {(uri.AbsolutePath == "/building" ? "<div id='rallyPointFarmList'><button class='startAllFarmLists'></button></div>" : "")}
                         """
                 });
             });
-            await page.GotoAsync("https://example.com/dorf1.php?newdid=3");
+            await page.GotoAsync("https://example.com/resources?newdid=3");
             var browser = Substitute.For<IChromeBrowser>();
             browser.CurrentPage.Returns(page);
             browser.Logger.Returns(Substitute.For<Serilog.ILogger>());
@@ -125,14 +125,14 @@ namespace MainCore.Test
             var page = await context.NewPageAsync();
             var village = 2;
             const string shortcut = """
-                <a data-load-tooltip="quickLink" href="/build.php?gid=16&amp;tt=99">
+                <a data-load-tooltip="quickLink" href="/building?id=16&amp;tt=99">
                 <svg class="RallyPointFarmList" width="20" height="20"></svg></a>
                 """;
             await page.RouteAsync("https://example.com/**", async route =>
             {
                 var uri = new Uri(route.Request.Url);
                 if (HeroOasisParser.Query(uri, "newdid") == "2") village = 2;
-                else if (mode == "wrong-village" && uri.AbsolutePath == "/build.php") village = 3;
+                else if (mode == "wrong-village" && uri.AbsolutePath == "/building") village = 3;
                 var links = mode == "missing" ? "" : mode == "duplicate" ? shortcut + shortcut :
                     mode == "wrong-page" ? shortcut.Replace("<a ", "<a onclick='return false' ") : shortcut;
                 await route.FulfillAsync(new()
@@ -142,11 +142,11 @@ namespace MainCore.Test
                         <div id="sidebarBoxVillageList">
                         <div class="quickLinks">{links}</div>
                         <div class="listEntry village active" data-did="{village}"></div></div>
-                        {(uri.AbsolutePath == "/build.php" ? "<div id='rallyPointFarmList'>Farm List</div>" : "")}
+                        {(uri.AbsolutePath == "/building" ? "<div id='rallyPointFarmList'>Farm List</div>" : "")}
                         """
                 });
             });
-            await page.GotoAsync("https://example.com/dorf1.php");
+            await page.GotoAsync("https://example.com/resources");
             var logger = Substitute.For<Serilog.ILogger>();
             var browser = Substitute.For<IChromeBrowser>();
             browser.CurrentPage.Returns(page);
@@ -167,7 +167,7 @@ namespace MainCore.Test
                 await call.Arg<ILocator>().WaitForAsync();
                 return Result.Ok();
             });
-            const string fallbackUrl = "https://example.com/build.php?gid=16&tt=99&newdid=2";
+            const string fallbackUrl = "https://example.com/building?id=16&tt=99&newdid=2";
 
             var result = await FarmListNavigation.Open(browser, fallbackUrl, new VillageId(2));
 

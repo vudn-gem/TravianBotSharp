@@ -11,9 +11,13 @@ namespace MainCore.UI.ViewModels.Tabs
                 {
                     if (incoming == 0)
                     {
-                        incomingTroopsMonitor.Reset(accountId);
                         if (!EvasionSettings.IsEnabled(context, accountId))
+                        {
+                            incomingTroopsMonitor.Reset(accountId);
                             taskManager.Remove<CheckIncomingTroopsTask.Task>(accountId);
+                        }
+                        else
+                            incomingTroopsMonitor.ResetNotifications(accountId);
                     }
                     else if (!taskManager.IsExist<CheckIncomingTroopsTask.Task>(accountId))
                     {

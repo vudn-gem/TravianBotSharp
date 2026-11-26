@@ -652,7 +652,7 @@ namespace MainCore.Test
             await context.RouteAsync("https://example.com/**", async route =>
             {
                 var uri = new Uri(route.Request.Url);
-                if (uri.AbsolutePath == "/dorf1.php") switched = true;
+                if (uri.AbsolutePath == "/resources") switched = true;
                 var heroHud = $"""
                     <div id="topBarHeroWrapper">
                         <div id="topBarHero" class="heroV2">
@@ -670,7 +670,7 @@ namespace MainCore.Test
                     """;
                 var villages = $"""
                     <div id="sidebarBoxVillageList">
-                    <div class="listEntry village {(switched ? "active" : "")}" data-did="2"><a href="#" onclick="location.href='/dorf1.php?newdid=2'"><span class="name">Home</span></a></div>
+                    <div class="listEntry village {(switched ? "active" : "")}" data-did="2"><a href="#" onclick="location.href='/resources?newdid=2'"><span class="name">Home</span></a></div>
                     <div class="listEntry village {(switched ? "" : "active")}" data-did="3"><span class="name">Away</span></div>
                     </div>
                     """;

@@ -24,15 +24,15 @@
   within the inclusive range. It is off by default, with a 10-minute interval.
   Intervals saved in seconds by older versions are rounded up to whole minutes.
   Settings are saved per account. The first scan is scheduled after the interval
-  when the account starts or the feature and at least one notification are enabled; an already overdue scan
+  when the account starts or the feature and at least one eligible scan are enabled; an already overdue scan
   waits until the account is online. Changing the interval
   reschedules a waiting task; disabling removes it.
   Scans share the account queue and browser, so a running task, sleep, or pause
   can delay them. They do not run while the account is offline.
-  Each scheduled scan runs only if its corresponding Telegram notification
-  switch is enabled. If both switches are off, no scheduled task is queued.
-  Before scanning, it clicks the resource overview if currently on dorf2;
-  otherwise it clicks the village overview (dorf2), and waits for navigation.
+  Scheduled scans require report notifications, incoming notifications, or
+  evasion to be enabled. Before scanning, it clicks the resource overview
+  (`/resources`) if currently on the village overview (`/village`); otherwise
+  it clicks the village overview, and waits for navigation.
   If navigation fails, it logs a warning and scans the current page instead;
   its data may be stale.
   The lost-report switch can still trigger processing during a scheduled report
@@ -88,7 +88,9 @@ runs even when there is no other due task, in the same account queue; there is
 never more than one fallback task per account.
 The independent scheduled scan, when enabled, also reads incoming troops at its
 configured interval and is not subject to the 60-second task-triggered throttle.
-It runs only while the incoming-notification switch is enabled.
+Incoming scans also run when evasion is enabled for any village, even without
+Telegram notifications, using the same post-task and fallback timing. When both
+are enabled, a single scan can notify and schedule evasion.
 
 **Notify on sleep and wake up (Telegram)** queues a message when the account
 enters its scheduled sleep and after the browser has reopened. The sleep message

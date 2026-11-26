@@ -46,7 +46,7 @@ namespace MainCore.Test
             _factory = Substitute.For<IDbContextFactory<AppDbContext>>();
             _factory.CreateDbContext().Returns(_ => new AppDbContext(_options));
             _browser.CurrentPage.Returns(_page);
-            _browser.CurrentUrl.Returns("https://example.com/dorf1.php");
+            _browser.CurrentUrl.Returns("https://example.com/resources");
             _browser.Logger.Returns(_logger);
             _toDorf.HandleAsync(Arg.Any<ToDorfCommand.Command>(), Arg.Any<CancellationToken>()).Returns(Result.Ok());
             _page.EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>())
@@ -124,6 +124,31 @@ namespace MainCore.Test
             await _handler.HandleAsync(task, CancellationToken.None);
             await _page.Received(4).EvaluateAsync<JsonElement>(Arg.Any<string>(), Arg.Any<object>());
             _outbox.GetNext(DateTime.UtcNow)!.Text.ShouldContain("0 -> 2");
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task ScheduledEvasionSharesIncomingScanWithNotifications(bool notify)
+        {
+            Set(1, AccountSettingEnums.EnableScheduledMonitoring, 1);
+            Set(1, AccountSettingEnums.EnableIncomingTroopsNotifications, notify ? 1 : 0);
+            using (var context = new AppDbContext(_options))
+            {
+                context.Villages.Add(new Village { Id = 1, AccountId = 1, Name = "Village" });
+                context.VillagesSetting.Add(new VillageSetting
+                    { VillageId = 1, Setting = VillageSettingEnums.EvasionEnable, Value = 1 });
+                context.SaveChanges();
+            }
+            _incoming = true;
+            var result = await _handler.HandleAsync(new ScheduledMonitoringTask.Task(new(1)), CancellationToken.None);
+            result.IsSuccess.ShouldBeTrue();
+            await _page.Received(1).EvaluateAsync<JsonElement>(
+                Arg.Is<string>(script => script.Contains(".villageList")), Arg.Any<object>());
+            (_outbox.GetNext(DateTime.UtcNow) is not null).ShouldBe(notify);
+            _manager.GetTaskList(new(1)).OfType<InspectEvasionTask.Task>().Count().ShouldBe(1);
+            _manager.GetTaskList(new(1)).OfType<CheckIncomingTroopsTask.Task>().Single().ExecuteAt
+                .ShouldBeInRange(DateTime.Now.AddSeconds(599), DateTime.Now.AddSeconds(601));
         }
 
         [Fact]
@@ -205,9 +230,9 @@ namespace MainCore.Test
         }
 
         [Theory]
-        [InlineData("https://example.com/dorf2.php?foo=1", 1)]
-        [InlineData("https://example.com/dorf1.php", 2)]
-        [InlineData("https://example.com/report?next=dorf2.php", 2)]
+        [InlineData("https://example.com/village?foo=1", 1)]
+        [InlineData("https://example.com/resources", 2)]
+        [InlineData("https://example.com/report?next=/village", 2)]
         public async Task SwitchesOverviewBeforeScanning(string url, int destination)
         {
             Set(1, AccountSettingEnums.EnableScheduledMonitoring, 1);
@@ -276,10 +301,10 @@ namespace MainCore.Test
         }
 
         [Theory]
-        [InlineData("https://example.com/dorf2.php?foo=1", 1)]
-        [InlineData("https://example.com/dorf1.php", 2)]
-        [InlineData("https://example.com/report?next=dorf2.php", 2)]
-        public async Task OverviewNavigationClicksAndWaitsForPageLoad(string url, int destination)
+        [InlineData("https://example.com/village?foo=1", 1, "resources")]
+        [InlineData("https://example.com/resources", 2, "village")]
+        [InlineData("https://example.com/report?next=/village", 2, "village")]
+        public async Task OverviewNavigationClicksAndWaitsForPageLoad(string url, int destination, string expectedPath)
         {
             _browser.CurrentUrl.Returns(url);
             _browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(Result.Ok());
@@ -289,7 +314,35 @@ namespace MainCore.Test
                 .IsSuccess.ShouldBeTrue();
             _page.Received(1).Locator($"#navigation a[accesskey='{destination}']", Arg.Any<PageLocatorOptions>());
             await _browser.Received(1).Click(Arg.Any<ILocator>(), Arg.Any<string>());
-            await _browser.Received(1).WaitPageChanged($"dorf{destination}.php");
+            await _browser.Received(1).WaitPageChanged(expectedPath);
+        }
+
+        [Theory]
+        [InlineData("https://example.com/resources?newdid=2", 1)]
+        [InlineData("https://example.com/village?newdid=2", 2)]
+        [InlineData("https://example.com/resources?newdid=2", 0)]
+        [InlineData("https://example.com/village?newdid=2", 0)]
+        public async Task OverviewNavigationSkipsCurrentPage(string url, int destination)
+        {
+            _browser.CurrentUrl.Returns(url);
+            var handler = new ToDorfCommand.HandleBehavior(new ToDorfCommand(_browser));
+            (await handler.HandleAsync(new ToDorfCommand.Command(destination), CancellationToken.None))
+                .IsSuccess.ShouldBeTrue();
+            await _browser.DidNotReceive().Click(Arg.Any<ILocator>(), Arg.Any<string>());
+            await _browser.DidNotReceive().WaitPageChanged(Arg.Any<string>());
+        }
+
+        [Fact]
+        public async Task DefaultOverviewNavigationFromOtherPageOpensVillage()
+        {
+            _browser.CurrentUrl.Returns("https://example.com/report?next=/resources");
+            _browser.Click(Arg.Any<ILocator>(), Arg.Any<string>()).Returns(Result.Ok());
+            _browser.WaitPageChanged(Arg.Any<string>()).Returns(Result.Ok());
+            var handler = new ToDorfCommand.HandleBehavior(new ToDorfCommand(_browser));
+            (await handler.HandleAsync(new ToDorfCommand.Command(0), CancellationToken.None))
+                .IsSuccess.ShouldBeTrue();
+            _page.Received(1).Locator("#navigation a[accesskey='2']", Arg.Any<PageLocatorOptions>());
+            await _browser.Received(1).WaitPageChanged("village");
         }
 
         [Fact]

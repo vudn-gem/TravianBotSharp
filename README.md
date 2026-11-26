@@ -106,7 +106,9 @@ test has its own durable no-resend record, separate from incoming movements.
 Pressing the button again after a completed test creates a new live attempt.
 
 Enabling any village's evasion also enables incoming scans independently of
-Telegram alerts, with a one-minute fallback while the account is running.
+Telegram alerts, using the same post-task scans and 10-minute fallback as
+incoming Telegram alerts while the account is running. When both are enabled,
+each scan can both notify and schedule evasion.
 An increase in either attack or raid count queues inspection of the affected
 village; unchanged or decreasing counts do not reopen the overview. Inspection
 switches village through the existing task pipeline,

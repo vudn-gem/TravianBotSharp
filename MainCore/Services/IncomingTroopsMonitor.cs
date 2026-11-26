@@ -3,6 +3,8 @@ namespace MainCore.Services
     [RegisterSingleton<IncomingTroopsMonitor>]
     public sealed class IncomingTroopsMonitor(ReportNotificationOutbox outbox, TimeProvider timeProvider)
     {
+        public const int FallbackIntervalMinutes = 10;
+
         private readonly Lock _sync = new();
         private readonly Dictionary<AccountId, Session> _sessions = [];
         private readonly Dictionary<AccountId, long> _lastScans = [];
@@ -36,17 +38,24 @@ namespace MainCore.Services
             }
         }
 
-        public DateTime GetFallbackExecuteAt(AccountId accountId, bool evasion = false)
+        public DateTime GetFallbackExecuteAt(AccountId accountId)
         {
             lock (_sync)
             {
-                var remaining = TimeSpan.FromMinutes(evasion ? 1 : 10);
+                var remaining = TimeSpan.FromMinutes(FallbackIntervalMinutes);
                 if (_lastScans.TryGetValue(accountId, out var last))
                 {
                     remaining -= timeProvider.GetElapsedTime(last, timeProvider.GetTimestamp());
                 }
                 return timeProvider.GetLocalNow().DateTime.Add(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero);
             }
+        }
+
+        public void ResetNotifications(AccountId accountId)
+        {
+            lock (_sync)
+                if (_sessions.TryGetValue(accountId, out var session))
+                    session.Villages.Clear();
         }
 
         public void ResetEvasion(AccountId accountId, VillageId villageId)
@@ -73,7 +82,8 @@ namespace MainCore.Services
                         outbox.Enqueue(accountId,
                             $"[TBS] Incoming attack/raid\nAccount: {Limit(accountName, 200)}\nVillage: {Limit(village.Name, 200)} (ID {village.Id})\nCoordinates: {Limit(village.Coordinates, 60)}\nIncoming attacks: {previous.Attacks} -> {village.Attacks}\nIncoming raids: {previous.Raids} -> {village.Raids}\nDetected: {timeProvider.GetLocalNow():yyyy-MM-dd HH:mm:ss zzz}");
                     }
-                    session.Villages[village.Id] = (village.Attacks, village.Raids);
+                    if (notify)
+                        session.Villages[village.Id] = (village.Attacks, village.Raids);
                     if (trackEvasion)
                     {
                         var baseline = session.EvasionVillages.GetValueOrDefault(village.Id);

@@ -11,7 +11,7 @@ namespace MainCore.UI.ViewModels.Tabs.Villages
             {
                 taskManager.RemoveEvasion(accountId, villageId);
                 if (new CheckIncomingTroopsTask.Task(accountId).CanStart(context))
-                    taskManager.ScheduleIncomingScan(accountId, DateTime.Now);
+                    taskManager.EnsureIncomingScan(accountId);
                 else taskManager.Remove<CheckIncomingTroopsTask.Task>(accountId);
                 taskManager.UpdateScheduledMonitoring(accountId, context);
             }

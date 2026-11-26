@@ -26,7 +26,7 @@ namespace MainCore.Services
                     return;
                 }
                 var session = monitor.TryBeginScan(accountId, scheduled);
-                taskManager.ScheduleIncomingScan(accountId, monitor.GetFallbackExecuteAt(accountId, evasion));
+                taskManager.ScheduleIncomingScan(accountId, monitor.GetFallbackExecuteAt(accountId));
                 if (!session.HasValue) return;
                 var result = await IncomingTroopsParser.Read(browser.CurrentPage);
                 cancellationToken.ThrowIfCancellationRequested();

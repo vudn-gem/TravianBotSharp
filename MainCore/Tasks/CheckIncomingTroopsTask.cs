@@ -19,7 +19,7 @@ namespace MainCore.Tasks
         private static ValueTask<Result> HandleAsync(Task task, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            task.ExecuteAt = DateTime.Now.AddMinutes(10);
+            task.ExecuteAt = DateTime.Now.AddMinutes(IncomingTroopsMonitor.FallbackIntervalMinutes);
             return ValueTask.FromResult(Result.Ok());
         }
     }
