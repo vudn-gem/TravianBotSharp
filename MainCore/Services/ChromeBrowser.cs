@@ -146,7 +146,7 @@ namespace MainCore.Services
         public Task<Result> Click(ILocator locator, [CallerArgumentExpression(nameof(locator))] string? expression = null)
             => Click(locator, false, expression);
 
-        public async Task<Result> Click(ILocator locator, bool openInNewTab, [CallerArgumentExpression(nameof(locator))] string? expression = null)
+        public async Task<Result> Click(ILocator locator, bool openInNewTab, [CallerArgumentExpression(nameof(locator))] string? expression = null, bool activateTab = true)
         {
             if (!IsInitialized) return Stop.DriverNotReady;
             try
@@ -156,7 +156,7 @@ namespace MainCore.Services
                     var page = await CurrentPage.Context.RunAndWaitForPageAsync(
                         () => locator.ClickAsync(new() { Button = MouseButton.Middle }));
                     _newTabs.Add(page);
-                    await page.BringToFrontAsync();
+                    if (activateTab) await page.BringToFrontAsync();
                 }
                 else
                 {
@@ -256,14 +256,14 @@ namespace MainCore.Services
             return Result.Ok();
         }
 
-        public async Task<Result> CloseNewTab()
+        public async Task<Result> CloseNewTab(bool restoreFocus = true)
         {
             if (_newTabs.Count == 0)
                 return Stop.Error.WithError("There is no browser tab to close.");
             var page = _newTabs[^1];
             _newTabs.RemoveAt(_newTabs.Count - 1);
             await page.CloseAsync();
-            await CurrentPage.BringToFrontAsync();
+            if (restoreFocus) await CurrentPage.BringToFrontAsync();
             await DelayClick();
             return Result.Ok();
         }

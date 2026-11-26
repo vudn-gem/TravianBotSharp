@@ -13,7 +13,7 @@ namespace MainCore.Services
 
         Task<Result> Click(ILocator locator, [CallerArgumentExpression(nameof(locator))] string? expression = null);
 
-        Task<Result> Click(ILocator locator, bool openInNewTab, [CallerArgumentExpression(nameof(locator))] string? expression = null);
+        Task<Result> Click(ILocator locator, bool openInNewTab, [CallerArgumentExpression(nameof(locator))] string? expression = null, bool activateTab = true);
 
         Task DelayClick();
 
@@ -25,7 +25,7 @@ namespace MainCore.Services
 
         Task<Result> OpenNewTab();
 
-        Task<Result> CloseNewTab();
+        Task<Result> CloseNewTab(bool restoreFocus = true);
 
         Task<Result> Refresh();
 

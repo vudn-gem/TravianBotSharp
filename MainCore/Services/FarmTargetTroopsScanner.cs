@@ -91,7 +91,7 @@ namespace MainCore.Services
                 return Result.Fail("Target coordinates changed during scan.");
 
             var troops = await FarmTargetOasisTab.Run(browser, target.Href, link, page =>
-                InspectTarget(page, target.Href, allowedAnimals, safeAnimal, cancellationToken));
+                InspectTarget(page, target.Href, allowedAnimals, safeAnimal, cancellationToken), background: true);
             if (troops.IsFailed) return Result.Fail(troops.Errors);
 
             browser.Logger.Information("Farm target {SlotId} ({TargetName}): has troops {HasTroops}, safe {Safe}",

@@ -10,17 +10,22 @@ using MainCore.Models;
 using MainCore.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Playwright;
 
 namespace MainCore.Test
 {
     public sealed class ChromeBrowserTabTest
     {
         [Theory]
-        [InlineData(false, false)]
-        [InlineData(true, false)]
-        [InlineData(false, true)]
-        [InlineData(true, true)]
-        public async Task BuffersTargetTabLifecycleAndRestoresMainTab(bool generic, bool failInspection)
+        [InlineData(false, false, false)]
+        [InlineData(true, false, false)]
+        [InlineData(false, true, false)]
+        [InlineData(true, true, false)]
+        [InlineData(false, false, true)]
+        [InlineData(true, false, true)]
+        [InlineData(false, true, true)]
+        [InlineData(true, true, true)]
+        public async Task BuffersTargetTabLifecycleAndRestoresMainTab(bool generic, bool failInspection, bool background)
         {
             const int delay = 150;
             using var connection = new SqliteConnection("Data Source=:memory:");
@@ -61,36 +66,46 @@ namespace MainCore.Test
                 timer.ElapsedMilliseconds.ShouldBeGreaterThanOrEqualTo(delay);
                 browser.CurrentPage.ShouldBe(mainPage);
 
+                IPage? foregroundPage = null;
+                if (background)
+                {
+                    foregroundPage = await mainPage.Context.NewPageAsync();
+                    await foregroundPage.GotoAsync($"{origin}/other");
+                    await foregroundPage.BringToFrontAsync();
+                    (await foregroundPage.EvaluateAsync<bool>("document.hasFocus()")).ShouldBeTrue();
+                }
+
                 timer.Restart();
                 var inspected = false;
-                Task Inspect()
+                async Task Inspect()
                 {
                     inspected = true;
                     browser.CurrentPage.ShouldNotBe(mainPage);
                     timer.ElapsedMilliseconds.ShouldBeGreaterThanOrEqualTo(2 * delay);
+                    if (foregroundPage is not null)
+                        (await foregroundPage.EvaluateAsync<bool>("document.hasFocus()")).ShouldBeTrue();
                     timer.Restart();
                     if (failInspection) throw new InvalidOperationException("Inspection failed.");
-                    return Task.CompletedTask;
                 }
                 async Task Run()
                 {
                     if (generic)
                     {
-                        var result = await FarmTargetOasisTab.Run(browser, "/karte.php?x=1&y=2", link, async _ =>
+                        var result = await FarmTargetOasisTab.Run(browser, "/map?x=1&y=2", link, async _ =>
                         {
                             await Inspect();
                             return Result.Ok(true);
-                        });
+                        }, background);
                         result.IsSuccess.ShouldBeTrue();
                         result.Value.ShouldBeTrue();
                     }
                     else
                     {
-                        var result = await FarmTargetOasisTab.Run(browser, "/karte.php?x=1&y=2", link, async _ =>
+                        var result = await FarmTargetOasisTab.Run(browser, "/map?x=1&y=2", link, async _ =>
                         {
                             await Inspect();
                             return Result.Ok();
-                        });
+                        }, background);
                         result.IsSuccess.ShouldBeTrue();
                     }
                 }
@@ -100,12 +115,12 @@ namespace MainCore.Test
                     await Run();
 
                 inspected.ShouldBeTrue();
-                timer.ElapsedMilliseconds.ShouldBeGreaterThanOrEqualTo(2 * delay);
+                timer.ElapsedMilliseconds.ShouldBeGreaterThanOrEqualTo(delay);
                 browser.CurrentPage.ShouldBe(mainPage);
-                mainPage.Context.Pages.Count.ShouldBe(1);
+                mainPage.Context.Pages.Count.ShouldBe(background ? 2 : 1);
                 mainPage.Url.ShouldBe($"{origin}/farm");
                 (await mainPage.Locator("body").GetAttributeAsync("data-dialog")).ShouldBeNull();
-                (await mainPage.EvaluateAsync<bool>("document.hasFocus()")).ShouldBeTrue();
+                (await (foregroundPage ?? mainPage).EvaluateAsync<bool>("document.hasFocus()")).ShouldBeTrue();
             }
             finally
             {
@@ -133,10 +148,10 @@ namespace MainCore.Test
                 while (!string.IsNullOrEmpty(await reader.ReadLineAsync(cancellationToken)))
                 {
                 }
-                var body = request?.StartsWith("GET /karte.php", StringComparison.Ordinal) == true
+                var body = request?.StartsWith("GET /map", StringComparison.Ordinal) == true
                     ? """<div id="tileDetails" class="oasis">Troops</div>"""
                     : """
-                      <a href="/karte.php?x=1&y=2" onclick="document.body.dataset.dialog='opened';return false">Oasis</a>
+                      <a href="/map?x=1&y=2" onclick="document.body.dataset.dialog='opened';return false">Oasis</a>
                       """;
                 var response = Encoding.UTF8.GetBytes(
                     $"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {Encoding.UTF8.GetByteCount(body)}\r\nConnection: close\r\n\r\n{body}");

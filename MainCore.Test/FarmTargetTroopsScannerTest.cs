@@ -75,12 +75,12 @@ namespace MainCore.Test
                     $"<tr><td><img class='unit u31'></td><td class='val'>{troopCount}</td></tr>";
                 var map = $"""
                     <div id="tileDetails" class="oasis">
-                    <a data-centermap href="/karte.php?x=25&amp;y=184">Center map</a>
+                    <a data-centermap href="/map?x=25&amp;y=184">Center map</a>
                     <div id="map_details"><table id="troop_info"><tbody>{troops}</tbody></table>
                     <div><table id="troop_info" class="rep"><tr><td>No information</td></tr></table></div></div>
                     </div>
                     """;
-                if (url.AbsolutePath == "/karte.php")
+                if (url.AbsolutePath == "/map")
                 {
                     await route.FulfillAsync(new() { ContentType = "text/html", Body = map });
                     return;
@@ -90,7 +90,7 @@ namespace MainCore.Test
                     <div class="farmListHeader"><div data-list="6706"></div></div>
                     <table class="slots"><tbody><tr class="slot {{(disabled ? "disabled" : "")}}">
                     <td><input name="selectOne" data-slot-id="637157"></td>
-                    <td class="target"><a href="/karte.php?x=25&amp;y=184"
+                    <td class="target"><a href="/map?x=25&amp;y=184"
                     onclick="document.querySelector('#dialogContent').innerHTML=document.querySelector('#target-map').innerHTML;return false;">Oasis</a></td>
                     <td class="actions"><button class="menuButton" onclick="document.querySelector('#slot-menu-637157').hidden=false">⋯</button>
                     <div id="slot-menu-637157" class="menu" hidden>
@@ -117,7 +117,7 @@ namespace MainCore.Test
             IPage currentPage = page;
             browser.CurrentPage.Returns(_ => currentPage);
             browser.Logger.Returns(logger);
-            browser.Click(Arg.Any<ILocator>(), true, Arg.Any<string>()).Returns(async call =>
+            browser.Click(Arg.Any<ILocator>(), true, Arg.Any<string>(), false).Returns(async call =>
             {
                 var href = await ((ILocator)call[0]).GetAttributeAsync("href");
                 currentPage = await context.NewPageAsync();
@@ -132,7 +132,7 @@ namespace MainCore.Test
                 events.Add("buffer");
                 return Task.CompletedTask;
             });
-            browser.CloseNewTab().Returns(async _ =>
+            browser.CloseNewTab(false).Returns(async _ =>
             {
                 events.Add("close-check-tab");
                 if (currentPage != page) await currentPage.CloseAsync();
@@ -154,7 +154,7 @@ namespace MainCore.Test
                 var target = new Uri((string)call[0]);
                 if (currentPage == page) originNavigations++;
                 else if (target.AbsolutePath == "/farm") newTabFarmNavigations++;
-                else if (target.AbsolutePath == "/karte.php")
+                else if (target.AbsolutePath == "/map")
                 {
                     targetNavigations++;
                     events.Add("check-target");

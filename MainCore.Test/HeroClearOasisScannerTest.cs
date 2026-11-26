@@ -792,7 +792,7 @@ namespace MainCore.Test
                 await input.FillAsync((string)call[1]);
                 return Result.Ok();
             });
-            browser.Click(Arg.Any<ILocator>(), true, Arg.Any<string>()).Returns(async call =>
+            browser.Click(Arg.Any<ILocator>(), true, Arg.Any<string>(), true).Returns(async call =>
             {
                 var href = await ((ILocator)call[0]).GetAttributeAsync("href");
                 currentPage = await context.NewPageAsync();

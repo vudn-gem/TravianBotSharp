@@ -6,7 +6,8 @@ namespace MainCore.Services
             IChromeBrowser browser,
             string targetHref,
             ILocator targetLink,
-            Func<IPage, Task<Result>> action)
+            Func<IPage, Task<Result>> action,
+            bool background = false)
         {
             var farmPage = browser.CurrentPage;
             var current = new Uri(farmPage.Url);
@@ -17,7 +18,7 @@ namespace MainCore.Services
             Result closed = Result.Ok();
             try
             {
-                var opened = await browser.Click(targetLink, openInNewTab: true);
+                var opened = await browser.Click(targetLink, openInNewTab: true, activateTab: !background);
                 if (opened.IsFailed)
                     result = Result.Fail(opened.Errors);
                 else
@@ -36,7 +37,7 @@ namespace MainCore.Services
             finally
             {
                 if (browser.CurrentPage != farmPage)
-                    closed = await browser.CloseNewTab();
+                    closed = await browser.CloseNewTab(restoreFocus: !background);
             }
 
             if (closed.IsFailed)
@@ -48,7 +49,8 @@ namespace MainCore.Services
             IChromeBrowser browser,
             string targetHref,
             ILocator targetLink,
-            Func<IPage, Task<Result<T>>> action)
+            Func<IPage, Task<Result<T>>> action,
+            bool background = false)
         {
             var farmPage = browser.CurrentPage;
             var current = new Uri(farmPage.Url);
@@ -59,7 +61,7 @@ namespace MainCore.Services
             Result closed = Result.Ok();
             try
             {
-                var opened = await browser.Click(targetLink, openInNewTab: true);
+                var opened = await browser.Click(targetLink, openInNewTab: true, activateTab: !background);
                 if (opened.IsFailed)
                     result = Result.Fail(opened.Errors);
                 else
@@ -78,7 +80,7 @@ namespace MainCore.Services
             finally
             {
                 if (browser.CurrentPage != farmPage)
-                    closed = await browser.CloseNewTab();
+                    closed = await browser.CloseNewTab(restoreFocus: !background);
             }
 
             if (closed.IsFailed)

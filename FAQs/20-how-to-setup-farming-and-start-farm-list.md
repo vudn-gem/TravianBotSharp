@@ -74,8 +74,10 @@ not queue Start farming or send raids.
 Check oasis, Clear oasis and Hero clear oasis middle-click the target link to
 open a temporary tab without triggering the farm page's map dialog. They use
 the account's configured click delay range after opening the tab, before
-reading its information, before closing it, and after returning focus to the
-previous tab before processing another target.
+reading its information, and after closing it before processing another target.
+Active oasis, Deactive oasis and Check oasis do not
+bring either the temporary tab or the farm tab to the foreground, so they do
+not intentionally take focus from another window.
 TBS applies changes through each target's context menu, rescans the farm-list
 element and confirms the changed state without reloading the farm page.
 Telegram `/check_oasis <account-id> <farm-list-id>` queues the same combined scan.
